@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, JSON, String, Text, Uuid, func
+from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text, Uuid, UniqueConstraint, Index, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -69,9 +69,6 @@ class LineItem(Base):
     summary_method: Mapped[SummaryMethod] = mapped_column(
         Enum(SummaryMethod), nullable=False, default=SummaryMethod.sum
     )
-    applies_to_dimensions: Mapped[Optional[list]] = mapped_column(
-        JSON, nullable=True, default=list
-    )
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -82,4 +79,52 @@ class LineItem(Base):
 
     module: Mapped["Module"] = relationship(
         "Module", back_populates="line_items", lazy="selectin"
+    )
+    line_item_dimensions: Mapped[List["LineItemDimension"]] = relationship(
+        "LineItemDimension",
+        back_populates="line_item",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="LineItemDimension.sort_order",
+    )
+
+    @property
+    def applies_to_dimensions(self) -> List[uuid.UUID]:
+        return [lid.dimension_id for lid in self.line_item_dimensions]
+
+
+class LineItemDimension(Base):
+    __tablename__ = "line_item_dimensions"
+    __table_args__ = (
+        UniqueConstraint(
+            "line_item_id",
+            "dimension_id",
+            name="uq_line_item_dimensions_line_item_dimension",
+        ),
+        Index("ix_line_item_dimensions_dimension_id", "dimension_id"),
+        Index("ix_line_item_dimensions_line_item_id", "line_item_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, primary_key=True, default=uuid.uuid4
+    )
+    line_item_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("line_items.id", ondelete="CASCADE"), nullable=False
+    )
+    dimension_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("dimensions.id", ondelete="CASCADE"), nullable=False
+    )
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    line_item: Mapped["LineItem"] = relationship(
+        "LineItem", back_populates="line_item_dimensions", lazy="selectin"
+    )
+    dimension: Mapped["Dimension"] = relationship(
+        "Dimension", back_populates="line_item_dimensions", lazy="selectin"
     )

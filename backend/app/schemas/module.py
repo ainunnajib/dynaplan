@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Any, List, Optional
+from typing import List, Optional
 
 from pydantic import BaseModel
 
@@ -49,7 +49,7 @@ class LineItemCreate(BaseModel):
     format: LineItemFormat = LineItemFormat.number
     formula: Optional[str] = None
     summary_method: SummaryMethod = SummaryMethod.sum
-    applies_to_dimensions: Optional[List[Any]] = None
+    applies_to_dimensions: Optional[List[uuid.UUID]] = None
     sort_order: int = 0
 
 
@@ -58,7 +58,7 @@ class LineItemUpdate(BaseModel):
     format: Optional[LineItemFormat] = None
     formula: Optional[str] = None
     summary_method: Optional[SummaryMethod] = None
-    applies_to_dimensions: Optional[List[Any]] = None
+    applies_to_dimensions: Optional[List[uuid.UUID]] = None
     sort_order: Optional[int] = None
 
 
@@ -69,7 +69,7 @@ class LineItemResponse(BaseModel):
     format: LineItemFormat
     formula: Optional[str]
     summary_method: SummaryMethod
-    applies_to_dimensions: Optional[List[Any]]
+    applies_to_dimensions: Optional[List[uuid.UUID]]
     sort_order: int
     created_at: datetime
     updated_at: datetime

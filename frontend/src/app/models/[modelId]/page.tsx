@@ -80,6 +80,22 @@ export default async function ModelPage({ params }: PageProps) {
             </div>
             <div className="flex items-center gap-3">
               <Link
+                href={
+                  model
+                    ? `/workspaces/${model.workspace_id}/models/new`
+                    : "/workspaces"
+                }
+                className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
+              >
+                Create Model
+              </Link>
+              <Link
+                href={`/models/${modelId}/edit`}
+                className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
+              >
+                Edit Model
+              </Link>
+              <Link
                 href={`/models/${modelId}/blueprint`}
                 className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
               >

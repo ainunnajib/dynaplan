@@ -23,6 +23,7 @@ from app.services.module import (
     delete_module,
     get_line_item_by_id,
     get_module_by_id,
+    list_line_items_for_dimension,
     list_line_items_for_module,
     list_modules_for_model,
     update_line_item,
@@ -184,6 +185,18 @@ async def list_line_items_endpoint(
             detail="Module not found",
         )
     return await list_line_items_for_module(db, module_id=module_id)
+
+
+@router.get(
+    "/dimensions/{dimension_id}/line-items",
+    response_model=List[LineItemResponse],
+)
+async def list_line_items_for_dimension_endpoint(
+    dimension_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return await list_line_items_for_dimension(db, dimension_id=dimension_id)
 
 
 @router.patch(

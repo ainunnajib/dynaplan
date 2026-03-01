@@ -2,7 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import type { LineItem, Dimension, DimensionItem, CellValue } from "@/lib/api";
+import {
+  type LineItem,
+  type Dimension,
+  type DimensionItem,
+  type CellValue,
+  getLineItemDimensionIds,
+} from "@/lib/api";
 import { useCellData, type DimensionMember } from "@/hooks/useCellData";
 import EditableCell from "./EditableCell";
 import type { CellFormat } from "./CellFormatting";
@@ -48,7 +54,7 @@ function buildColumns(
 ): ColumnDef[] {
   const usedDimIds = new Set<string>();
   for (const li of lineItems) {
-    for (const dimId of li.applies_to_dimension_ids) {
+    for (const dimId of getLineItemDimensionIds(li)) {
       usedDimIds.add(dimId);
     }
   }

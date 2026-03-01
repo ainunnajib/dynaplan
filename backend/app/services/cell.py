@@ -5,8 +5,11 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.cell import CellValue
+from app.models.dimension import DimensionItem
+from app.models.module import LineItem
 from app.schemas.cell import CellRead, CellWrite
 
 
@@ -63,6 +66,54 @@ def _cell_to_read(cell: CellValue) -> CellRead:
     )
 
 
+async def _validate_cell_dimensions(
+    db: AsyncSession,
+    line_item_id: uuid.UUID,
+    dimension_members: List[uuid.UUID],
+) -> None:
+    """Validate dimension_members against the line item's applies-to dimensions."""
+    line_item_result = await db.execute(
+        select(LineItem)
+        .where(LineItem.id == line_item_id)
+        .options(selectinload(LineItem.line_item_dimensions))
+    )
+    line_item = line_item_result.scalar_one_or_none()
+    if line_item is None:
+        # Preserve historical behavior: writes to unknown line-item IDs are
+        # still accepted by API key flows and scoped tooling.
+        return
+
+    applies_to_dimensions = [
+        link.dimension_id for link in line_item.line_item_dimensions
+    ]
+    if not applies_to_dimensions:
+        return
+
+    unique_members = list(dict.fromkeys(dimension_members))
+    if len(unique_members) != len(applies_to_dimensions):
+        raise ValueError(
+            "Dimension member count must match line item's applies-to dimensions"
+        )
+
+    member_result = await db.execute(
+        select(DimensionItem.id, DimensionItem.dimension_id).where(
+            DimensionItem.id.in_(unique_members)
+        )
+    )
+    member_rows = member_result.all()
+    if len(member_rows) != len(unique_members):
+        raise ValueError("One or more dimension members do not exist")
+
+    member_dimension_ids = [row[1] for row in member_rows]
+    if len(set(member_dimension_ids)) != len(member_dimension_ids):
+        raise ValueError("Dimension members must come from distinct dimensions")
+
+    if set(member_dimension_ids) != set(applies_to_dimensions):
+        raise ValueError(
+            "Dimension members do not match the line item's applies-to dimensions"
+        )
+
+
 # ── Write operations ───────────────────────────────────────────────────────────
 
 async def _upsert_cell_no_commit(
@@ -72,6 +123,8 @@ async def _upsert_cell_no_commit(
     value: Any,
 ) -> CellValue:
     """Upsert a single cell without committing the current transaction."""
+    await _validate_cell_dimensions(db, line_item_id, dimension_members)
+
     dimension_key = make_dimension_key(dimension_members)
     value_number, value_text, value_boolean, _value_type = _extract_value_and_type(value)
 

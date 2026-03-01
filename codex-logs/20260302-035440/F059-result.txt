@@ -1,0 +1,20 @@
+Implemented F059 end-to-end: `LineItem.applies_to_dimensions` is now normalized through a junction table.
+
+**What changed**
+- Added `LineItemDimension` model (`line_item_id`, `dimension_id`, `sort_order`, UUID PK, unique/index constraints), removed JSON column persistence from `LineItem`, and kept API compatibility with a computed `applies_to_dimensions` property in [backend/app/models/module.py](/Users/ainunnajib/dynaplan/backend/app/models/module.py#L55).
+- Added reverse relationship on `Dimension` in [backend/app/models/dimension.py](/Users/ainunnajib/dynaplan/backend/app/models/dimension.py#L46).
+- Registered new model export in [backend/app/models/__init__.py](/Users/ainunnajib/dynaplan/backend/app/models/__init__.py#L6).
+- Refactored line-item CRUD to persist applies-to via junction rows (dedupe + sort order), plus eager loading with `selectinload`, in [backend/app/services/module.py](/Users/ainunnajib/dynaplan/backend/app/services/module.py#L76).
+- Added efficient query support and endpoint `GET /dimensions/{dimension_id}/line-items` in [backend/app/api/module.py](/Users/ainunnajib/dynaplan/backend/app/api/module.py#L190).
+- Updated module schemas to use `List[uuid.UUID]` for applies-to fields in [backend/app/schemas/module.py](/Users/ainunnajib/dynaplan/backend/app/schemas/module.py#L47).
+- Updated cell service to validate dimension members against applies-to dimensions (for existing line items), and mapped validation errors to 400 in [backend/app/services/cell.py](/Users/ainunnajib/dynaplan/backend/app/services/cell.py#L69) and [backend/app/api/cell.py](/Users/ainunnajib/dynaplan/backend/app/api/cell.py#L26).
+- Updated snapshot serialize/restore to use junction data in [backend/app/services/snapshot.py](/Users/ainunnajib/dynaplan/backend/app/services/snapshot.py#L74).
+- Added Alembic migration for JSON->junction migration and downgrade in [backend/alembic/versions/20260301_0001_f059_applies_to_normalization.py](/Users/ainunnajib/dynaplan/backend/alembic/versions/20260301_0001_f059_applies_to_normalization.py#L1).
+- Added F059 tests in [backend/tests/test_line_item_dimensions.py](/Users/ainunnajib/dynaplan/backend/tests/test_line_item_dimensions.py#L1).
+- Updated progress tracking in [claude-progress.txt](/Users/ainunnajib/dynaplan/claude-progress.txt#L3).
+
+**Required checks run**
+- `cd backend && .venv/bin/python -m pytest -x --tb=short -q` -> **1371 passed, 2 xfailed**
+- `cd frontend && bun tsc --noEmit` -> **passed**
+
+I left unrelated pre-existing workspace changes untouched.

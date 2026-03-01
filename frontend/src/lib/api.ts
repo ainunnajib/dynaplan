@@ -134,10 +134,17 @@ export interface LineItem {
   name: string;
   formula: string | null;
   format: LineItemFormat;
-  applies_to_dimension_ids: string[];
+  // Backend currently returns applies_to_dimensions.
+  // Keep legacy field for compatibility with older payloads.
+  applies_to_dimensions?: string[];
+  applies_to_dimension_ids?: string[];
   summary_method: "sum" | "average" | "min" | "max" | "none" | null;
   created_at: string;
   updated_at: string;
+}
+
+export function getLineItemDimensionIds(lineItem: LineItem): string[] {
+  return lineItem.applies_to_dimension_ids ?? lineItem.applies_to_dimensions ?? [];
 }
 
 export interface Dimension {

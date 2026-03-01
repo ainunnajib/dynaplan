@@ -54,7 +54,7 @@ export default function BlueprintTable({
             format: "number",
             formula: null,
             summary_method: "sum",
-            applies_to_dimension_ids: [],
+            applies_to_dimensions: [],
           }),
         }
       );

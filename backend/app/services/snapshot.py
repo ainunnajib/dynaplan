@@ -3,10 +3,11 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.cell import CellValue
 from app.models.dimension import Dimension, DimensionItem
-from app.models.module import LineItem, Module
+from app.models.module import LineItem, LineItemDimension, Module
 from app.models.snapshot import ModelSnapshot
 from app.models.version import Version
 from app.schemas.snapshot import (
@@ -76,7 +77,9 @@ async def _serialize_model(db: AsyncSession, model_id: uuid.UUID) -> Dict[str, A
     line_item_ids = []
     if mod_ids:
         li_result = await db.execute(
-            select(LineItem).where(LineItem.module_id.in_(mod_ids))
+            select(LineItem)
+            .where(LineItem.module_id.in_(mod_ids))
+            .options(selectinload(LineItem.line_item_dimensions))
         )
         line_items = li_result.scalars().all()
         for li in line_items:
@@ -88,7 +91,10 @@ async def _serialize_model(db: AsyncSession, model_id: uuid.UUID) -> Dict[str, A
                 "format": li.format.value,
                 "formula": li.formula,
                 "summary_method": li.summary_method.value,
-                "applies_to_dimensions": li.applies_to_dimensions,
+                "applies_to_dimensions": [
+                    str(dimension_id)
+                    for dimension_id in li.applies_to_dimensions
+                ],
                 "sort_order": li.sort_order,
             })
 
@@ -336,6 +342,7 @@ async def restore_snapshot(
 
     # Restore line items
     restored_lis = 0
+    restored_li_dimensions = 0
     for li in data.get("line_items", []):
         new_id = uuid.uuid4()
         id_map[li["id"]] = new_id
@@ -350,10 +357,25 @@ async def restore_snapshot(
             format=li.get("format", "number"),
             formula=li.get("formula"),
             summary_method=li.get("summary_method", "sum"),
-            applies_to_dimensions=li.get("applies_to_dimensions"),
             sort_order=li.get("sort_order", 0),
         )
         db.add(new_li)
+
+        for sort_order, old_dimension_id in enumerate(
+            li.get("applies_to_dimensions", [])
+        ):
+            new_dimension_id = id_map.get(str(old_dimension_id))
+            if new_dimension_id is None:
+                continue
+            db.add(
+                LineItemDimension(
+                    id=uuid.uuid4(),
+                    line_item_id=new_id,
+                    dimension_id=new_dimension_id,
+                    sort_order=sort_order,
+                )
+            )
+            restored_li_dimensions += 1
         restored_lis += 1
 
     await db.flush()
@@ -398,6 +420,7 @@ async def restore_snapshot(
             "dimension_items": restored_items,
             "modules": restored_modules,
             "line_items": restored_lis,
+            "line_item_dimensions": restored_li_dimensions,
             "cell_values": restored_cells,
             "versions": restored_versions,
         },

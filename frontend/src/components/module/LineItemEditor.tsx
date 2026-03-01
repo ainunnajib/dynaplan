@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, type HTMLAttributes, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { fetchApi } from "@/lib/api";
+import { fetchApi, getLineItemDimensionIds } from "@/lib/api";
 import type { LineItem, LineItemFormat, Dimension } from "@/lib/api";
 import FormulaInput from "./FormulaInput";
 import DimensionSelector from "./DimensionSelector";
@@ -49,7 +49,7 @@ export default function LineItemEditor({
     (lineItem.summary_method as SummaryMethod) ?? "sum"
   );
   const [appliesToIds, setAppliesToIds] = useState<string[]>(
-    lineItem.applies_to_dimension_ids
+    getLineItemDimensionIds(lineItem)
   );
 
   const [isSaving, setIsSaving] = useState(false);
@@ -98,7 +98,7 @@ export default function LineItemEditor({
             format: effectiveFormat,
             formula: effectiveFormula.trim() || null,
             summary_method: effectiveSummary === "none" ? null : effectiveSummary,
-            applies_to_dimension_ids: effectiveAppliesTo,
+            applies_to_dimensions: effectiveAppliesTo,
           }),
         }
       );
@@ -134,7 +134,7 @@ export default function LineItemEditor({
       setFormat(lineItem.format);
       setFormula(lineItem.formula ?? "");
       setSummaryMethod((lineItem.summary_method as SummaryMethod) ?? "sum");
-      setAppliesToIds(lineItem.applies_to_dimension_ids);
+      setAppliesToIds(getLineItemDimensionIds(lineItem));
       isDirty.current = false;
       setSaveError(null);
     }

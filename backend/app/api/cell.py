@@ -1,7 +1,7 @@
 import uuid
 from typing import List
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.auth import get_current_user
@@ -29,12 +29,18 @@ async def write_cell_endpoint(
     current_user: User = Depends(get_current_user),
 ):
     """Write (upsert) a single cell value."""
-    return await write_cell(
-        db,
-        line_item_id=data.line_item_id,
-        dimension_members=data.dimension_members,
-        value=data.value,
-    )
+    try:
+        return await write_cell(
+            db,
+            line_item_id=data.line_item_id,
+            dimension_members=data.dimension_members,
+            value=data.value,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
 
 @router.post(
@@ -48,7 +54,13 @@ async def write_cells_bulk_endpoint(
     current_user: User = Depends(get_current_user),
 ):
     """Write (upsert) multiple cell values at once."""
-    return await write_cells_bulk(db, cells=data.cells)
+    try:
+        return await write_cells_bulk(db, cells=data.cells)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
 
 @router.post(

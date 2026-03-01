@@ -43,6 +43,12 @@ class Dimension(Base):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+    line_item_dimensions: Mapped[List["LineItemDimension"]] = relationship(
+        "LineItemDimension",
+        back_populates="dimension",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
 
 
 class DimensionItem(Base):
