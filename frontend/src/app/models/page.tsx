@@ -34,14 +34,14 @@ export default async function ModelsPage() {
 
   return (
     <div className="min-h-screen bg-zinc-50">
-      <header className="border-b border-zinc-200 bg-white px-6 py-4">
+      <header className="border-b border-zinc-200 bg-white px-3 py-4 sm:px-4 md:px-6">
         <div className="mx-auto max-w-5xl">
           <h1 className="text-xl font-semibold text-zinc-900">Models</h1>
           <p className="text-sm text-zinc-500">All planning models across your workspaces</p>
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-6 py-8">
+      <main className="mx-auto max-w-5xl px-3 py-6 sm:px-4 sm:py-8 md:px-6">
         {fetchError ? (
           <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             {fetchError}

@@ -97,12 +97,12 @@ export default function BlueprintTable({
             className="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm"
           >
             {/* Module header */}
-            <div className="flex items-center justify-between border-b border-zinc-200 bg-zinc-50 px-4 py-3">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-2 border-b border-zinc-200 bg-zinc-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <span className="flex h-6 w-6 items-center justify-center rounded bg-violet-100 text-violet-700">
                   <CubeIcon className="h-3.5 w-3.5" />
                 </span>
-                <span className="text-sm font-semibold text-zinc-800">{mod.name}</span>
+                <span className="truncate text-sm font-semibold text-zinc-800">{mod.name}</span>
                 {mod.description && (
                   <span className="text-xs text-zinc-400">— {mod.description}</span>
                 )}
@@ -165,7 +165,7 @@ export default function BlueprintTable({
             </div>
 
             {/* Add line item footer */}
-            <div className="flex items-center justify-between border-t border-zinc-100 px-4 py-3">
+            <div className="flex flex-col gap-2 border-t border-zinc-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               {addError[mod.id] && (
                 <span className="text-xs text-red-500">{addError[mod.id]}</span>
               )}
@@ -174,7 +174,7 @@ export default function BlueprintTable({
                   type="button"
                   onClick={() => void addLineItem(mod.id)}
                   disabled={addingToModule === mod.id}
-                  className="flex items-center gap-1.5 rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 transition-colors"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-50 sm:w-auto"
                 >
                   <PlusIcon className="h-3.5 w-3.5" />
                   {addingToModule === mod.id ? "Adding..." : "Add Line Item"}

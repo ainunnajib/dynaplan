@@ -2,27 +2,27 @@ import Link from "next/link";
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen flex-col bg-gray-50">
+    <div className="flex min-h-full flex-col bg-gray-50">
       {/* Hero */}
-      <main className="flex flex-1 flex-col items-center justify-center px-6 py-24">
+      <main className="flex flex-1 flex-col items-center justify-center px-4 py-14 sm:px-6 sm:py-20">
         <div className="w-full max-w-2xl">
           <div className="mb-6 inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
             Open-source Anaplan replacement
           </div>
 
-          <h1 className="mb-4 text-4xl font-bold tracking-tight text-gray-900">
+          <h1 className="mb-4 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
             Connected planning,{" "}
             <span className="text-blue-600">without the lock-in.</span>
           </h1>
 
-          <p className="mb-8 text-lg leading-relaxed text-gray-500">
+          <p className="mb-8 text-base leading-relaxed text-gray-500 sm:text-lg">
             Dynaplan is a multidimensional planning platform with a formula
             engine, spreadsheet grid, scenario analysis, and real-time
             collaboration — built on open standards.
           </p>
 
           {/* Get Started */}
-          <div className="mb-10 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="mb-10 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
             <h2 className="mb-4 text-base font-semibold text-gray-800">
               Get Started
             </h2>

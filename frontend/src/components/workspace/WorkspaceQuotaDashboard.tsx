@@ -59,14 +59,14 @@ export default function WorkspaceQuotaDashboard({
 
   return (
     <section className="mb-8 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-base font-semibold text-zinc-900">Workspace Quotas</h2>
           <p className="text-xs text-zinc-500">
             Live usage across models, dimensions, cells, and storage
           </p>
         </div>
-        <div className="rounded-md bg-zinc-100 px-3 py-1.5 text-xs text-zinc-700">
+        <div className="w-fit rounded-md bg-zinc-100 px-3 py-1.5 text-xs text-zinc-700">
           {usage.models.length} model{usage.models.length === 1 ? "" : "s"}
         </div>
       </div>

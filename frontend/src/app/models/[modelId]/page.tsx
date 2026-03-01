@@ -49,9 +49,9 @@ export default async function ModelPage({ params }: PageProps) {
 
   return (
     <div className="min-h-screen bg-zinc-50">
-      <header className="border-b border-zinc-200 bg-white px-6 py-4">
+      <header className="border-b border-zinc-200 bg-white px-3 py-4 sm:px-4 md:px-6">
         <div className="mx-auto max-w-6xl">
-          <nav className="mb-1 flex items-center gap-1 text-xs text-zinc-500">
+          <nav className="mb-1 flex flex-wrap items-center gap-1 text-xs text-zinc-500">
             <Link href="/workspaces" className="hover:text-zinc-800">
               Workspaces
             </Link>
@@ -69,7 +69,7 @@ export default async function ModelPage({ params }: PageProps) {
             <span>/</span>
             <span className="text-zinc-800">{model?.name ?? modelId}</span>
           </nav>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h1 className="text-xl font-semibold text-zinc-900">
                 {model?.name ?? "Model"}
@@ -78,26 +78,26 @@ export default async function ModelPage({ params }: PageProps) {
                 <p className="text-sm text-zinc-500">{model.description}</p>
               )}
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex w-full flex-wrap gap-2 lg:w-auto lg:justify-end">
               <Link
                 href={
                   model
                     ? `/workspaces/${model.workspace_id}/models/new`
                     : "/workspaces"
                 }
-                className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
+                className="w-full rounded-md border border-zinc-300 bg-white px-4 py-2 text-center text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 sm:w-auto"
               >
                 Create Model
               </Link>
               <Link
                 href={`/models/${modelId}/edit`}
-                className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
+                className="w-full rounded-md border border-zinc-300 bg-white px-4 py-2 text-center text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 sm:w-auto"
               >
                 Edit Model
               </Link>
               <Link
                 href={`/models/${modelId}/blueprint`}
-                className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
+                className="w-full rounded-md border border-zinc-300 bg-white px-4 py-2 text-center text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 sm:w-auto"
               >
                 Blueprint View
               </Link>
@@ -107,7 +107,7 @@ export default async function ModelPage({ params }: PageProps) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-6 py-8">
+      <main className="mx-auto max-w-6xl px-3 py-6 sm:px-4 sm:py-8 md:px-6">
         {fetchError ? (
           <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             {fetchError}
@@ -116,7 +116,7 @@ export default async function ModelPage({ params }: PageProps) {
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
             {/* Modules section */}
             <div className="lg:col-span-2">
-              <div className="mb-4 flex items-center justify-between">
+              <div className="mb-4 flex items-center justify-between gap-2">
                 <h2 className="text-base font-semibold text-zinc-800">
                   Modules
                   {modules.length > 0 && (
@@ -149,7 +149,7 @@ export default async function ModelPage({ params }: PageProps) {
 
             {/* Dimensions sidebar */}
             <div>
-              <div className="mb-4 flex items-center justify-between">
+              <div className="mb-4 flex items-center justify-between gap-2">
                 <h2 className="text-base font-semibold text-zinc-800">
                   Dimensions
                   {dimensions.length > 0 && (
@@ -219,15 +219,15 @@ function DimensionRow({
   const config = typeConfig[dimension.type];
 
   return (
-    <div className="flex items-center justify-between rounded-lg border border-zinc-200 bg-white px-3 py-2.5">
-      <div className="flex items-center gap-2">
-        <span className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-xs ${config.color}`}>
+    <div className="flex items-start justify-between gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2.5 sm:items-center">
+      <div className="flex min-w-0 items-center gap-2">
+        <span className={`flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-xs ${config.color}`}>
           {config.icon}
           {config.label}
         </span>
-        <span className="text-sm font-medium text-zinc-800">{dimension.name}</span>
+        <span className="truncate text-sm font-medium text-zinc-800">{dimension.name}</span>
       </div>
-      <span className="text-xs text-zinc-400">{itemCount} items</span>
+      <span className="shrink-0 text-xs text-zinc-400">{itemCount} items</span>
     </div>
   );
 }

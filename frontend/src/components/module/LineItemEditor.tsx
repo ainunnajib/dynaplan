@@ -272,7 +272,7 @@ export default function LineItemEditor({
             <button
               type="button"
               onClick={() => setShowDeleteConfirm(true)}
-              className="rounded p-1 text-zinc-300 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-50 hover:text-red-500"
+              className="rounded p-1 text-zinc-300 opacity-100 transition-opacity hover:bg-red-50 hover:text-red-500 md:opacity-0 md:group-hover:opacity-100"
               title="Delete line item"
             >
               <TrashIcon className="h-3.5 w-3.5" />

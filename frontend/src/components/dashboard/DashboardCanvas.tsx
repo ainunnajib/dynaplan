@@ -40,6 +40,7 @@ export default function DashboardCanvas({ dashboard, isEditMode, onDashboardChan
 
   const colWidth = COL_WIDTH_PX + GAP_PX;
   const rowHeight = ROW_HEIGHT_PX + GAP_PX;
+  const canvasMinWidth = GRID_COLS * COL_WIDTH_PX + (GRID_COLS + 1) * GAP_PX;
 
   const getWidgetStyle = (widget: DashboardWidget) => {
     return {
@@ -202,7 +203,10 @@ export default function DashboardCanvas({ dashboard, isEditMode, onDashboardChan
     <div
       ref={canvasRef}
       className={`relative rounded-xl bg-white shadow-sm ${isEditMode ? "ring-2 ring-violet-200" : ""}`}
-      style={{ minHeight: `${maxRow * rowHeight + GAP_PX * 2}px` }}
+      style={{
+        minHeight: `${maxRow * rowHeight + GAP_PX * 2}px`,
+        minWidth: `${canvasMinWidth}px`,
+      }}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}

@@ -83,24 +83,24 @@ export default function EditModelPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl p-6">
+    <div className="mx-auto w-full max-w-2xl p-4 sm:p-6">
       <div className="mb-6">
-        <nav className="mb-2 text-xs text-zinc-500">
+        <nav className="mb-2 flex flex-wrap items-center gap-x-1 text-xs text-zinc-500">
           <Link href="/workspaces" className="hover:text-zinc-800">
             Workspaces
           </Link>
-          <span className="mx-1">/</span>
+          <span>/</span>
           <Link
             href={model ? `/workspaces/${model.workspace_id}` : "/workspaces"}
             className="hover:text-zinc-800"
           >
             Workspace
           </Link>
-          <span className="mx-1">/</span>
+          <span>/</span>
           <Link href={`/models/${modelId}`} className="hover:text-zinc-800">
             Model
           </Link>
-          <span className="mx-1">/</span>
+          <span>/</span>
           <span className="text-zinc-800">Edit</span>
         </nav>
         <h1 className="text-2xl font-semibold text-zinc-900">Edit Model</h1>
@@ -165,17 +165,17 @@ export default function EditModelPage() {
                 Archive model
               </label>
 
-              <div className="flex items-center gap-3 pt-2">
+              <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:items-center sm:gap-3">
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
                 >
                   {isSubmitting ? "Saving..." : "Save Changes"}
                 </button>
                 <Link
                   href={`/models/${modelId}`}
-                  className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+                  className="w-full rounded-md border border-zinc-300 px-4 py-2 text-center text-sm font-medium text-zinc-700 hover:bg-zinc-50 sm:w-auto"
                 >
                   Cancel
                 </Link>

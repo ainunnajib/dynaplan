@@ -12,16 +12,16 @@ export default function AuthNav() {
 
   if (!isAuthenticated || !user) {
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5 sm:gap-2">
         <Link
           href="/login"
-          className="rounded px-2.5 py-1.5 text-xs text-gray-300 transition-colors hover:bg-gray-700 hover:text-white"
+          className="rounded px-2 py-1.5 text-xs text-gray-300 transition-colors hover:bg-gray-700 hover:text-white sm:px-2.5"
         >
           Login
         </Link>
         <Link
           href="/register"
-          className="rounded bg-blue-600 px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700"
+          className="rounded bg-blue-600 px-2 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700 sm:px-2.5"
         >
           Sign up
         </Link>
@@ -30,14 +30,14 @@ export default function AuthNav() {
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <span className="hidden text-xs text-gray-300 sm:inline">
+    <div className="flex items-center gap-1.5 sm:gap-2">
+      <span className="hidden max-w-44 truncate text-xs text-gray-300 sm:inline">
         {user.full_name || user.email}
       </span>
       <button
         type="button"
         onClick={logout}
-        className="rounded px-2.5 py-1.5 text-xs text-gray-300 transition-colors hover:bg-gray-700 hover:text-white"
+        className="rounded px-2 py-1.5 text-xs text-gray-300 transition-colors hover:bg-gray-700 hover:text-white sm:px-2.5"
       >
         Logout
       </button>

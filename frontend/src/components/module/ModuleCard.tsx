@@ -38,7 +38,7 @@ export default function ModuleCard({ module, modelId, lineItemCount }: ModuleCar
           <CubeIcon className="h-5 w-5" />
         </div>
         {/* Actions — visible on hover */}
-        <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <div className="flex items-center gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
           <Link
             href={`/models/${modelId}/modules/${module.id}/edit`}
             className="rounded p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition-colors"
@@ -70,17 +70,17 @@ export default function ModuleCard({ module, modelId, lineItemCount }: ModuleCar
       )}
 
       {/* Navigation links */}
-      <div className="mt-4 flex items-center gap-2 border-t border-zinc-100 pt-4">
+      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-zinc-100 pt-4">
         <Link
           href={`/models/${modelId}/modules/${module.id}`}
-          className="flex items-center gap-1.5 rounded-md bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 transition-colors"
+          className="flex w-full items-center justify-center gap-1.5 rounded-md bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 sm:w-auto sm:justify-start"
         >
           <GridIcon className="h-3.5 w-3.5" />
           Grid View
         </Link>
         <Link
           href={`/models/${modelId}/blueprint#module-${module.id}`}
-          className="flex items-center gap-1.5 rounded-md bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 transition-colors"
+          className="flex w-full items-center justify-center gap-1.5 rounded-md bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 sm:w-auto sm:justify-start"
         >
           <BlueprintIcon className="h-3.5 w-3.5" />
           Blueprint

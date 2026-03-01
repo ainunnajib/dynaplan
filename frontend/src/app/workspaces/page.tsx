@@ -18,22 +18,22 @@ export default async function WorkspacesPage() {
 
   return (
     <div className="min-h-screen bg-zinc-50">
-      <header className="border-b border-zinc-200 bg-white px-6 py-4">
-        <div className="mx-auto flex max-w-5xl items-center justify-between">
+      <header className="border-b border-zinc-200 bg-white px-3 py-4 sm:px-4 md:px-6">
+        <div className="mx-auto flex max-w-5xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-xl font-semibold text-zinc-900">Workspaces</h1>
             <p className="text-sm text-zinc-500">Your planning workspaces</p>
           </div>
           <Link
             href="/workspaces/new"
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+            className="w-full rounded-md bg-blue-600 px-4 py-2 text-center text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto"
           >
             Create Workspace
           </Link>
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-6 py-8">
+      <main className="mx-auto max-w-5xl px-3 py-6 sm:px-4 sm:py-8 md:px-6">
         {fetchError ? (
           <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             {fetchError}
@@ -74,7 +74,7 @@ function WorkspaceCard({ workspace }: { workspace: Workspace }) {
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 text-blue-700">
           <WorkspaceIcon />
         </div>
-        <ArrowRightIcon className="mt-1 h-4 w-4 text-zinc-400 opacity-0 transition-opacity group-hover:opacity-100" />
+        <ArrowRightIcon className="mt-1 h-4 w-4 text-zinc-400 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100" />
       </div>
       <h2 className="mt-3 text-sm font-semibold text-zinc-900">{workspace.name}</h2>
       {workspace.description && (

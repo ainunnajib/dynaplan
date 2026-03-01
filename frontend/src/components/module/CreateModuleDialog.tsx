@@ -61,7 +61,7 @@ export default function CreateModuleDialog({ modelId, label = "Create Module" }:
     <>
       <button
         onClick={openDialog}
-        className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+        className="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
         type="button"
       >
         {label}
@@ -76,7 +76,7 @@ export default function CreateModuleDialog({ modelId, label = "Create Module" }:
         >
           <div className="w-full max-w-md rounded-xl bg-white shadow-xl">
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
+            <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-4 sm:px-6">
               <h2 className="text-base font-semibold text-zinc-900">Create Module</h2>
               <button
                 onClick={closeDialog}
@@ -89,7 +89,7 @@ export default function CreateModuleDialog({ modelId, label = "Create Module" }:
             </div>
 
             {/* Form */}
-            <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4 px-4 py-5 sm:px-6">
               <div>
                 <label
                   htmlFor="module-name"
@@ -135,19 +135,19 @@ export default function CreateModuleDialog({ modelId, label = "Create Module" }:
               )}
 
               {/* Footer */}
-              <div className="flex items-center justify-end gap-3 pt-2">
+              <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
                 <button
                   type="button"
                   onClick={closeDialog}
                   disabled={isSubmitting}
-                  className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 transition-colors"
+                  className="w-full rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-50 sm:w-auto"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting || !name.trim()}
-                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50 sm:w-auto"
                 >
                   {isSubmitting ? "Creating..." : "Create Module"}
                 </button>

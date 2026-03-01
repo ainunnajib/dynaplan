@@ -43,10 +43,10 @@ export default async function ModulePage({ params }: ModulePageProps) {
   const dimensionItems: DimensionItem[] = dimensionItemsNested.flat();
 
   return (
-    <div className="flex flex-col gap-4 p-6">
+    <div className="flex flex-col gap-4 p-3 sm:p-4 md:p-6">
       {/* Module header */}
       <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-2 text-sm text-gray-400">
+        <div className="flex flex-wrap items-center gap-1.5 text-sm text-gray-400">
           <a
             href={`/models/${modelId}`}
             className="hover:text-blue-600 hover:underline"
@@ -65,7 +65,7 @@ export default async function ModulePage({ params }: ModulePageProps) {
           <p className="text-sm text-gray-500">{mod.description}</p>
         )}
 
-        <div className="mt-1 flex items-center gap-4 text-xs text-gray-400">
+        <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-400">
           <span>{lineItems.length} line items</span>
           <span>{dimensions.length} dimensions</span>
           <span>{cells.length} cells</span>

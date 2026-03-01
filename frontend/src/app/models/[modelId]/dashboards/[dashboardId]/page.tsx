@@ -25,9 +25,9 @@ export default async function DashboardPage({ params }: PageProps) {
 
   return (
     <div className="min-h-screen bg-zinc-50">
-      <header className="border-b border-zinc-200 bg-white px-6 py-4">
+      <header className="border-b border-zinc-200 bg-white px-3 py-4 sm:px-4 md:px-6">
         <div className="mx-auto max-w-full">
-          <nav className="mb-1 flex items-center gap-1 text-xs text-zinc-500">
+          <nav className="mb-1 flex flex-wrap items-center gap-1 text-xs text-zinc-500">
             <Link href="/workspaces" className="hover:text-zinc-800">
               Workspaces
             </Link>
@@ -60,7 +60,7 @@ export default async function DashboardPage({ params }: PageProps) {
       </header>
 
       {fetchError ? (
-        <main className="mx-auto max-w-6xl px-6 py-8">
+        <main className="mx-auto max-w-6xl px-3 py-6 sm:px-4 sm:py-8 md:px-6">
           <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             {fetchError}
           </div>

@@ -139,7 +139,7 @@ export default function WidgetContainer({
 
         {/* Edit-mode action buttons */}
         {isEditMode && !isEditingTitle && (
-          <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+          <div className="flex shrink-0 items-center gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
             <button
               type="button"
               onMouseDown={(e) => e.stopPropagation()}
@@ -183,7 +183,7 @@ export default function WidgetContainer({
       {/* Resize handle (bottom-right corner) */}
       {isEditMode && (
         <div
-          className="absolute bottom-0 right-0 h-5 w-5 cursor-se-resize opacity-0 group-hover:opacity-100 transition-opacity"
+          className="absolute bottom-0 right-0 h-5 w-5 cursor-se-resize opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
           onMouseDown={(e) => {
             e.stopPropagation();
             onResizeStart(e);

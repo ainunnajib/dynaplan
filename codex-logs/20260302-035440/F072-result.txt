@@ -1,0 +1,22 @@
+Implemented F072 end-to-end: PostgreSQL migration infrastructure, asyncpg pool/read-replica support, and PostgreSQL test-container readiness for backend tests.
+
+Changed files:
+- [backend/app/core/config.py](/Users/ainunnajib/dynaplan/backend/app/core/config.py)
+- [backend/app/core/database.py](/Users/ainunnajib/dynaplan/backend/app/core/database.py)
+- [backend/app/main.py](/Users/ainunnajib/dynaplan/backend/app/main.py)
+- [backend/tests/conftest.py](/Users/ainunnajib/dynaplan/backend/tests/conftest.py)
+- [backend/tests/test_database_infra.py](/Users/ainunnajib/dynaplan/backend/tests/test_database_infra.py)
+- [backend/alembic.ini](/Users/ainunnajib/dynaplan/backend/alembic.ini)
+- [backend/alembic/env.py](/Users/ainunnajib/dynaplan/backend/alembic/env.py)
+- [backend/alembic/script.py.mako](/Users/ainunnajib/dynaplan/backend/alembic/script.py.mako)
+- [backend/alembic/versions/20260302_0002_f072_postgresql_migration_baseline.py](/Users/ainunnajib/dynaplan/backend/alembic/versions/20260302_0002_f072_postgresql_migration_baseline.py)
+- [backend/.env.example](/Users/ainunnajib/dynaplan/backend/.env.example)
+- [backend/requirements.txt](/Users/ainunnajib/dynaplan/backend/requirements.txt)
+- [README.md](/Users/ainunnajib/dynaplan/README.md)
+- [claude-progress.txt](/Users/ainunnajib/dynaplan/claude-progress.txt)
+
+Validation run:
+- `cd backend && .venv/bin/python -m pytest -x --tb=short -q`  
+  Result: `1416 passed, 1 skipped, 1 xfailed, 1 xpassed`
+- `cd frontend && bun tsc --noEmit`  
+  Result: pass

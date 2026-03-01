@@ -32,16 +32,16 @@ export default async function WorkspacePage({ params }: PageProps) {
 
   return (
     <div className="min-h-screen bg-zinc-50">
-      <header className="border-b border-zinc-200 bg-white px-6 py-4">
+      <header className="border-b border-zinc-200 bg-white px-3 py-4 sm:px-4 md:px-6">
         <div className="mx-auto max-w-5xl">
-          <nav className="mb-1 flex items-center gap-1 text-xs text-zinc-500">
+          <nav className="mb-1 flex flex-wrap items-center gap-1 text-xs text-zinc-500">
             <Link href="/workspaces" className="hover:text-zinc-800">
               Workspaces
             </Link>
             <span>/</span>
             <span className="text-zinc-800">{workspace?.name ?? workspaceId}</span>
           </nav>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-xl font-semibold text-zinc-900">
                 {workspace?.name ?? "Workspace"}
@@ -52,7 +52,7 @@ export default async function WorkspacePage({ params }: PageProps) {
             </div>
             <Link
               href={`/workspaces/${workspaceId}/models/new`}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+              className="w-full rounded-md bg-blue-600 px-4 py-2 text-center text-sm font-medium text-white transition-colors hover:bg-blue-700 sm:w-auto"
             >
               Create Model
             </Link>
@@ -60,7 +60,7 @@ export default async function WorkspacePage({ params }: PageProps) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-6 py-8">
+      <main className="mx-auto max-w-5xl px-3 py-6 sm:px-4 sm:py-8 md:px-6">
         {fetchError ? (
           <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             {fetchError}

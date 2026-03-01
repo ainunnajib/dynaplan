@@ -84,7 +84,7 @@ export default function DashboardListClient({ modelId }: Props) {
         </div>
       )}
 
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-base font-semibold text-zinc-800">
           All Dashboards
           {dashboards.length > 0 && (
@@ -96,7 +96,7 @@ export default function DashboardListClient({ modelId }: Props) {
         <button
           type="button"
           onClick={() => setShowCreateDialog(true)}
-          className="flex items-center gap-2 rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 transition-colors"
+          className="flex w-full items-center justify-center gap-2 rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-violet-700 sm:w-auto"
         >
           <PlusIcon className="h-4 w-4" />
           New Dashboard
@@ -113,7 +113,7 @@ export default function DashboardListClient({ modelId }: Props) {
           <button
             type="button"
             onClick={() => setShowCreateDialog(true)}
-            className="mt-4 flex items-center gap-2 rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 transition-colors"
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-violet-700 sm:w-auto"
           >
             <PlusIcon className="h-4 w-4" />
             New Dashboard
@@ -178,7 +178,7 @@ function DashboardCard({
         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-100 text-violet-700">
           <DashboardIcon className="h-5 w-5" />
         </div>
-        <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <div className="flex items-center gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
           {dashboard.is_published && (
             <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
               Published
@@ -203,7 +203,7 @@ function DashboardCard({
       <div className="mt-4 border-t border-zinc-100 pt-4">
         <Link
           href={`/models/${modelId}/dashboards/${dashboard.id}`}
-          className="flex items-center gap-1.5 rounded-md bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 transition-colors w-fit"
+          className="flex w-full items-center justify-center gap-1.5 rounded-md bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-100 sm:w-fit sm:justify-start"
         >
           <EditIcon className="h-3.5 w-3.5" />
           Open Dashboard
@@ -262,7 +262,7 @@ function CreateDashboardDialog({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+      <div className="w-full max-w-md rounded-xl bg-white p-4 shadow-xl sm:p-6">
         <h2 className="text-base font-semibold text-zinc-900">New Dashboard</h2>
         <p className="mt-1 text-xs text-zinc-500">
           Give your dashboard a name and optional description.
@@ -303,12 +303,12 @@ function CreateDashboardDialog({
           <p className="mt-3 text-xs text-red-600">{createError}</p>
         )}
 
-        <div className="mt-5 flex items-center justify-end gap-2">
+        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
           <button
             type="button"
             onClick={onClose}
             disabled={isCreating}
-            className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 transition-colors"
+            className="w-full rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-50 sm:w-auto"
           >
             Cancel
           </button>
@@ -316,7 +316,7 @@ function CreateDashboardDialog({
             type="button"
             onClick={onCreate}
             disabled={isCreating || !createName.trim()}
-            className="rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
+            className="w-full rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-violet-700 disabled:opacity-50 sm:w-auto"
           >
             {isCreating ? "Creating..." : "Create Dashboard"}
           </button>

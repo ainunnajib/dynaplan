@@ -221,7 +221,7 @@ export default function DataGrid({
       <div
         ref={parentRef}
         className="relative overflow-auto rounded-md border border-zinc-200 bg-white shadow-sm"
-        style={{ maxHeight: "calc(100vh - 200px)" }}
+        style={{ maxHeight: "calc(100svh - 180px)" }}
       >
         <table
           className="border-collapse"

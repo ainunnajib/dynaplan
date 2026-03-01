@@ -43,9 +43,9 @@ export default async function BlueprintPage({ params }: PageProps) {
 
   return (
     <div className="min-h-screen bg-zinc-50">
-      <header className="border-b border-zinc-200 bg-white px-6 py-4">
+      <header className="border-b border-zinc-200 bg-white px-3 py-4 sm:px-4 md:px-6">
         <div className="mx-auto max-w-7xl">
-          <nav className="mb-1 flex items-center gap-1 text-xs text-zinc-500">
+          <nav className="mb-1 flex flex-wrap items-center gap-1 text-xs text-zinc-500">
             <Link href="/workspaces" className="hover:text-zinc-800">
               Workspaces
             </Link>
@@ -56,7 +56,7 @@ export default async function BlueprintPage({ params }: PageProps) {
             <span>/</span>
             <span className="text-zinc-800">Blueprint</span>
           </nav>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-xl font-semibold text-zinc-900">Blueprint</h1>
               <p className="text-sm text-zinc-500">
@@ -65,7 +65,7 @@ export default async function BlueprintPage({ params }: PageProps) {
             </div>
             <Link
               href={`/models/${modelId}`}
-              className="rounded-md border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
+              className="w-full rounded-md border border-zinc-300 bg-white px-4 py-2 text-center text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 sm:w-auto"
             >
               Back to Model
             </Link>
@@ -73,7 +73,7 @@ export default async function BlueprintPage({ params }: PageProps) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-6 py-8">
+      <main className="mx-auto max-w-7xl px-3 py-6 sm:px-4 sm:py-8 md:px-6">
         {fetchError ? (
           <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             {fetchError}

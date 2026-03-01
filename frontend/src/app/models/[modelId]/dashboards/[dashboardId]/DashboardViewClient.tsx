@@ -75,7 +75,7 @@ export default function DashboardViewClient({ modelId, dashboardId }: Props) {
 
   if (error) {
     return (
-      <div className="mx-auto max-w-6xl px-6 py-8">
+      <div className="mx-auto max-w-6xl px-3 py-6 sm:px-4 sm:py-8 md:px-6">
         <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}
         </div>
@@ -86,12 +86,12 @@ export default function DashboardViewClient({ modelId, dashboardId }: Props) {
   if (!dashboard) return null;
 
   return (
-    <div className="flex h-[calc(100vh-64px)] flex-col">
+    <div className="flex min-h-[calc(100svh-56px)] flex-col">
       {/* Toolbar */}
-      <div className="flex items-center justify-between border-b border-zinc-200 bg-white px-6 py-3">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-3 border-b border-zinc-200 bg-white px-3 py-3 sm:px-4 md:flex-row md:items-center md:justify-between md:px-6">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
           {isEditingTitle ? (
-            <div className="flex items-center gap-2">
+            <div className="flex w-full flex-wrap items-center gap-2">
               <input
                 type="text"
                 value={editTitle}
@@ -100,7 +100,7 @@ export default function DashboardViewClient({ modelId, dashboardId }: Props) {
                   if (e.key === "Enter") handleSaveTitle();
                   if (e.key === "Escape") setIsEditingTitle(false);
                 }}
-                className="rounded-md border border-violet-300 px-2 py-1 text-sm font-semibold text-zinc-900 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                className="w-full rounded-md border border-violet-300 px-2 py-1 text-sm font-semibold text-zinc-900 focus:outline-none focus:ring-1 focus:ring-violet-500 sm:w-auto"
                 autoFocus
               />
               <button
@@ -125,11 +125,11 @@ export default function DashboardViewClient({ modelId, dashboardId }: Props) {
             <button
               type="button"
               onClick={() => setIsEditingTitle(true)}
-              className="group flex items-center gap-2 text-base font-semibold text-zinc-900 hover:text-zinc-700"
+              className="group flex min-w-0 items-center gap-2 text-left text-base font-semibold text-zinc-900 hover:text-zinc-700"
               title="Click to rename"
             >
-              {dashboard.name}
-              <PencilIcon className="h-3.5 w-3.5 text-zinc-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <span className="truncate">{dashboard.name}</span>
+              <PencilIcon className="h-3.5 w-3.5 shrink-0 text-zinc-400 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100" />
             </button>
           )}
 
@@ -140,12 +140,12 @@ export default function DashboardViewClient({ modelId, dashboardId }: Props) {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={handleTogglePublish}
             disabled={isPublishing}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 ${
+            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 sm:text-sm ${
               dashboard.is_published
                 ? "border border-zinc-300 text-zinc-700 hover:bg-zinc-50"
                 : "border border-green-300 bg-green-50 text-green-700 hover:bg-green-100"
@@ -158,7 +158,7 @@ export default function DashboardViewClient({ modelId, dashboardId }: Props) {
             <button
               type="button"
               onClick={() => setShowAddWidget(true)}
-              className="flex items-center gap-2 rounded-md bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-700 transition-colors"
+              className="flex items-center gap-2 rounded-md bg-violet-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-violet-700 sm:text-sm"
             >
               <PlusIcon className="h-4 w-4" />
               Add Widget
@@ -168,7 +168,7 @@ export default function DashboardViewClient({ modelId, dashboardId }: Props) {
           <button
             type="button"
             onClick={() => setIsEditMode((v) => !v)}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm ${
               isEditMode
                 ? "bg-zinc-800 text-white hover:bg-zinc-700"
                 : "border border-zinc-300 text-zinc-700 hover:bg-zinc-50"
@@ -180,7 +180,7 @@ export default function DashboardViewClient({ modelId, dashboardId }: Props) {
       </div>
 
       {/* Canvas */}
-      <div className="flex-1 overflow-auto bg-zinc-100 p-6">
+      <div className="flex-1 overflow-auto bg-zinc-100 p-2 sm:p-4 md:p-6">
         <DashboardCanvas
           dashboard={dashboard}
           isEditMode={isEditMode}

@@ -27,8 +27,17 @@ Open-source enterprise planning platform. A full-featured replacement for Anapla
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+alembic -c alembic.ini upgrade head
 uvicorn app.main:app --reload
 ```
+
+PostgreSQL read replicas and pool behavior can be configured with:
+
+- `DYNAPLAN_DATABASE_READ_REPLICA_URLS` (comma-separated URLs)
+- `DYNAPLAN_DATABASE_POOL_SIZE`
+- `DYNAPLAN_DATABASE_MAX_OVERFLOW`
+- `DYNAPLAN_DATABASE_POOL_TIMEOUT`
+- `DYNAPLAN_DATABASE_POOL_RECYCLE`
 
 ### Frontend
 ```bash

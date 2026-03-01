@@ -150,9 +150,9 @@ export default function AddWidgetPanel({ dashboardId, onClose, onWidgetAdded }: 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-lg rounded-xl bg-white shadow-xl overflow-hidden">
+      <div className="max-h-[90svh] w-full max-w-lg overflow-y-auto rounded-xl bg-white shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-zinc-200 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-4 sm:px-6">
           <div className="flex items-center gap-2">
             {step === "configure" && (
               <button
@@ -177,7 +177,7 @@ export default function AddWidgetPanel({ dashboardId, onClose, onWidgetAdded }: 
         </div>
 
         {/* Body */}
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {step === "select_type" ? (
             <div>
               <p className="mb-4 text-sm text-zinc-500">Choose the type of widget to add to your dashboard.</p>
@@ -213,7 +213,7 @@ export default function AddWidgetPanel({ dashboardId, onClose, onWidgetAdded }: 
                 />
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row">
                 <div className="flex-1">
                   <label className="block text-xs font-medium text-zinc-700 mb-1">
                     Width <span className="text-zinc-400">(1–12 cols)</span>
@@ -277,12 +277,12 @@ export default function AddWidgetPanel({ dashboardId, onClose, onWidgetAdded }: 
 
         {/* Footer */}
         {step === "configure" && (
-          <div className="flex items-center justify-end gap-2 border-t border-zinc-200 px-6 py-4">
+          <div className="flex flex-col-reverse gap-2 border-t border-zinc-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-6">
             <button
               type="button"
               onClick={onClose}
               disabled={isAdding}
-              className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 transition-colors"
+              className="w-full rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-50 sm:w-auto"
             >
               Cancel
             </button>
@@ -290,7 +290,7 @@ export default function AddWidgetPanel({ dashboardId, onClose, onWidgetAdded }: 
               type="button"
               onClick={handleAdd}
               disabled={isAdding}
-              className="rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50 transition-colors"
+              className="w-full rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-violet-700 disabled:opacity-50 sm:w-auto"
             >
               {isAdding ? "Adding..." : "Add Widget"}
             </button>
