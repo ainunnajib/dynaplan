@@ -1,0 +1,15 @@
+[package]
+name = "dynaplan-py"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "dynaplan_engine"
+crate-type = ["cdylib"]
+
+[dependencies]
+dynaplan-core = { path = "../dynaplan-core" }
+pyo3 = { version = "0.21", features = ["extension-module"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.8", features = ["serde", "v4"] }

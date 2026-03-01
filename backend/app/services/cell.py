@@ -7,9 +7,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.engine import rust_bridge
 from app.models.cell import CellValue
 from app.models.dimension import DimensionItem
-from app.models.module import LineItem
+from app.models.module import LineItem, Module
 from app.schemas.cell import CellRead, CellWrite
 from app.services.workspace_quota import enforce_cell_write_quota
 
@@ -65,6 +66,62 @@ def _cell_to_read(cell: CellValue) -> CellRead:
         value=value,
         value_type=value_type,
     )
+
+
+def _cell_to_engine_value(cell: CellValue) -> Any:
+    """Convert CellValue row data to a Python scalar for the engine bridge."""
+    if cell.value_boolean is not None:
+        return cell.value_boolean
+    if cell.value_number is not None:
+        return cell.value_number
+    if cell.value_text is not None:
+        return cell.value_text
+    return None
+
+
+async def _get_model_ids_for_line_items(
+    db: AsyncSession,
+    line_item_ids: List[uuid.UUID],
+) -> Dict[uuid.UUID, uuid.UUID]:
+    """Map line_item_id -> model_id for a set of line items."""
+    if not line_item_ids:
+        return {}
+
+    result = await db.execute(
+        select(LineItem.id, Module.model_id)
+        .join(Module, Module.id == LineItem.module_id)
+        .where(LineItem.id.in_(line_item_ids))
+    )
+    return {row[0]: row[1] for row in result.all()}
+
+
+async def _sync_engine_after_commit(
+    db: AsyncSession,
+    cells: List[CellValue],
+) -> None:
+    """Best-effort mirror of committed writes into the selected calc engine."""
+    if not cells:
+        return
+
+    unique_line_items = list(dict.fromkeys(cell.line_item_id for cell in cells))
+    model_ids_by_line_item = await _get_model_ids_for_line_items(db, unique_line_items)
+
+    writes_by_model: Dict[uuid.UUID, List[Dict[str, Any]]] = {}
+    for cell in cells:
+        model_id = model_ids_by_line_item.get(cell.line_item_id)
+        if model_id is None:
+            continue
+        writes_by_model.setdefault(model_id, []).append(
+            {
+                "line_item_id": str(cell.line_item_id),
+                "dimension_key": cell.dimension_key,
+                "value": _cell_to_engine_value(cell),
+            }
+        )
+
+    for model_id, writes in writes_by_model.items():
+        handle = rust_bridge.get_or_create_model_handle(model_id)
+        rust_bridge.write_cells_bulk(handle, writes)
 
 
 async def _validate_cell_dimensions(
@@ -205,6 +262,10 @@ async def write_cell(
                     await db.rollback()
                     raise
                 await db.refresh(existing)
+                try:
+                    await _sync_engine_after_commit(db, [existing])
+                except Exception:
+                    pass
                 return _cell_to_read(existing)
             await asyncio.sleep(0)
 
@@ -221,12 +282,20 @@ async def write_cell(
             await db.rollback()
             raise
         await db.refresh(cell)
+        try:
+            await _sync_engine_after_commit(db, [cell])
+        except Exception:
+            pass
         return _cell_to_read(cell)
     except Exception:
         await db.rollback()
         raise
 
     await db.refresh(cell)
+    try:
+        await _sync_engine_after_commit(db, [cell])
+    except Exception:
+        pass
     return _cell_to_read(cell)
 
 
@@ -255,6 +324,11 @@ async def write_cells_bulk(
     for cell in upserted_cells:
         await db.refresh(cell)
         results.append(_cell_to_read(cell))
+
+    try:
+        await _sync_engine_after_commit(db, upserted_cells)
+    except Exception:
+        pass
 
     return results
 

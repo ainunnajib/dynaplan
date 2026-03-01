@@ -1,0 +1,27 @@
+Implemented F049 with a PyO3 bridge scaffold, Python fallback bridge, and backend integration.
+
+**What changed**
+- Added Rust PyO3 crate and workspace wiring:
+  - [engine/Cargo.toml](/Users/ainunnajib/dynaplan/engine/Cargo.toml)
+  - [engine/dynaplan-py/Cargo.toml](/Users/ainunnajib/dynaplan/engine/dynaplan-py/Cargo.toml)
+  - [engine/dynaplan-py/src/lib.rs](/Users/ainunnajib/dynaplan/engine/dynaplan-py/src/lib.rs)
+  - [engine/dynaplan-py/src/model_handle.rs](/Users/ainunnajib/dynaplan/engine/dynaplan-py/src/model_handle.rs)
+  - [engine/dynaplan-py/src/conversions.rs](/Users/ainunnajib/dynaplan/engine/dynaplan-py/src/conversions.rs)
+- Added Python bridge with Rust optional import + Python fallback API surface:
+  - [backend/app/engine/rust_bridge.py](/Users/ainunnajib/dynaplan/backend/app/engine/rust_bridge.py)
+- Integrated engine selection into committed cell writes (best-effort mirror, DB remains source of truth):
+  - [backend/app/services/cell.py](/Users/ainunnajib/dynaplan/backend/app/services/cell.py)
+- Added tests for fallback bridge behavior and cell write resilience when engine sync fails:
+  - [backend/tests/test_rust_bridge.py](/Users/ainunnajib/dynaplan/backend/tests/test_rust_bridge.py)
+  - [backend/tests/test_cell.py](/Users/ainunnajib/dynaplan/backend/tests/test_cell.py)
+- Updated progress tracking:
+  - [claude-progress.txt](/Users/ainunnajib/dynaplan/claude-progress.txt)
+
+**Verification**
+- Ran: `cd backend && .venv/bin/python -m pytest -x --tb=short -q`
+- Result: `1420 passed, 1 skipped, 1 xfailed, 1 xpassed`
+- Ran: `cd frontend && bun tsc --noEmit`
+- Result: pass (no errors)
+
+**Note**
+- `cargo` is not installed in this environment (`command not found`), so native Rust extension build/check is still pending toolchain availability.

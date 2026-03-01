@@ -281,6 +281,41 @@ async def test_write_cell_upsert_changes_type(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_write_cell_succeeds_when_engine_sync_fails(client: AsyncClient, monkeypatch):
+    token, line_item_id = await setup_line_item(client, "engine_sync_failure")
+    dim1 = str(uuid.uuid4())
+
+    from app.services import cell as cell_service
+
+    async def _raise_engine_error(*_args, **_kwargs):
+        raise RuntimeError("engine bridge unavailable")
+
+    monkeypatch.setattr(cell_service, "_sync_engine_after_commit", _raise_engine_error)
+
+    resp = await client.post(
+        "/cells",
+        json={
+            "line_item_id": line_item_id,
+            "dimension_members": [dim1],
+            "value": 123.0,
+        },
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["value"] == 123.0
+
+    query_resp = await client.post(
+        "/cells/query",
+        json={"line_item_id": line_item_id},
+        headers=auth_headers(token),
+    )
+    assert query_resp.status_code == 200
+    rows = query_resp.json()
+    assert len(rows) == 1
+    assert rows[0]["value"] == 123.0
+
+
+@pytest.mark.asyncio
 async def test_write_cell_dimension_order_independent(client: AsyncClient):
     """Different orderings of dimension_members produce the same cell (same key)."""
     token, line_item_id = await setup_line_item(client, "upsert_order")
