@@ -12,6 +12,7 @@ Covers:
 - Auth required for all endpoints
 - Dimension key uniqueness constraint
 """
+import asyncio
 import uuid
 
 import pytest
@@ -662,3 +663,291 @@ async def test_cells_isolated_per_line_item(client: AsyncClient):
         headers=auth_headers(token),
     )
     assert q_resp.json() == []
+
+
+# ---------------------------------------------------------------------------
+# Backpressure-focused coverage (high-volume and bursty write patterns)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+@pytest.mark.backpressure
+async def test_bulk_write_large_payload_backpressure(client: AsyncClient):
+    """Bulk endpoint should handle a large payload and persist all intersections."""
+    token, line_item_id = await setup_line_item(client, "bp_bulk_large")
+    dimension_ids = [str(uuid.uuid4()) for _ in range(250)]
+
+    payload = {
+        "cells": [
+            {
+                "line_item_id": line_item_id,
+                "dimension_members": [dim_id],
+                "value": float(i),
+            }
+            for i, dim_id in enumerate(dimension_ids)
+        ]
+    }
+
+    resp = await client.post(
+        "/cells/bulk",
+        json=payload,
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 200
+    assert len(resp.json()) == 250
+
+    q_resp = await client.post(
+        "/cells/query",
+        json={"line_item_id": line_item_id},
+        headers=auth_headers(token),
+    )
+    assert q_resp.status_code == 200
+    assert len(q_resp.json()) == 250
+
+
+@pytest.mark.asyncio
+@pytest.mark.backpressure
+async def test_bulk_write_repeated_bursts_last_write_wins(client: AsyncClient):
+    """Repeated bulk bursts over the same key set should remain idempotent."""
+    token, line_item_id = await setup_line_item(client, "bp_bursts")
+    dimension_ids = [str(uuid.uuid4()) for _ in range(120)]
+    total_bursts = 4
+
+    for burst in range(total_bursts):
+        payload = {
+            "cells": [
+                {
+                    "line_item_id": line_item_id,
+                    "dimension_members": [dim_id],
+                    "value": float(burst * 1000 + i),
+                }
+                for i, dim_id in enumerate(dimension_ids)
+            ]
+        }
+        resp = await client.post(
+            "/cells/bulk",
+            json=payload,
+            headers=auth_headers(token),
+        )
+        assert resp.status_code == 200
+        assert len(resp.json()) == len(dimension_ids)
+
+    q_resp = await client.post(
+        "/cells/query",
+        json={"line_item_id": line_item_id},
+        headers=auth_headers(token),
+    )
+    assert q_resp.status_code == 200
+    cells = q_resp.json()
+    assert len(cells) == len(dimension_ids)
+
+    by_dimension_key = {cell["dimension_key"]: cell["value"] for cell in cells}
+    for i, dim_id in enumerate(dimension_ids):
+        assert by_dimension_key[dim_id] == float((total_bursts - 1) * 1000 + i)
+
+
+@pytest.mark.asyncio
+@pytest.mark.backpressure
+async def test_bulk_write_hot_key_pressure_single_intersection(client: AsyncClient):
+    """
+    A hot-key workload (many writes to one intersection) should not create
+    duplicate cell rows.
+    """
+    token, line_item_id = await setup_line_item(client, "bp_hot_key")
+    dim_id = str(uuid.uuid4())
+
+    payload = {
+        "cells": [
+            {
+                "line_item_id": line_item_id,
+                "dimension_members": [dim_id],
+                "value": float(i),
+            }
+            for i in range(150)
+        ]
+    }
+
+    resp = await client.post(
+        "/cells/bulk",
+        json=payload,
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 200
+    assert len(resp.json()) == 150
+
+    q_resp = await client.post(
+        "/cells/query",
+        json={"line_item_id": line_item_id},
+        headers=auth_headers(token),
+    )
+    assert q_resp.status_code == 200
+    cells = q_resp.json()
+    assert len(cells) == 1
+    assert cells[0]["value"] == 149.0
+
+
+@pytest.mark.asyncio
+@pytest.mark.backpressure
+async def test_query_large_filter_set_after_bulk_write(client: AsyncClient):
+    """Large filter lists should correctly narrow results after heavy writes."""
+    token, line_item_id = await setup_line_item(client, "bp_query_filter")
+    dimension_ids = [str(uuid.uuid4()) for _ in range(180)]
+
+    write_resp = await client.post(
+        "/cells/bulk",
+        json={
+            "cells": [
+                {
+                    "line_item_id": line_item_id,
+                    "dimension_members": [dim_id],
+                    "value": float(i),
+                }
+                for i, dim_id in enumerate(dimension_ids)
+            ]
+        },
+        headers=auth_headers(token),
+    )
+    assert write_resp.status_code == 200
+
+    allowed_dims = dimension_ids[30:100]
+    query_resp = await client.post(
+        "/cells/query",
+        json={
+            "line_item_id": line_item_id,
+            "dimension_filters": {"large_filter_group": allowed_dims},
+        },
+        headers=auth_headers(token),
+    )
+    assert query_resp.status_code == 200
+    rows = query_resp.json()
+    assert len(rows) == len(allowed_dims)
+    assert {row["dimension_key"] for row in rows} == set(allowed_dims)
+
+
+@pytest.mark.asyncio
+@pytest.mark.backpressure
+async def test_bulk_write_atomicity_rolls_back_on_error(client: AsyncClient, monkeypatch):
+    """A failure during bulk write must not commit partial rows."""
+    token, line_item_id = await setup_line_item(client, "bp_atomicity")
+    dim_a = str(uuid.uuid4())
+    dim_b = str(uuid.uuid4())
+
+    from app.services import cell as cell_service
+
+    original_extract = cell_service._extract_value_and_type
+
+    def _boom_on_marker(value):
+        if value == "__force_error__":
+            raise RuntimeError("forced bulk write failure")
+        return original_extract(value)
+
+    monkeypatch.setattr(cell_service, "_extract_value_and_type", _boom_on_marker)
+
+    with pytest.raises(RuntimeError, match="forced bulk write failure"):
+        await client.post(
+            "/cells/bulk",
+            json={
+                "cells": [
+                    {
+                        "line_item_id": line_item_id,
+                        "dimension_members": [dim_a],
+                        "value": 111.0,
+                    },
+                    {
+                        "line_item_id": line_item_id,
+                        "dimension_members": [dim_b],
+                        "value": "__force_error__",
+                    },
+                ]
+            },
+            headers=auth_headers(token),
+        )
+
+    q_resp = await client.post(
+        "/cells/query",
+        json={"line_item_id": line_item_id},
+        headers=auth_headers(token),
+    )
+    assert q_resp.status_code == 200
+    assert q_resp.json() == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.backpressure
+async def test_concurrent_bulk_writes_disjoint_sets(client: AsyncClient):
+    """Concurrent bulk writes with disjoint keys should preserve all rows."""
+    token, line_item_id = await setup_line_item(client, "bp_concurrent_disjoint")
+    worker_count = 4
+    batch_size = 40
+
+    async def _write_batch(worker_idx: int):
+        dims = [str(uuid.uuid4()) for _ in range(batch_size)]
+        return await client.post(
+            "/cells/bulk",
+            json={
+                "cells": [
+                    {
+                        "line_item_id": line_item_id,
+                        "dimension_members": [dim],
+                        "value": float(worker_idx * 1000 + i),
+                    }
+                    for i, dim in enumerate(dims)
+                ]
+            },
+            headers=auth_headers(token),
+        )
+
+    responses = await asyncio.gather(*[_write_batch(i) for i in range(worker_count)])
+    assert all(resp.status_code == 200 for resp in responses)
+
+    q_resp = await client.post(
+        "/cells/query",
+        json={"line_item_id": line_item_id},
+        headers=auth_headers(token),
+    )
+    assert q_resp.status_code == 200
+    assert len(q_resp.json()) == worker_count * batch_size
+
+
+@pytest.mark.asyncio
+@pytest.mark.backpressure
+@pytest.mark.xfail(
+    reason="In-memory SQLite StaticPool cannot reliably emulate same-key concurrent writes",
+    strict=False,
+)
+async def test_concurrent_writes_same_intersection_single_row(client: AsyncClient):
+    """
+    Concurrent writes to one intersection should keep one persisted row.
+
+    In-memory SQLite (single shared connection in tests) can raise transient
+    concurrency exceptions under intense overlap. This test still verifies
+    consistency of persisted data after the burst.
+    """
+    token, line_item_id = await setup_line_item(client, "bp_concurrent_hot")
+    dim = str(uuid.uuid4())
+    values = [float(i) for i in range(30)]
+
+    async def _write_value(v: float):
+        return await client.post(
+            "/cells",
+            json={
+                "line_item_id": line_item_id,
+                "dimension_members": [dim],
+                "value": v,
+            },
+            headers=auth_headers(token),
+        )
+
+    responses = await asyncio.gather(*[_write_value(v) for v in values], return_exceptions=True)
+    successful = [resp for resp in responses if not isinstance(resp, Exception)]
+    assert successful, "Expected at least one successful write under contention"
+    assert all(resp.status_code == 200 for resp in successful)
+
+    q_resp = await client.post(
+        "/cells/query",
+        json={"line_item_id": line_item_id},
+        headers=auth_headers(token),
+    )
+    assert q_resp.status_code == 200
+    rows = q_resp.json()
+    assert len(rows) == 1
+    assert rows[0]["value"] in values

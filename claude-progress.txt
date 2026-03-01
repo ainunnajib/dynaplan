@@ -11,7 +11,7 @@ Last updated: 2026-03-02
 - [x] F005: Modules & line items with formula/format/dimensions (38 tests)
 - [x] F006: Formula engine — tokenizer, parser, evaluator, 20+ functions (102 tests)
 - [x] F007: Dependency graph — topo sort, cycle detection, partial recalc (42 tests)
-- [x] F008: Cell-level sparse storage — upsert, bulk, query (27 tests)
+- [x] F008: Cell-level sparse storage — upsert, bulk, query, backpressure stress (33 passed + 1 xfail harness limit)
 - [x] F009: Time dimension & calendar — fiscal calendar, period generation (56 tests)
 - [x] F010: Versions — actuals/forecast/budget/scenario, compare (27 tests)
 - [x] F011: Grid view — virtualized DataGrid, multi-dim headers (frontend)
@@ -22,8 +22,8 @@ Last updated: 2026-03-02
 - [x] F016: Charts & visualizations — bar/line/area/pie/waterfall/combo (frontend)
 - [x] F017: Dashboard publishing & sharing — publish, share, context filters (21 tests + frontend)
 - [x] F018: CSV/Excel import & export — parse/export CSV/XLSX (25 tests + frontend)
-- [x] F019: REST API with API key auth — scoped keys, public endpoints (28 tests)
-- [x] F020: Actions & processes — CRUD, run, step ordering (30 tests)
+- [x] F019: REST API with API key auth — scoped keys, public endpoints, backpressure stress (32 tests)
+- [x] F020: Actions & processes — CRUD, run, step ordering, backpressure stress (33 tests)
 
 ## Next Up (P2)
 - [ ] F021: Real-time collaboration
@@ -50,3 +50,4 @@ Last updated: 2026-03-02
 - API keys: hashed with SHA-256, scoped (read:models, write:cells, admin, etc.)
 - Import/export: CSV and Excel via openpyxl
 - Actions: chained processes with step ordering, async run
+- Backpressure: `pytest -m backpressure` marker added with dedicated CI gate for cell/API-key/action stress tests

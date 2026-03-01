@@ -257,6 +257,102 @@
       "description": "Optimized batch read/write for large data volumes. Chunked imports with progress tracking",
       "status": "pending",
       "priority": "P2"
+    },
+    {
+      "id": "F033",
+      "category": "Modeling Engine",
+      "name": "Time ranges",
+      "description": "Define model-level and module-level time ranges to limit applies-to scope and calculation volume for different planning horizons",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F034",
+      "category": "Modeling Engine",
+      "name": "List subsets and line item subsets",
+      "description": "Support list subsets and line item subsets for dynamic reporting, selective calculations, and reusable dimensional structures",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F035",
+      "category": "Admin & Security",
+      "name": "Selective access and Dynamic Cell Access (DCA)",
+      "description": "Combine role/list-based selective access with read/write driver line items to control visibility and editability at cell level",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F036",
+      "category": "Grid & UX",
+      "name": "UX page types (Board, Worksheet, Report)",
+      "description": "Provide dedicated Board, Worksheet, and Report page experiences with context selectors and linked-card interactions",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F037",
+      "category": "Dashboards",
+      "name": "Management reporting",
+      "description": "Pixel-perfect reporting pages with narrative text blocks, chart/grid cards, and export-ready layout controls",
+      "status": "pending",
+      "priority": "P2"
+    },
+    {
+      "id": "F038",
+      "category": "Workflow",
+      "name": "Workflow tasks and approvals",
+      "description": "Orchestrate planning cycles with assignees, task status, approvals, and stage-gated collaboration flows",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F039",
+      "category": "Lifecycle & Governance",
+      "name": "Application Lifecycle Management (ALM)",
+      "description": "Support dev/test/prod model promotion with revision tags and controlled synchronization of structural changes",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F040",
+      "category": "Data Integration",
+      "name": "CloudWorks scheduled integrations",
+      "description": "Native scheduled orchestration for imports/exports and cloud connector integrations with retry/status visibility",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F041",
+      "category": "Data Integration",
+      "name": "Data Orchestrator pipelines",
+      "description": "No-code/low-code data pipeline orchestration for ingestion, transformation, and publishing into planning models",
+      "status": "pending",
+      "priority": "P2"
+    },
+    {
+      "id": "F042",
+      "category": "Data Integration",
+      "name": "Transactional and chunked file APIs",
+      "description": "Expose enterprise APIs for chunked file upload/download, import task execution, status polling, and transactional updates",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F043",
+      "category": "Admin & Security",
+      "name": "SCIM user provisioning",
+      "description": "Automated user and group lifecycle provisioning/deprovisioning integrated with enterprise identity providers",
+      "status": "pending",
+      "priority": "P2"
+    },
+    {
+      "id": "F044",
+      "category": "Performance",
+      "name": "Large model engine profiles (Classic and Polaris-like)",
+      "description": "Engine modes tuned for sparse and high-cardinality models, with guidance for model design and performance boundaries",
+      "status": "pending",
+      "priority": "P2"
     }
   ]
 }

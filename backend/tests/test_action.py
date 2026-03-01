@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 
 import pytest
@@ -78,6 +79,44 @@ async def create_process(
         headers=auth_headers(token),
     )
     return resp
+
+
+async def create_runnable_process(
+    client: AsyncClient,
+    token: str,
+    model_id: str,
+    *,
+    step_count: int = 1,
+    name: str = "Runnable Process",
+) -> str:
+    """Create a process with deterministic ordered steps for run stress tests."""
+    process_resp = await create_process(client, token, model_id, name=name)
+    assert process_resp.status_code == 201
+    process_id = process_resp.json()["id"]
+
+    for index in range(step_count):
+        action_resp = await create_action(
+            client,
+            token,
+            model_id,
+            name=f"{name} Action {index + 1}",
+            action_type="import_data",
+            config={
+                "file_path": f"/tmp/{name.lower().replace(' ', '_')}_{index + 1}.csv",
+                "source_module_id": f"mod-{index + 1}",
+            },
+        )
+        assert action_resp.status_code == 201
+        action_id = action_resp.json()["id"]
+
+        step_resp = await client.post(
+            f"/processes/{process_id}/steps",
+            json={"action_id": action_id, "step_order": index + 1},
+            headers=auth_headers(token),
+        )
+        assert step_resp.status_code == 201
+
+    return process_id
 
 
 # ---------------------------------------------------------------------------
@@ -590,3 +629,96 @@ async def test_run_executes_steps_in_order(client: AsyncClient):
     assert len(steps) == 3
     executed_orders = [s["step_order"] for s in steps]
     assert executed_orders == [1, 2, 3]
+
+
+# ---------------------------------------------------------------------------
+# Backpressure tests
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+@pytest.mark.backpressure
+async def test_run_process_burst_backpressure(client: AsyncClient):
+    token = await register_and_login(client, "run_burst_backpressure@example.com")
+    ws_id = await create_workspace(client, token)
+    model_id = await create_model(client, token, ws_id)
+    process_id = await create_runnable_process(
+        client,
+        token,
+        model_id,
+        step_count=1,
+        name="Burst Backpressure Process",
+    )
+
+    burst_size = 30
+    run_ids = []
+    for _ in range(burst_size):
+        run_resp = await client.post(f"/processes/{process_id}/run", headers=auth_headers(token))
+        assert run_resp.status_code == 201
+        run_data = run_resp.json()
+        assert run_data["status"] == "completed"
+        run_ids.append(run_data["id"])
+
+    assert len(set(run_ids)) == burst_size
+
+    history_resp = await client.get(f"/processes/{process_id}/runs", headers=auth_headers(token))
+    assert history_resp.status_code == 200
+    history = history_resp.json()
+    assert len(history) == burst_size
+    assert all(run["status"] == "completed" for run in history)
+
+
+@pytest.mark.asyncio
+@pytest.mark.backpressure
+async def test_run_process_concurrent_backpressure(client: AsyncClient):
+    token = await register_and_login(client, "run_concurrent_backpressure@example.com")
+    ws_id = await create_workspace(client, token)
+    model_id = await create_model(client, token, ws_id)
+    process_id = await create_runnable_process(
+        client,
+        token,
+        model_id,
+        step_count=2,
+        name="Concurrent Backpressure Process",
+    )
+
+    async def trigger_run() -> dict:
+        resp = await client.post(f"/processes/{process_id}/run", headers=auth_headers(token))
+        assert resp.status_code == 201
+        return resp.json()
+
+    concurrent_runs = 8
+    runs = await asyncio.gather(*[trigger_run() for _ in range(concurrent_runs)])
+    run_ids = [r["id"] for r in runs]
+    assert len(set(run_ids)) == concurrent_runs
+    assert all(r["status"] == "completed" for r in runs)
+
+    history_resp = await client.get(f"/processes/{process_id}/runs", headers=auth_headers(token))
+    assert history_resp.status_code == 200
+    history = history_resp.json()
+    assert len(history) == concurrent_runs
+
+
+@pytest.mark.asyncio
+@pytest.mark.backpressure
+async def test_run_process_many_steps_backpressure(client: AsyncClient):
+    token = await register_and_login(client, "run_many_steps_backpressure@example.com")
+    ws_id = await create_workspace(client, token)
+    model_id = await create_model(client, token, ws_id)
+
+    step_count = 40
+    process_id = await create_runnable_process(
+        client,
+        token,
+        model_id,
+        step_count=step_count,
+        name="Many Steps Backpressure Process",
+    )
+
+    run_resp = await client.post(f"/processes/{process_id}/run", headers=auth_headers(token))
+    assert run_resp.status_code == 201
+    run_data = run_resp.json()
+    assert run_data["status"] == "completed"
+
+    steps = run_data["result"]["steps"]
+    assert len(steps) == step_count
+    assert [step["step_order"] for step in steps] == list(range(1, step_count + 1))

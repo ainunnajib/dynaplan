@@ -1,7 +1,9 @@
+import asyncio
 import uuid
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.cell import CellValue
@@ -63,17 +65,16 @@ def _cell_to_read(cell: CellValue) -> CellRead:
 
 # ── Write operations ───────────────────────────────────────────────────────────
 
-async def write_cell(
+async def _upsert_cell_no_commit(
     db: AsyncSession,
     line_item_id: uuid.UUID,
     dimension_members: List[uuid.UUID],
     value: Any,
-) -> CellRead:
-    """Upsert a single cell value."""
+) -> CellValue:
+    """Upsert a single cell without committing the current transaction."""
     dimension_key = make_dimension_key(dimension_members)
-    value_number, value_text, value_boolean, value_type = _extract_value_and_type(value)
+    value_number, value_text, value_boolean, _value_type = _extract_value_and_type(value)
 
-    # Try to find an existing cell
     result = await db.execute(
         select(CellValue).where(
             CellValue.line_item_id == line_item_id,
@@ -86,37 +87,111 @@ async def write_cell(
         existing.value_number = value_number
         existing.value_text = value_text
         existing.value_boolean = value_boolean
+        return existing
+
+    cell = CellValue(
+        line_item_id=line_item_id,
+        dimension_key=dimension_key,
+        value_number=value_number,
+        value_text=value_text,
+        value_boolean=value_boolean,
+    )
+    db.add(cell)
+    return cell
+
+
+async def write_cell(
+    db: AsyncSession,
+    line_item_id: uuid.UUID,
+    dimension_members: List[uuid.UUID],
+    value: Any,
+) -> CellRead:
+    """Upsert a single cell value."""
+    dimension_key = make_dimension_key(dimension_members)
+    value_number, value_text, value_boolean, _value_type = _extract_value_and_type(value)
+
+    cell = await _upsert_cell_no_commit(
+        db=db,
+        line_item_id=line_item_id,
+        dimension_members=dimension_members,
+        value=value,
+    )
+
+    try:
         await db.commit()
-        await db.refresh(existing)
-        return _cell_to_read(existing)
-    else:
-        cell = CellValue(
+    except IntegrityError:
+        # Concurrent insert race on (line_item_id, dimension_key):
+        # reload the row and apply this write as an update.
+        await db.rollback()
+        for _ in range(3):
+            result = await db.execute(
+                select(CellValue).where(
+                    CellValue.line_item_id == line_item_id,
+                    CellValue.dimension_key == dimension_key,
+                )
+            )
+            existing = result.scalar_one_or_none()
+            if existing is not None:
+                existing.value_number = value_number
+                existing.value_text = value_text
+                existing.value_boolean = value_boolean
+                try:
+                    await db.commit()
+                except Exception:
+                    await db.rollback()
+                    raise
+                await db.refresh(existing)
+                return _cell_to_read(existing)
+            await asyncio.sleep(0)
+
+        # If the winner row is still not visible, retry once from scratch.
+        cell = await _upsert_cell_no_commit(
+            db=db,
             line_item_id=line_item_id,
-            dimension_key=dimension_key,
-            value_number=value_number,
-            value_text=value_text,
-            value_boolean=value_boolean,
+            dimension_members=dimension_members,
+            value=value,
         )
-        db.add(cell)
-        await db.commit()
+        try:
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise
         await db.refresh(cell)
         return _cell_to_read(cell)
+    except Exception:
+        await db.rollback()
+        raise
+
+    await db.refresh(cell)
+    return _cell_to_read(cell)
 
 
 async def write_cells_bulk(
     db: AsyncSession,
     cells: List[CellWrite],
 ) -> List[CellRead]:
-    """Bulk upsert multiple cell values."""
-    results = []
-    for cell_write in cells:
-        cell_read = await write_cell(
-            db,
-            line_item_id=cell_write.line_item_id,
-            dimension_members=cell_write.dimension_members,
-            value=cell_write.value,
-        )
-        results.append(cell_read)
+    """Bulk upsert multiple cells in a single transaction."""
+    upserted_cells: List[CellValue] = []
+
+    try:
+        for cell_write in cells:
+            cell = await _upsert_cell_no_commit(
+                db=db,
+                line_item_id=cell_write.line_item_id,
+                dimension_members=cell_write.dimension_members,
+                value=cell_write.value,
+            )
+            upserted_cells.append(cell)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
+
+    results: List[CellRead] = []
+    for cell in upserted_cells:
+        await db.refresh(cell)
+        results.append(_cell_to_read(cell))
+
     return results
 
 

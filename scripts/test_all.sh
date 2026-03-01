@@ -12,6 +12,7 @@ echo "=== Dynaplan Check Suite ==="
 
 # Backend checks
 $RS "backend tests"  "cd backend && pytest -x --tb=short -q" || FAILED=1
+$RS "backend backpressure" "cd backend && pytest tests/test_cell.py tests/test_api_keys.py tests/test_action.py -m backpressure -q" || FAILED=1
 $RS "backend lint"   "cd backend && ruff check ." || FAILED=1
 
 # Frontend checks

@@ -523,6 +523,101 @@ async def test_public_bulk_write_cells(client: AsyncClient):
     assert len(resp.json()) == 2
 
 
+@pytest.mark.asyncio
+@pytest.mark.backpressure
+async def test_public_bulk_write_large_payload_backpressure(client: AsyncClient):
+    """Public bulk-write endpoint should handle high-volume integration payloads."""
+    token = await register_and_login(client, "pub_bulk_pressure@example.com")
+    ws_id = await create_workspace(client, token)
+    model_id = (await create_model(client, token, ws_id))["id"]
+    module_id = await create_module(client, token, model_id)
+    line_item_id = await create_line_item(client, token, module_id)
+
+    write_key = await create_api_key(
+        client, token, name="Write Pressure Key", scopes=["write:cells"]
+    )
+    read_key = await create_api_key(
+        client, token, name="Read Pressure Key", scopes=["read:cells"]
+    )
+
+    dims = [str(uuid.uuid4()) for _ in range(220)]
+    write_resp = await client.post(
+        "/api/v1/cells/bulk",
+        json={
+            "cells": [
+                {
+                    "line_item_id": line_item_id,
+                    "dimension_members": [dim],
+                    "value": float(i),
+                }
+                for i, dim in enumerate(dims)
+            ]
+        },
+        headers=api_key_headers(write_key["raw_key"]),
+    )
+    assert write_resp.status_code == 200
+    assert len(write_resp.json()) == 220
+
+    query_resp = await client.post(
+        "/api/v1/cells/query",
+        json={"line_item_id": line_item_id},
+        headers=api_key_headers(read_key["raw_key"]),
+    )
+    assert query_resp.status_code == 200
+    assert len(query_resp.json()) == 220
+
+
+@pytest.mark.asyncio
+@pytest.mark.backpressure
+async def test_public_bulk_write_repeated_bursts_last_write_wins(client: AsyncClient):
+    """Repeated burst writes through the public API remain one-row-per-intersection."""
+    token = await register_and_login(client, "pub_bulk_bursts@example.com")
+    ws_id = await create_workspace(client, token)
+    model_id = (await create_model(client, token, ws_id))["id"]
+    module_id = await create_module(client, token, model_id)
+    line_item_id = await create_line_item(client, token, module_id)
+
+    write_key = await create_api_key(
+        client, token, name="Write Burst Key", scopes=["write:cells"]
+    )
+    read_key = await create_api_key(
+        client, token, name="Read Burst Key", scopes=["read:cells"]
+    )
+
+    dims = [str(uuid.uuid4()) for _ in range(90)]
+    burst_count = 3
+    for burst in range(burst_count):
+        resp = await client.post(
+            "/api/v1/cells/bulk",
+            json={
+                "cells": [
+                    {
+                        "line_item_id": line_item_id,
+                        "dimension_members": [dim],
+                        "value": float(burst * 1000 + i),
+                    }
+                    for i, dim in enumerate(dims)
+                ]
+            },
+            headers=api_key_headers(write_key["raw_key"]),
+        )
+        assert resp.status_code == 200
+        assert len(resp.json()) == len(dims)
+
+    query_resp = await client.post(
+        "/api/v1/cells/query",
+        json={"line_item_id": line_item_id},
+        headers=api_key_headers(read_key["raw_key"]),
+    )
+    assert query_resp.status_code == 200
+    rows = query_resp.json()
+    assert len(rows) == len(dims)
+
+    values_by_key = {row["dimension_key"]: row["value"] for row in rows}
+    for i, dim in enumerate(dims):
+        assert values_by_key[dim] == float((burst_count - 1) * 1000 + i)
+
+
 # ---------------------------------------------------------------------------
 # Scope Enforcement Tests
 # ---------------------------------------------------------------------------
