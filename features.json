@@ -15,7 +15,7 @@
       "category": "Core Platform",
       "name": "Workspace management",
       "description": "Create, list, rename, delete workspaces. Workspace-level permissions and settings",
-      "status": "pending",
+      "status": "done",
       "priority": "P0"
     },
     {
@@ -23,7 +23,7 @@
       "category": "Core Platform",
       "name": "Model management",
       "description": "Create, clone, archive, delete models within a workspace. Model metadata and settings",
-      "status": "pending",
+      "status": "done",
       "priority": "P0"
     },
     {
@@ -31,7 +31,7 @@
       "category": "Modeling Engine",
       "name": "Dimensions & hierarchies",
       "description": "Create named dimensions (lists) with hierarchical parent-child relationships. Support for time, versions, and custom dimensions",
-      "status": "pending",
+      "status": "done",
       "priority": "P0"
     },
     {

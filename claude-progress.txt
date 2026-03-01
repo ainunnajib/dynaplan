@@ -1,7 +1,7 @@
 # Dynaplan Development Progress
 
-## Current Status: F004 IMPLEMENTED (tests pending run)
-Last updated: 2026-03-01
+## Current Status: F001-F004 COMPLETE (85 tests passing)
+Last updated: 2026-03-02
 
 ## Completed
 - [x] Project structure created
@@ -9,33 +9,32 @@ Last updated: 2026-03-01
 - [x] features.json defined with full Anaplan feature parity list
 - [x] Git repo initialized and pushed to GitHub
 - [x] Backpressure infrastructure (run_silent.sh, test_all.sh, parallel_implement.sh)
-- [x] F001: User authentication & authorization (11 tests passing)
-  - User model with roles (admin, modeler, viewer)
-  - bcrypt hashing + JWT tokens
-  - Endpoints: register, login, me, logout
-  - SQLite test setup with StaticPool
-- [x] F002: Workspace management (assumed done, models exist)
-- [x] F003: Model management (assumed done, models exist)
-- [x] F004: Dimensions & hierarchies (implemented, tests written)
-  - Dimension model: id, name, dimension_type (custom/time/version), model_id FK, timestamps
-  - DimensionItem model: id, name, code, dimension_id FK, parent_id FK (self-ref, nullable), sort_order, timestamps
-  - Self-referential FK on dimension_items.parent_id with ondelete=SET NULL
-  - Schemas: DimensionCreate/Update/Response, DimensionItemCreate/Update/Response, DimensionItemNode (tree)
-  - Service: full CRUD + tree builder (_build_tree recursive) + reorder_items
-  - API routes: POST/GET /models/{model_id}/dimensions, PATCH/DELETE /dimensions/{dimension_id},
-    POST/GET(flat|tree) /dimensions/{dimension_id}/items,
-    PATCH/DELETE /dimensions/{dimension_id}/items/{item_id}
-  - 30 tests in backend/tests/test_dimension.py
+- [x] F001: User authentication & authorization (11 tests)
+- [x] F002: Workspace management (14 tests)
+- [x] F003: Model management with clone/archive (27 tests)
+- [x] F004: Dimensions & hierarchies with tree builder (30 tests)
 
 ## In Progress
 (nothing)
 
-## Next Up
+## Next Up (P0)
 - [ ] F005: Modules & line items
+- [ ] F006: Formula engine
+- [ ] F007: Calculation dependency graph
+- [ ] F008: Cell-level data storage
+
+## Next Up (P1)
+- [ ] F009: Time dimension & calendar
+- [ ] F010: Versions (actuals, forecast, budget)
+- [ ] F011: Grid view (spreadsheet UI)
+- [ ] F012: Pivot & filter controls
+- [ ] F013: Cell editing & input
+- [ ] F014: Module builder UI
 
 ## Known Issues
 - Python 3.9.6 on this machine — need bcrypt==4.0.1 (not 5.x) for passlib compatibility
-- numpy pinned to >=1.24.0 (not 2.1) for Python 3.9 compat
+- Must use Optional[str] not str | None (Python 3.9 compat)
+- numpy pinned to >=1.24.0 for Python 3.9 compat
 
 ## Architecture Notes
 - Frontend: Next.js 15 App Router at /frontend
