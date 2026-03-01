@@ -1,0 +1,5 @@
+I noticed an unexpected working-tree change I didn’t make: `frontend/src/app/models/page.tsx` is now modified compared to the initial status. Per your repo safety rules, I’m paused here.
+
+Choose how you want to proceed:
+1. Continue and ignore that unrelated change.
+2. Stop so you can handle/review it first.

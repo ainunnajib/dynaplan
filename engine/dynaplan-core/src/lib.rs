@@ -1,10 +1,16 @@
 pub mod block;
 pub mod dimension;
+pub mod formula;
 pub mod model;
 pub mod value;
 
 pub use block::CalculationBlock;
 pub use dimension::{DimensionDef, DimensionKey};
+pub use formula::{
+    evaluate_formula, evaluate_formula_cell_context, get_references, parse_formula,
+    validate_formula, ASTNode, BinaryOperator, Context, Evaluator, FormulaEngineError,
+    FormulaError, FormulaValue, ParseError, Token, TokenType, TokenizerError, UnaryOperator,
+};
 pub use model::ModelState;
 pub use value::CellValue;
 
