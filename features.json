@@ -1,0 +1,262 @@
+{
+  "project": "Dynaplan",
+  "description": "Full-featured Anaplan replacement",
+  "features": [
+    {
+      "id": "F001",
+      "category": "Core Platform",
+      "name": "User authentication & authorization",
+      "description": "Sign up, login, logout, password reset, role-based access (admin, modeler, viewer)",
+      "status": "pending",
+      "priority": "P0"
+    },
+    {
+      "id": "F002",
+      "category": "Core Platform",
+      "name": "Workspace management",
+      "description": "Create, list, rename, delete workspaces. Workspace-level permissions and settings",
+      "status": "pending",
+      "priority": "P0"
+    },
+    {
+      "id": "F003",
+      "category": "Core Platform",
+      "name": "Model management",
+      "description": "Create, clone, archive, delete models within a workspace. Model metadata and settings",
+      "status": "pending",
+      "priority": "P0"
+    },
+    {
+      "id": "F004",
+      "category": "Modeling Engine",
+      "name": "Dimensions & hierarchies",
+      "description": "Create named dimensions (lists) with hierarchical parent-child relationships. Support for time, versions, and custom dimensions",
+      "status": "pending",
+      "priority": "P0"
+    },
+    {
+      "id": "F005",
+      "category": "Modeling Engine",
+      "name": "Modules & line items",
+      "description": "Create modules with line items. Each line item has a formula, format, and applies-to dimensions. This is the core data structure",
+      "status": "pending",
+      "priority": "P0"
+    },
+    {
+      "id": "F006",
+      "category": "Modeling Engine",
+      "name": "Formula engine",
+      "description": "Expression parser and evaluator supporting arithmetic, logical, lookup, aggregation, time functions. Anaplan-compatible formula syntax",
+      "status": "pending",
+      "priority": "P0"
+    },
+    {
+      "id": "F007",
+      "category": "Modeling Engine",
+      "name": "Calculation dependency graph",
+      "description": "Automatic dependency tracking between line items. Recalculate only affected cells on change. Circular dependency detection",
+      "status": "pending",
+      "priority": "P0"
+    },
+    {
+      "id": "F008",
+      "category": "Modeling Engine",
+      "name": "Cell-level data storage",
+      "description": "Sparse storage for multidimensional data cubes. Efficient read/write for individual cells and bulk operations",
+      "status": "pending",
+      "priority": "P0"
+    },
+    {
+      "id": "F009",
+      "category": "Modeling Engine",
+      "name": "Time dimension & calendar",
+      "description": "Built-in time dimension with configurable fiscal calendar. Support for weeks, months, quarters, half-years, years. Time aggregation and spread",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F010",
+      "category": "Modeling Engine",
+      "name": "Versions (actuals, forecast, budget)",
+      "description": "Version dimension for scenario planning. Switchover between actuals and forecast at configurable time periods",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F011",
+      "category": "Grid & UX",
+      "name": "Grid view (spreadsheet UI)",
+      "description": "High-performance virtualized grid for viewing/editing module data. Row/column pivoting on any dimension. Cell formatting",
+      "status": "pending",
+      "priority": "P0"
+    },
+    {
+      "id": "F012",
+      "category": "Grid & UX",
+      "name": "Pivot & filter controls",
+      "description": "Drag-and-drop dimension pivoting (rows, columns, pages). Multi-select filtering on dimension members",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F013",
+      "category": "Grid & UX",
+      "name": "Cell editing & input",
+      "description": "Direct cell editing in grid. Support for number, text, boolean, date, list-formatted line items. Input validation",
+      "status": "pending",
+      "priority": "P0"
+    },
+    {
+      "id": "F014",
+      "category": "Grid & UX",
+      "name": "Module builder (model design UI)",
+      "description": "UI for creating/editing modules and line items. Set formulas, formats, dimensions, summary methods. Blueprint view",
+      "status": "pending",
+      "priority": "P0"
+    },
+    {
+      "id": "F015",
+      "category": "Dashboards",
+      "name": "Dashboard builder",
+      "description": "Drag-and-drop dashboard creation. Add grids, charts, KPI cards, text, images. Responsive layout",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F016",
+      "category": "Dashboards",
+      "name": "Charts & visualizations",
+      "description": "Bar, line, area, pie, waterfall, combo charts. Configurable axes, colors, labels. Chart-grid synchronization",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F017",
+      "category": "Dashboards",
+      "name": "Dashboard publishing & sharing",
+      "description": "Publish dashboards to end users. View-only mode. Dashboard-level context selectors (filters)",
+      "status": "pending",
+      "priority": "P2"
+    },
+    {
+      "id": "F018",
+      "category": "Data Integration",
+      "name": "CSV/Excel import & export",
+      "description": "Import data from CSV/Excel into modules or lists. Export module data and reports to CSV/Excel",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F019",
+      "category": "Data Integration",
+      "name": "REST API for data integration",
+      "description": "Public API for reading/writing model data, triggering actions, managing metadata. API key authentication",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F020",
+      "category": "Data Integration",
+      "name": "Actions & processes",
+      "description": "Define import/export actions. Chain actions into processes. Schedule processes or trigger via API",
+      "status": "pending",
+      "priority": "P2"
+    },
+    {
+      "id": "F021",
+      "category": "Collaboration",
+      "name": "Real-time collaboration",
+      "description": "Multiple users editing the same module simultaneously. Presence indicators, live cell updates via WebSocket",
+      "status": "pending",
+      "priority": "P2"
+    },
+    {
+      "id": "F022",
+      "category": "Collaboration",
+      "name": "Comments & annotations",
+      "description": "Add comments to cells, line items, or modules. @mention users. Comment threads and resolution",
+      "status": "pending",
+      "priority": "P2"
+    },
+    {
+      "id": "F023",
+      "category": "Collaboration",
+      "name": "Audit trail & history",
+      "description": "Track all data changes with user, timestamp, old/new values. Revision history for model structure changes",
+      "status": "pending",
+      "priority": "P2"
+    },
+    {
+      "id": "F024",
+      "category": "Planning Features",
+      "name": "Scenario comparison",
+      "description": "Compare multiple versions/scenarios side by side. Variance analysis with absolute and percentage differences",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F025",
+      "category": "Planning Features",
+      "name": "Top-down & bottom-up planning",
+      "description": "Spread values top-down across dimension members (even, proportional, manual). Aggregate bottom-up with configurable summary methods",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F026",
+      "category": "Planning Features",
+      "name": "Rolling forecasts",
+      "description": "Automatically advance forecast periods. Configurable forecast horizon. Auto-archive past periods to actuals",
+      "status": "pending",
+      "priority": "P2"
+    },
+    {
+      "id": "F027",
+      "category": "Planning Features",
+      "name": "What-if analysis",
+      "description": "Create temporary scenarios with modified assumptions. Compare outcomes without affecting live model",
+      "status": "pending",
+      "priority": "P2"
+    },
+    {
+      "id": "F028",
+      "category": "Admin & Security",
+      "name": "Role-based access control",
+      "description": "Roles: workspace admin, model builder, end user. Granular permissions on models, modules, dashboards. Selective access on dimension members",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F029",
+      "category": "Admin & Security",
+      "name": "SSO / SAML integration",
+      "description": "Enterprise SSO via SAML 2.0 or OIDC. Auto-provisioning of users from identity provider",
+      "status": "pending",
+      "priority": "P2"
+    },
+    {
+      "id": "F030",
+      "category": "Admin & Security",
+      "name": "Model history & snapshots",
+      "description": "Create named snapshots of entire model state. Restore to any snapshot. Compare snapshots",
+      "status": "pending",
+      "priority": "P2"
+    },
+    {
+      "id": "F031",
+      "category": "Performance",
+      "name": "Calculation caching",
+      "description": "Cache computed values. Invalidate selectively based on dependency graph. Background recalculation for large models",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F032",
+      "category": "Performance",
+      "name": "Bulk data operations",
+      "description": "Optimized batch read/write for large data volumes. Chunked imports with progress tracking",
+      "status": "pending",
+      "priority": "P2"
+    }
+  ]
+}
