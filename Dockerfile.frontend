@@ -1,0 +1,20 @@
+FROM node:20-slim
+
+ENV NEXT_TELEMETRY_DISABLED=1
+
+WORKDIR /app
+
+COPY frontend/package.json /app/package.json
+RUN npm install --no-audit --no-fund
+
+COPY frontend /app
+
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV PORT=8080
+
+RUN npm run build
+
+EXPOSE 8080
+
+CMD ["npm", "run", "start", "--", "-p", "8080", "-H", "0.0.0.0"]

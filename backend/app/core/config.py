@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     secret_key: str = "change-me-in-production"
     access_token_expire_minutes: int = 30
     frontend_url: str = "http://localhost:3000"
+    auto_create_schema: bool = False
 
     model_config = {"env_file": ".env", "env_prefix": "DYNAPLAN_"}
 

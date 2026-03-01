@@ -40,6 +40,8 @@ from app.api.time_dimension import router as time_dimension_router
 from app.api.version import router as version_router
 from app.api.workspace import router as workspace_router
 from app.core.config import settings
+from app.core.database import engine
+from app.models import Base
 
 app = FastAPI(
     title="Dynaplan",
@@ -94,6 +96,14 @@ app.include_router(alm_router)
 app.include_router(cloudworks_router)
 app.include_router(pipeline_router)
 app.include_router(scim_router)
+
+
+@app.on_event("startup")
+async def startup_init_schema():
+    if not settings.auto_create_schema:
+        return
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
 
 @app.get("/health")
