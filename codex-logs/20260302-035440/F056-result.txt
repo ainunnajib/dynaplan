@@ -1,0 +1,46 @@
+Implemented F056 end-to-end.
+
+**What changed**
+- Added numbered dimension type + per-dimension limit field:
+  - [dimension.py](/Users/ainunnajib/dynaplan/backend/app/models/dimension.py:12)
+  - [dimension.py](/Users/ainunnajib/dynaplan/backend/app/models/dimension.py:29)
+- Extended schemas for `max_items` and optional `code` on create:
+  - [dimension.py](/Users/ainunnajib/dynaplan/backend/app/schemas/dimension.py:12)
+  - [dimension.py](/Users/ainunnajib/dynaplan/backend/app/schemas/dimension.py:38)
+- Implemented numbered-list behavior in service:
+  - Auto-generated numeric codes (`1,2,3,...`) for numbered dimensions
+  - Enforced `max_items` for numbered dimensions
+  - Required explicit code for non-numbered dimensions
+  - Blocked manual code edits for numbered items
+  - [dimension.py](/Users/ainunnajib/dynaplan/backend/app/services/dimension.py:17)
+  - [dimension.py](/Users/ainunnajib/dynaplan/backend/app/services/dimension.py:127)
+  - [dimension.py](/Users/ainunnajib/dynaplan/backend/app/services/dimension.py:188)
+- Added API-level 400 mapping for dimension validation errors:
+  - [dimension.py](/Users/ainunnajib/dynaplan/backend/app/api/dimension.py:85)
+  - [dimension.py](/Users/ainunnajib/dynaplan/backend/app/api/dimension.py:188)
+- Added `ITEMCOUNT()` formula support:
+  - [evaluator.py](/Users/ainunnajib/dynaplan/backend/app/engine/evaluator.py:279)
+  - [formula.py](/Users/ainunnajib/dynaplan/backend/app/engine/formula.py:126)
+- Kept numbered-list consistency in import/snapshot flows:
+  - [import_export.py](/Users/ainunnajib/dynaplan/backend/app/services/import_export.py:91)
+  - [snapshot.py](/Users/ainunnajib/dynaplan/backend/app/services/snapshot.py:32)
+  - [snapshot.py](/Users/ainunnajib/dynaplan/backend/app/services/snapshot.py:268)
+- Added/updated tests for numbered lists and `ITEMCOUNT`:
+  - [test_dimension.py](/Users/ainunnajib/dynaplan/backend/tests/test_dimension.py:142)
+  - [test_dimension.py](/Users/ainunnajib/dynaplan/backend/tests/test_dimension.py:373)
+  - [test_formula_engine.py](/Users/ainunnajib/dynaplan/backend/tests/test_formula_engine.py:362)
+- Updated frontend type unions/icons for the new dimension type:
+  - [api.ts](/Users/ainunnajib/dynaplan/frontend/src/lib/api.ts:147)
+  - [pivot-utils.ts](/Users/ainunnajib/dynaplan/frontend/src/lib/pivot-utils.ts:27)
+  - [DimensionSelector.tsx](/Users/ainunnajib/dynaplan/frontend/src/components/module/DimensionSelector.tsx:77)
+  - [DimensionChip.tsx](/Users/ainunnajib/dynaplan/frontend/src/components/pivot/DimensionChip.tsx:80)
+- Updated progress tracking:
+  - [claude-progress.txt](/Users/ainunnajib/dynaplan/claude-progress.txt:3)
+
+**Validation run**
+- `cd backend && .venv/bin/python -m pytest -x --tb=short -q`  
+  Result: `1368 passed, 2 xfailed, 3 warnings`
+- `cd frontend && bun tsc --noEmit`  
+  Result: success (no errors)
+
+Note: there were pre-existing unrelated workspace changes (including [page.tsx](/Users/ainunnajib/dynaplan/frontend/src/app/models/[modelId]/page.tsx)) that I did not modify or revert.

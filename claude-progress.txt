@@ -1,6 +1,6 @@
 # Dynaplan Development Progress
 
-## Current Status: 44 features complete + F045 implemented (pending Rust toolchain validation)
+## Current Status: 45 features complete + F045 implemented (pending Rust toolchain validation)
 Last updated: 2026-03-01
 
 ## Completed
@@ -48,14 +48,15 @@ Last updated: 2026-03-01
 - [x] F042: Transactional & chunked file APIs — chunked upload, import tasks, batches (28 tests)
 - [x] F043: SCIM user provisioning — config, users, groups, provisioning logs (33 tests)
 - [x] F044: Engine profiles — Classic/Polaris modes, metrics, design guidance (28 tests)
+- [x] F056: Numbered Lists (auto-increment dimensions, max items, ITEMCOUNT) (13 backend tests + formula coverage)
 
 ## In Progress
 - [~] F045: Rust Engine Core — Sparse Block Storage (workspace + `dynaplan-core` modules + 100K sparse write/read Rust tests added; `cargo test` pending because Rust toolchain is unavailable in this environment)
 
-## Next Up: F045 validation + F046-F077 (see ROADMAP.md)
+## Next Up: F045 validation + F046-F055, F057-F077 (see ROADMAP.md)
 - Phase 1: Rust calculation engine (F045-F050) — Hyperblock replacement via PyO3
 - Phase 2: Complete formula language (F051-F055) — 130+ missing functions
-- Phase 3: Model structure gaps (F056-F061) — numbered lists, composite dims, version integration
+- Phase 3: Model structure gaps (F057-F061) — composite dims, saved views, version integration
 - Phase 4: Execution runtimes (F062-F066) — real CloudWorks/Pipeline/ALM execution
 - Phase 5: Data Hub & CLI (F067-F068)
 - Phase 6: Scale & security (F069-F072) — PostgreSQL, encryption, quotas
@@ -68,7 +69,7 @@ Last updated: 2026-03-01
 - smoke.test.ts has pre-existing bun:test import error (not in our code)
 
 ## Architecture
-- Backend: FastAPI, 1358 tests, file-backed SQLite with NullPool for tests
+- Backend: FastAPI, 1368 tests, file-backed SQLite with NullPool for tests
 - Engine: Pure Python formula engine in production + Rust `engine/dynaplan-core` F045 foundation (sparse blocks/model container) pending toolchain validation
 - Frontend: Next.js 15 + TypeScript + Tailwind + Recharts, TS compiles clean
 - Cell storage: sparse table with sorted pipe-separated dimension_key

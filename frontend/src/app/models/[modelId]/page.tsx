@@ -193,6 +193,11 @@ function DimensionRow({
       color: "text-zinc-600 bg-zinc-100",
       label: "Custom",
     },
+    numbered: {
+      icon: <ListIcon className="h-3.5 w-3.5" />,
+      color: "text-emerald-700 bg-emerald-50",
+      label: "Numbered",
+    },
   };
 
   const config = typeConfig[dimension.type];

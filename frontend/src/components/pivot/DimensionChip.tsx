@@ -77,9 +77,25 @@ function CustomIcon() {
   );
 }
 
+function NumberedIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-3 w-3 shrink-0"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+    >
+      <path d="M2.5 4h2M2.5 8h2M2.5 12h2M6.5 3l-.5 2.5h4L10.5 3M5.5 8h4M5 13l.5-2.5h4L9 13" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function DimensionTypeIcon({ type }: { type: Dimension["type"] }) {
   if (type === "time") return <TimeIcon />;
   if (type === "version") return <VersionIcon />;
+  if (type === "numbered") return <NumberedIcon />;
   return <CustomIcon />;
 }
 

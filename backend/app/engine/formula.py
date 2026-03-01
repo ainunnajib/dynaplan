@@ -125,7 +125,7 @@ def get_references(text: str) -> Set[str]:
 # Built-in function names — we do not treat these as variable references
 _BUILTIN_FUNCTIONS: Set[str] = {
     "ABS", "ROUND", "MIN", "MAX", "POWER", "SQRT", "LOG",
-    "SUM", "AVERAGE", "COUNT",
+    "SUM", "AVERAGE", "COUNT", "ITEMCOUNT",
     "IF", "AND", "OR", "NOT", "ISBLANK",
     "CONCATENATE", "LEFT", "RIGHT", "LEN", "UPPER", "LOWER", "TRIM",
     "LOOKUP",

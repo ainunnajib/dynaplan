@@ -13,6 +13,7 @@ class DimensionType(str, enum.Enum):
     custom = "custom"
     time = "time"
     version = "version"
+    numbered = "numbered"
 
 
 class Dimension(Base):
@@ -25,6 +26,7 @@ class Dimension(Base):
     dimension_type: Mapped[DimensionType] = mapped_column(
         Enum(DimensionType), nullable=False, default=DimensionType.custom
     )
+    max_items: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     model_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("planning_models.id", ondelete="CASCADE"), nullable=False
     )

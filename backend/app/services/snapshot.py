@@ -33,6 +33,7 @@ async def _serialize_model(db: AsyncSession, model_id: uuid.UUID) -> Dict[str, A
             "id": str(d.id),
             "name": d.name,
             "dimension_type": d.dimension_type.value,
+            "max_items": d.max_items,
             "model_id": str(d.model_id),
         })
 
@@ -268,6 +269,7 @@ async def restore_snapshot(
             id=new_id,
             name=d["name"],
             dimension_type=d["dimension_type"],
+            max_items=d.get("max_items"),
             model_id=model_id,
         )
         db.add(new_dim)

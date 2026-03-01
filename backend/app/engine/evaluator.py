@@ -6,7 +6,7 @@ context dict that maps variable names to their values.
 
 Built-in functions (case-insensitive, stored upper-case):
     Math        : ABS, ROUND, MIN, MAX, POWER, SQRT, LOG
-    Aggregation : SUM, AVERAGE, COUNT
+    Aggregation : SUM, AVERAGE, COUNT, ITEMCOUNT
     Logical     : IF, AND, OR, NOT, ISBLANK
     Text        : CONCATENATE, LEFT, RIGHT, LEN, UPPER, LOWER, TRIM
     Lookup      : LOOKUP
@@ -275,6 +275,12 @@ class Evaluator:
                 else:
                     flat.append(a)
             return float(len(flat))
+
+        if name == "ITEMCOUNT":
+            self._check_arity(name, args, 1)
+            if not isinstance(args[0], list):
+                raise FormulaError("ITEMCOUNT requires a list argument")
+            return float(len(args[0]))
 
         # --- Logical ---
         if name == "AND":

@@ -74,6 +74,13 @@ function DimensionTypeIcon({ type }: { type: Dimension["type"] }) {
       </svg>
     );
   }
+  if (type === "numbered") {
+    return (
+      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h9m-9 5.25h9m-9 5.25h9M4.5 6.75h.008v.008H4.5V6.75Zm0 5.25h.008v.008H4.5V12Zm0 5.25h.008v.008H4.5v-.008Z" />
+      </svg>
+    );
+  }
   // custom
   return (
     <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

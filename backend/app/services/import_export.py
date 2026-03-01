@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.cell import CellValue
-from app.models.dimension import DimensionItem
+from app.models.dimension import Dimension, DimensionItem, DimensionType
 from app.models.module import LineItem, Module
 from app.schemas.import_export import ImportResult
 from app.services.cell import write_cell
@@ -77,6 +77,19 @@ async def import_to_dimension(
     rows_skipped = 0
     errors: List[str] = []
 
+    dimension_result = await db.execute(
+        select(Dimension).where(Dimension.id == dimension_id)
+    )
+    dimension = dimension_result.scalar_one_or_none()
+    if dimension is None:
+        return ImportResult(
+            rows_imported=0,
+            rows_skipped=len(rows),
+            errors=["Dimension not found"],
+        )
+
+    is_numbered_dimension = dimension.dimension_type == DimensionType.numbered
+
     # Load existing items so we can resolve parent references
     result = await db.execute(
         select(DimensionItem).where(DimensionItem.dimension_id == dimension_id)
@@ -87,6 +100,15 @@ async def import_to_dimension(
 
     # Determine the starting sort_order
     sort_base = max((item.sort_order for item in existing_items), default=-1) + 1
+    next_numbered_code = 1
+    if is_numbered_dimension:
+        existing_numeric_codes: List[int] = []
+        for item in existing_items:
+            try:
+                existing_numeric_codes.append(int(item.code))
+            except (TypeError, ValueError):
+                continue
+        next_numbered_code = (max(existing_numeric_codes) + 1) if existing_numeric_codes else 1
 
     for idx, row in enumerate(rows):
         raw_name = row.get(name_column)
@@ -96,7 +118,22 @@ async def import_to_dimension(
             continue
 
         name = str(raw_name).strip()
-        code = name  # use name as code (unique within dimension)
+
+        if is_numbered_dimension:
+            projected_count = len(existing_items) + rows_imported
+            if (
+                dimension.max_items is not None
+                and projected_count >= dimension.max_items
+            ):
+                rows_skipped += 1
+                errors.append(
+                    f"Row {idx + 1}: numbered list max_items ({dimension.max_items}) reached, skipped"
+                )
+                continue
+            code = str(next_numbered_code)
+            next_numbered_code += 1
+        else:
+            code = name  # use name as code (unique within dimension)
 
         parent_id: Optional[uuid.UUID] = None
         if parent_column:
@@ -111,8 +148,9 @@ async def import_to_dimension(
                 else:
                     parent_id = parent_item.id
 
-        # Skip if an item with the same name already exists
-        if name in name_to_item:
+        # For standard lists, skip duplicate names. Numbered lists can reuse
+        # the same display name across multiple items.
+        if not is_numbered_dimension and name in name_to_item:
             rows_skipped += 1
             errors.append(f"Row {idx + 1}: item '{name}' already exists, skipped")
             continue

@@ -65,11 +65,13 @@ async def create_item(
     token: str,
     dimension_id: str,
     name: str = "Item A",
-    code: str = "A",
+    code: Optional[str] = "A",
     parent_id: Optional[str] = None,
     sort_order: int = 0,
 ) -> dict:
-    payload: dict = {"name": name, "code": code, "sort_order": sort_order}
+    payload: dict = {"name": name, "sort_order": sort_order}
+    if code is not None:
+        payload["code"] = code
     if parent_id is not None:
         payload["parent_id"] = parent_id
     resp = await client.post(
@@ -134,6 +136,38 @@ async def test_create_dimension_version_type(client: AsyncClient):
     )
     assert resp.status_code == 201
     assert resp.json()["dimension_type"] == "version"
+
+
+@pytest.mark.asyncio
+async def test_create_dimension_numbered_type_with_max_items(client: AsyncClient):
+    token = await register_and_login(client, "d_numbered@example.com")
+    ws_id = await create_workspace(client, token)
+    model_id = await create_model(client, token, ws_id)
+
+    resp = await client.post(
+        f"/models/{model_id}/dimensions",
+        json={"name": "Transactions", "dimension_type": "numbered", "max_items": 3},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["dimension_type"] == "numbered"
+    assert data["max_items"] == 3
+
+
+@pytest.mark.asyncio
+async def test_create_dimension_max_items_rejected_for_non_numbered(client: AsyncClient):
+    token = await register_and_login(client, "d_bad_max_items@example.com")
+    ws_id = await create_workspace(client, token)
+    model_id = await create_model(client, token, ws_id)
+
+    resp = await client.post(
+        f"/models/{model_id}/dimensions",
+        json={"name": "Regions", "dimension_type": "custom", "max_items": 10},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 400
+    assert "max_items" in resp.json()["detail"]
 
 
 @pytest.mark.asyncio
@@ -229,6 +263,37 @@ async def test_update_dimension_type(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_update_dimension_switch_to_non_numbered_clears_max_items(client: AsyncClient):
+    token = await register_and_login(client, "d_type_clear_max@example.com")
+    ws_id = await create_workspace(client, token)
+    model_id = await create_model(client, token, ws_id)
+    dim = await create_dimension(
+        client,
+        token,
+        model_id,
+        name="Transactions",
+        dimension_type="numbered",
+    )
+
+    set_max_resp = await client.patch(
+        f"/dimensions/{dim['id']}",
+        json={"max_items": 2},
+        headers=auth_headers(token),
+    )
+    assert set_max_resp.status_code == 200
+    assert set_max_resp.json()["max_items"] == 2
+
+    resp = await client.patch(
+        f"/dimensions/{dim['id']}",
+        json={"dimension_type": "custom"},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["dimension_type"] == "custom"
+    assert resp.json()["max_items"] is None
+
+
+@pytest.mark.asyncio
 async def test_update_dimension_not_found(client: AsyncClient):
     token = await register_and_login(client, "d_update_nf@example.com")
     fake_id = str(uuid.uuid4())
@@ -302,6 +367,74 @@ async def test_create_item_success(client: AsyncClient):
     assert data["parent_id"] is None
     assert data["sort_order"] == 0
     assert "id" in data
+
+
+@pytest.mark.asyncio
+async def test_create_item_numbered_auto_generates_code(client: AsyncClient):
+    token = await register_and_login(client, "di_numbered_auto@example.com")
+    ws_id = await create_workspace(client, token)
+    model_id = await create_model(client, token, ws_id)
+    dim = await create_dimension(
+        client,
+        token,
+        model_id,
+        name="Transactions",
+        dimension_type="numbered",
+    )
+    dim_id = dim["id"]
+
+    first = await create_item(client, token, dim_id, name="Invoice line", code=None)
+    second = await create_item(client, token, dim_id, name="Invoice line", code=None)
+    third = await create_item(client, token, dim_id, name="Invoice line", code="999")
+
+    assert first["code"] == "1"
+    assert second["code"] == "2"
+    assert third["code"] == "3"
+
+
+@pytest.mark.asyncio
+async def test_create_item_numbered_honors_max_items_limit(client: AsyncClient):
+    token = await register_and_login(client, "di_numbered_limit@example.com")
+    ws_id = await create_workspace(client, token)
+    model_id = await create_model(client, token, ws_id)
+
+    create_dim_resp = await client.post(
+        f"/models/{model_id}/dimensions",
+        json={"name": "Transactions", "dimension_type": "numbered", "max_items": 2},
+        headers=auth_headers(token),
+    )
+    assert create_dim_resp.status_code == 201
+    dim_id = create_dim_resp.json()["id"]
+
+    first = await create_item(client, token, dim_id, name="Line 1", code=None)
+    second = await create_item(client, token, dim_id, name="Line 2", code=None)
+    assert first["code"] == "1"
+    assert second["code"] == "2"
+
+    third_resp = await client.post(
+        f"/dimensions/{dim_id}/items",
+        json={"name": "Line 3"},
+        headers=auth_headers(token),
+    )
+    assert third_resp.status_code == 400
+    assert "max_items" in third_resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_create_item_non_numbered_requires_code(client: AsyncClient):
+    token = await register_and_login(client, "di_code_required@example.com")
+    ws_id = await create_workspace(client, token)
+    model_id = await create_model(client, token, ws_id)
+    dim = await create_dimension(client, token, model_id, dimension_type="custom")
+    dim_id = dim["id"]
+
+    resp = await client.post(
+        f"/dimensions/{dim_id}/items",
+        json={"name": "Item without code"},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 400
+    assert "Code is required" in resp.json()["detail"]
 
 
 @pytest.mark.asyncio
@@ -463,6 +596,30 @@ async def test_update_item_rename(client: AsyncClient):
     assert resp.status_code == 200
     assert resp.json()["name"] == "New Name"
     assert resp.json()["code"] == "OLD"  # Code unchanged
+
+
+@pytest.mark.asyncio
+async def test_update_item_numbered_code_rejected(client: AsyncClient):
+    token = await register_and_login(client, "di_numbered_update_code@example.com")
+    ws_id = await create_workspace(client, token)
+    model_id = await create_model(client, token, ws_id)
+    dim = await create_dimension(
+        client,
+        token,
+        model_id,
+        name="Transactions",
+        dimension_type="numbered",
+    )
+    dim_id = dim["id"]
+    item = await create_item(client, token, dim_id, name="Line 1", code=None)
+
+    resp = await client.patch(
+        f"/dimensions/{dim_id}/items/{item['id']}",
+        json={"code": "999"},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 400
+    assert "cannot be changed" in resp.json()["detail"]
 
 
 @pytest.mark.asyncio

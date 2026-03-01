@@ -20,6 +20,11 @@ function normalizePath(path: string): string {
     normalized = `/models/workspace/${workspaceModelsMatch[1]}`;
   }
 
+  // FastAPI route is defined at "/workspaces/" and may redirect if slash is missing.
+  if (normalized === "/workspaces") {
+    normalized = "/workspaces/";
+  }
+
   return rawQuery ? `${normalized}?${rawQuery}` : normalized;
 }
 
@@ -52,6 +57,7 @@ export async function fetchApi<T>(
   }
 
   const response = await fetch(`${API_BASE_URL}${normalizedPath}`, {
+    cache: options.cache ?? "no-store",
     ...options,
     headers,
   });
@@ -138,7 +144,7 @@ export interface Dimension {
   id: string;
   model_id: string;
   name: string;
-  type: "custom" | "time" | "version";
+  type: "custom" | "time" | "version" | "numbered";
   created_at: string;
   updated_at: string;
 }
@@ -162,7 +168,7 @@ export interface CellValue {
 // ── API helpers ───────────────────────────────────────────────────────────────
 
 export async function getWorkspaces(): Promise<Workspace[]> {
-  return fetchApi<Workspace[]>("/api/workspaces");
+  return fetchApi<Workspace[]>("/api/workspaces/");
 }
 
 export async function getModels(workspaceId: string): Promise<PlanningModel[]> {

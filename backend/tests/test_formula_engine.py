@@ -359,6 +359,18 @@ class TestAggregation:
     def test_count(self):
         assert evaluate_formula("COUNT(1, 2, 3)") == 3.0
 
+    def test_itemcount(self):
+        result = evaluate_formula("ITEMCOUNT(Items)", {"Items": [10, 20, 30]})
+        assert result == 3.0
+
+    def test_itemcount_empty_list(self):
+        result = evaluate_formula("ITEMCOUNT(Items)", {"Items": []})
+        assert result == 0.0
+
+    def test_itemcount_requires_list(self):
+        with pytest.raises(FormulaError, match="ITEMCOUNT requires a list argument"):
+            evaluate_formula("ITEMCOUNT(Revenue)", {"Revenue": 100})
+
     def test_sum_with_variable_list(self):
         result = evaluate_formula("SUM(Items)", {"Items": [10, 20, 30]})
         assert result == 60.0

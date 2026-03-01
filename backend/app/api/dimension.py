@@ -17,6 +17,7 @@ from app.schemas.dimension import (
     DimensionUpdate,
 )
 from app.services.dimension import (
+    DimensionValidationError,
     create_dimension,
     create_dimension_item,
     delete_dimension,
@@ -81,7 +82,13 @@ async def create_dimension_endpoint(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return await create_dimension(db, model_id=model_id, data=data)
+    try:
+        return await create_dimension(db, model_id=model_id, data=data)
+    except DimensionValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
 
 @router.post(
@@ -98,8 +105,15 @@ async def create_dimension_legacy_endpoint(
     create_data = DimensionCreate(
         name=data.name,
         dimension_type=data.dimension_type,
+        max_items=data.max_items,
     )
-    return await create_dimension(db, model_id=data.model_id, data=create_data)
+    try:
+        return await create_dimension(db, model_id=data.model_id, data=create_data)
+    except DimensionValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
 
 @router.get(
@@ -123,7 +137,13 @@ async def update_dimension_endpoint(
     dimension=Depends(_get_dimension_or_404),
     db: AsyncSession = Depends(get_db),
 ):
-    return await update_dimension(db, dimension, data)
+    try:
+        return await update_dimension(db, dimension, data)
+    except DimensionValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
 
 @router.delete(
@@ -165,7 +185,13 @@ async def create_item_endpoint(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Parent item not found in this dimension",
             )
-    return await create_dimension_item(db, dimension_id=dimension_id, data=data)
+    try:
+        return await create_dimension_item(db, dimension_id=dimension_id, data=data)
+    except DimensionValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
 
 @router.get(
@@ -219,7 +245,13 @@ async def update_item_endpoint(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Parent item not found in this dimension",
             )
-    return await update_dimension_item(db, item, data)
+    try:
+        return await update_dimension_item(db, item, data)
+    except DimensionValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
 
 @router.delete(

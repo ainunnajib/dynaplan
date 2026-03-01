@@ -12,17 +12,20 @@ from app.models.dimension import DimensionType
 class DimensionCreate(BaseModel):
     name: str
     dimension_type: DimensionType = DimensionType.custom
+    max_items: Optional[int] = None
 
 
 class DimensionUpdate(BaseModel):
     name: Optional[str] = None
     dimension_type: Optional[DimensionType] = None
+    max_items: Optional[int] = None
 
 
 class DimensionResponse(BaseModel):
     id: uuid.UUID
     name: str
     dimension_type: DimensionType
+    max_items: Optional[int]
     model_id: uuid.UUID
     created_at: datetime
     updated_at: datetime
@@ -34,7 +37,7 @@ class DimensionResponse(BaseModel):
 
 class DimensionItemCreate(BaseModel):
     name: str
-    code: str
+    code: Optional[str] = None
     parent_id: Optional[uuid.UUID] = None
     sort_order: int = 0
 
