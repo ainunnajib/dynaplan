@@ -37,6 +37,76 @@ bun install
 bun dev
 ```
 
+## Deploy to Google Cloud (Artifact Registry)
+
+This repo includes a deployment script that builds images in **Artifact Registry** and deploys backend/frontend to **Cloud Run**.
+
+### Prerequisites
+
+- Google Cloud project with billing enabled
+- `gcloud` CLI installed and authenticated
+- Permissions to manage Cloud Run, Cloud Build, Artifact Registry, Cloud SQL, and Secret Manager
+
+```bash
+gcloud auth login
+gcloud config set project YOUR_PROJECT_ID
+gcloud config set run/region us-central1
+```
+
+### Quick Deploy
+
+```bash
+./scripts/deploy_gcp.sh
+```
+
+By default, the script will:
+
+1. Enable required APIs
+2. Create Artifact Registry repo `dynaplan` (if missing)
+3. Provision Cloud SQL PostgreSQL + database/user (if missing)
+4. Create/update Secret Manager secrets for DB URL and app secret
+5. Build backend/frontend images with Cloud Build and push to Artifact Registry
+6. Deploy `dynaplan-backend` and `dynaplan-frontend` to Cloud Run
+
+### Important Environment Overrides
+
+- `PROJECT_ID` (default: current `gcloud` project)
+- `REGION` (default: `us-central1`)
+- `REPOSITORY` (default: `dynaplan`)
+- `BACKEND_SERVICE` / `FRONTEND_SERVICE`
+- `USE_CLOUD_SQL` (default: `true`)
+- `CLOUD_SQL_INSTANCE`, `CLOUD_SQL_DB_NAME`, `CLOUD_SQL_DB_USER`, `CLOUD_SQL_TIER`
+- `DB_PASSWORD_SECRET_NAME`, `DB_URL_SECRET_NAME`, `APP_SECRET_KEY_SECRET_NAME`
+- `FORCE_ROTATE_SECRETS` (default: `false`)
+- `FRONTEND_URL` (optional fixed CORS origin; otherwise uses deployed frontend URL)
+
+### Example: Custom Cloud SQL Names
+
+```bash
+PROJECT_ID=my-prod-project \
+REGION=us-central1 \
+CLOUD_SQL_INSTANCE=dynaplan-prod-pg \
+CLOUD_SQL_DB_NAME=dynaplan \
+CLOUD_SQL_DB_USER=dynaplan_app \
+./scripts/deploy_gcp.sh
+```
+
+### Example: No Cloud SQL (ephemeral SQLite)
+
+```bash
+USE_CLOUD_SQL=false \
+BACKEND_DB_URL='sqlite+aiosqlite:////tmp/dynaplan.db' \
+BACKEND_AUTO_CREATE_SCHEMA=true \
+./scripts/deploy_gcp.sh
+```
+
+### Verify Deployment
+
+```bash
+gcloud run services describe dynaplan-backend --region us-central1 --format='value(status.url)'
+gcloud run services describe dynaplan-frontend --region us-central1 --format='value(status.url)'
+```
+
 ## Development
 
 This project uses Claude Code autonomous workflow patterns. See `CLAUDE.md` for development conventions and `features.json` for the full feature roadmap.
