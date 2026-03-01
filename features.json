@@ -71,7 +71,7 @@
       "category": "Modeling Engine",
       "name": "Time dimension & calendar",
       "description": "Built-in time dimension with configurable fiscal calendar. Support for weeks, months, quarters, half-years, years. Time aggregation and spread",
-      "status": "pending",
+      "status": "done",
       "priority": "P1"
     },
     {
@@ -79,7 +79,7 @@
       "category": "Modeling Engine",
       "name": "Versions (actuals, forecast, budget)",
       "description": "Version dimension for scenario planning. Switchover between actuals and forecast at configurable time periods",
-      "status": "pending",
+      "status": "done",
       "priority": "P1"
     },
     {
@@ -87,7 +87,7 @@
       "category": "Grid & UX",
       "name": "Grid view (spreadsheet UI)",
       "description": "High-performance virtualized grid for viewing/editing module data. Row/column pivoting on any dimension. Cell formatting",
-      "status": "pending",
+      "status": "done",
       "priority": "P0"
     },
     {
@@ -95,7 +95,7 @@
       "category": "Grid & UX",
       "name": "Pivot & filter controls",
       "description": "Drag-and-drop dimension pivoting (rows, columns, pages). Multi-select filtering on dimension members",
-      "status": "pending",
+      "status": "done",
       "priority": "P1"
     },
     {
@@ -103,7 +103,7 @@
       "category": "Grid & UX",
       "name": "Cell editing & input",
       "description": "Direct cell editing in grid. Support for number, text, boolean, date, list-formatted line items. Input validation",
-      "status": "pending",
+      "status": "done",
       "priority": "P0"
     },
     {
@@ -111,7 +111,7 @@
       "category": "Grid & UX",
       "name": "Module builder (model design UI)",
       "description": "UI for creating/editing modules and line items. Set formulas, formats, dimensions, summary methods. Blueprint view",
-      "status": "pending",
+      "status": "done",
       "priority": "P0"
     },
     {
