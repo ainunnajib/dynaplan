@@ -13,6 +13,45 @@ import { useRouter } from "next/navigation";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const TOKEN_KEY = "dynaplan_token";
+const TOKEN_COOKIE = "dynaplan_token";
+
+function readTokenCookie(): string | null {
+  if (typeof document === "undefined") return null;
+  const prefix = `${TOKEN_COOKIE}=`;
+  const cookie = document.cookie
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(prefix));
+  if (!cookie) return null;
+  return decodeURIComponent(cookie.slice(prefix.length));
+}
+
+function writeTokenCookie(token: string): void {
+  if (typeof document === "undefined") return;
+  const parts = [
+    `${TOKEN_COOKIE}=${encodeURIComponent(token)}`,
+    "Path=/",
+    "SameSite=Lax",
+  ];
+  if (window.location.protocol === "https:") {
+    parts.push("Secure");
+  }
+  document.cookie = parts.join("; ");
+}
+
+function clearTokenCookie(): void {
+  if (typeof document === "undefined") return;
+  const parts = [
+    `${TOKEN_COOKIE}=`,
+    "Path=/",
+    "Max-Age=0",
+    "SameSite=Lax",
+  ];
+  if (window.location.protocol === "https:") {
+    parts.push("Secure");
+  }
+  document.cookie = parts.join("; ");
+}
 
 export interface AuthUser {
   id: string;
@@ -54,17 +93,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // On mount: restore token from localStorage and validate it
   useEffect(() => {
-    const stored = localStorage.getItem(TOKEN_KEY);
+    const fromStorage = localStorage.getItem(TOKEN_KEY);
+    const fromCookie = readTokenCookie();
+    const stored = fromStorage ?? fromCookie;
     if (!stored) {
       setIsLoading(false);
       return;
     }
+
+    // Keep both storage locations in sync so SSR and CSR share one session token.
+    localStorage.setItem(TOKEN_KEY, stored);
+    writeTokenCookie(stored);
+
     validateToken(stored).then((u) => {
       if (u) {
         setToken(stored);
         setUser(u);
       } else {
         localStorage.removeItem(TOKEN_KEY);
+        clearTokenCookie();
       }
       setIsLoading(false);
     });
@@ -84,17 +131,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
         throw new Error(body.error ?? body.detail ?? "Login failed");
       }
-      const data = (await res.json()) as { access_token: string; user: AuthUser };
+      const data = (await res.json()) as { access_token: string };
+
       localStorage.setItem(TOKEN_KEY, data.access_token);
+      writeTokenCookie(data.access_token);
+
+      const me = await validateToken(data.access_token);
+      if (!me) {
+        localStorage.removeItem(TOKEN_KEY);
+        clearTokenCookie();
+        throw new Error("Failed to validate session");
+      }
+
       setToken(data.access_token);
-      setUser(data.user);
+      setUser(me);
       router.push("/");
     },
-    [router]
+    [router, validateToken]
   );
 
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
+    clearTokenCookie();
     setToken(null);
     setUser(null);
     router.push("/login");

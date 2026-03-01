@@ -1,0 +1,1 @@
+I detected unexpected new changes in unrelated frontend paths while finishing validation (for example `frontend/src/app/layout.tsx` and new `frontend/src/components/layout/`). I’ve stopped here; should I continue and ignore those unrelated changes, or pause until they’re resolved?

@@ -3,16 +3,46 @@ const API_BASE_URL =
 
 const TOKEN_KEY = "dynaplan_token";
 
-function getAuthToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(TOKEN_KEY);
+function normalizePath(path: string): string {
+  const [rawPath, rawQuery] = path.split("?");
+  let normalized = rawPath;
+
+  // Frontend still uses legacy "/api/*" paths in many places.
+  if (normalized === "/api") {
+    normalized = "/";
+  } else if (normalized.startsWith("/api/")) {
+    normalized = normalized.slice(4);
+  }
+
+  // Backend lists models by workspace at "/models/workspace/{workspace_id}".
+  const workspaceModelsMatch = normalized.match(/^\/workspaces\/([^/]+)\/models$/);
+  if (workspaceModelsMatch) {
+    normalized = `/models/workspace/${workspaceModelsMatch[1]}`;
+  }
+
+  return rawQuery ? `${normalized}?${rawQuery}` : normalized;
+}
+
+async function getAuthToken(): Promise<string | null> {
+  if (typeof window !== "undefined") {
+    return localStorage.getItem(TOKEN_KEY);
+  }
+
+  try {
+    const { cookies } = await import("next/headers");
+    const cookieStore = await cookies();
+    return cookieStore.get(TOKEN_KEY)?.value ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export async function fetchApi<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const token = getAuthToken();
+  const token = await getAuthToken();
+  const normalizedPath = normalizePath(path);
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
@@ -21,7 +51,7 @@ export async function fetchApi<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(`${API_BASE_URL}${normalizedPath}`, {
     ...options,
     headers,
   });
@@ -33,6 +63,15 @@ export async function fetchApi<T>(
       (errorBody as { error?: string; detail?: string }).detail ??
       `Request failed: ${response.status} ${response.statusText}`;
     throw new Error(message);
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  const contentType = response.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/json")) {
+    return undefined as T;
   }
 
   return response.json() as Promise<T>;
@@ -53,9 +92,16 @@ export interface PlanningModel {
   workspace_id: string;
   name: string;
   description: string | null;
-  status: "active" | "archived";
+  // Newer backend responses expose is_archived, while older UI code used status.
+  is_archived?: boolean;
+  status?: "active" | "archived";
   created_at: string;
   updated_at: string;
+}
+
+export function getModelStatus(model: PlanningModel): "active" | "archived" {
+  if (model.status) return model.status;
+  return model.is_archived ? "archived" : "active";
 }
 
 export interface Module {

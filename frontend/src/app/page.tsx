@@ -28,6 +28,20 @@ export default function Home() {
             </h2>
             <div className="flex flex-col gap-3 sm:flex-row">
               <Link
+                href="/login"
+                className="flex items-center justify-center rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700"
+              >
+                Login
+              </Link>
+              <Link
+                href="/register"
+                className="flex items-center justify-center rounded-lg border border-blue-200 bg-blue-50 px-5 py-2.5 text-sm font-medium text-blue-700 shadow-sm transition-colors hover:bg-blue-100"
+              >
+                Sign up
+              </Link>
+            </div>
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+              <Link
                 href="/workspaces"
                 className="flex items-center justify-center rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700"
               >

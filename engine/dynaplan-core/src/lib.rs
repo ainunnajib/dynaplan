@@ -1,6 +1,7 @@
 pub mod block;
 pub mod dimension;
 pub mod formula;
+pub mod graph;
 pub mod model;
 pub mod value;
 
@@ -11,6 +12,7 @@ pub use formula::{
     validate_formula, ASTNode, BinaryOperator, Context, Evaluator, FormulaEngineError,
     FormulaError, FormulaValue, ParseError, Token, TokenType, TokenizerError, UnaryOperator,
 };
+pub use graph::{DependencyGraph, GraphError};
 pub use model::ModelState;
 pub use value::CellValue;
 

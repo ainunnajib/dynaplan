@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { AuthProvider } from "@/contexts/AuthContext";
+import AuthNav from "@/components/layout/AuthNav";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -57,6 +58,7 @@ export default function RootLayout({
                   Models
                 </Link>
               </nav>
+              <AuthNav />
             </header>
 
             {/* Body: sidebar + content */}

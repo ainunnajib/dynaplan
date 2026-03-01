@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getModels, fetchApi } from "@/lib/api";
+import { getModelStatus } from "@/lib/api";
 import type { PlanningModel, Workspace } from "@/lib/api";
 
 export const metadata = {
@@ -88,7 +89,8 @@ export default async function WorkspacePage({ params }: PageProps) {
 }
 
 function ModelCard({ model }: { model: PlanningModel }) {
-  const statusColors: Record<PlanningModel["status"], string> = {
+  const status = getModelStatus(model);
+  const statusColors: Record<"active" | "archived", string> = {
     active: "bg-green-100 text-green-700",
     archived: "bg-zinc-100 text-zinc-500",
   };
@@ -103,9 +105,9 @@ function ModelCard({ model }: { model: PlanningModel }) {
           <ModelIcon />
         </div>
         <span
-          className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[model.status]}`}
+          className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[status]}`}
         >
-          {model.status}
+          {status}
         </span>
       </div>
       <h2 className="mt-3 text-sm font-semibold text-zinc-900">{model.name}</h2>
