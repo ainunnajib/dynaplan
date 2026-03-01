@@ -1,6 +1,6 @@
 # Dynaplan Development Progress
 
-## Current Status: F001-F038 COMPLETE (1108 backend tests, frontend TS clean)
+## Current Status: ALL 44 FEATURES COMPLETE (1358 backend tests, frontend TS clean)
 Last updated: 2026-03-02
 
 ## Completed
@@ -42,14 +42,12 @@ Last updated: 2026-03-02
 - [x] F036: UX page types — board/worksheet/report, cards, context selectors (32 tests)
 - [x] F037: Management reporting — reports, sections, export lifecycle (32 tests)
 - [x] F038: Workflow tasks & approvals — stages, task lifecycle, gate checks (40 tests)
-
-## Next Up (P1/P2)
-- [ ] F039: Application Lifecycle Management (ALM)
-- [ ] F040: CloudWorks scheduled integrations
-- [ ] F041: Data Orchestrator pipelines
-- [ ] F042: Transactional and chunked file APIs
-- [ ] F043: SCIM user provisioning
-- [ ] F044: Large model engine profiles (Classic and Polaris-like)
+- [x] F039: Application Lifecycle Management — environments, revision tags, promotion (50 tests)
+- [x] F040: CloudWorks scheduled integrations — connections, schedules, run history (37 tests)
+- [x] F041: Data Orchestrator pipelines — pipeline designer, steps, run monitor (50 tests)
+- [x] F042: Transactional & chunked file APIs — chunked upload, import tasks, batches (28 tests)
+- [x] F043: SCIM user provisioning — config, users, groups, provisioning logs (33 tests)
+- [x] F044: Engine profiles — Classic/Polaris modes, metrics, design guidance (28 tests)
 
 ## Known Issues
 - Python 3.9.6 — need bcrypt==4.0.1, Optional[str] syntax, numpy>=1.24
@@ -57,7 +55,7 @@ Last updated: 2026-03-02
 - smoke.test.ts has pre-existing bun:test import error (not in our code)
 
 ## Architecture
-- Backend: FastAPI, 1108 tests, file-backed SQLite with NullPool for tests
+- Backend: FastAPI, 1358 tests, file-backed SQLite with NullPool for tests
 - Engine: Pure Python formula engine + dependency graph + time calendar + spread engine
 - Frontend: Next.js 15 + TypeScript + Tailwind + Recharts, TS compiles clean
 - Cell storage: sparse table with sorted pipe-separated dimension_key
@@ -69,4 +67,9 @@ Last updated: 2026-03-02
 - DCA: selective access rules + driver line items for cell-level read/write control
 - SSO: SAML 2.0 + OIDC provider config
 - Workflows: stages, tasks, approvals, gate checks
+- ALM: dev/test/prod environments, revision tags, promotion records
+- CloudWorks: scheduled imports/exports with retry and status tracking
+- Pipelines: no-code data orchestration with step-level logging
+- SCIM: automated user/group provisioning with enterprise IdP integration
+- Engine profiles: Classic and Polaris-like modes for large model optimization
 - Backpressure: `pytest -m backpressure` marker added with dedicated CI gate

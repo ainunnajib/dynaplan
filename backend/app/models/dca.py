@@ -36,7 +36,7 @@ class SelectiveAccessRule(Base):
 
     model: Mapped["PlanningModel"] = relationship("PlanningModel", lazy="selectin")  # noqa: F821
     dimension: Mapped["Dimension"] = relationship("Dimension", lazy="selectin")  # noqa: F821
-    grants: Mapped[list] = relationship(
+    grants: Mapped[list["SelectiveAccessGrant"]] = relationship(
         "SelectiveAccessGrant",
         back_populates="rule",
         cascade="all, delete-orphan",

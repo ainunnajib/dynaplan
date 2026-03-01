@@ -33,6 +33,11 @@ from app.services.dimension import (
 router = APIRouter(tags=["dimensions"])
 
 
+class LegacyDimensionCreate(DimensionCreate):
+    """Backward-compatible payload for POST /dimensions."""
+    model_id: uuid.UUID
+
+
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 async def _get_dimension_or_404(
@@ -77,6 +82,24 @@ async def create_dimension_endpoint(
     current_user: User = Depends(get_current_user),
 ):
     return await create_dimension(db, model_id=model_id, data=data)
+
+
+@router.post(
+    "/dimensions",
+    response_model=DimensionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_dimension_legacy_endpoint(
+    data: LegacyDimensionCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Legacy endpoint: model_id in body instead of path."""
+    create_data = DimensionCreate(
+        name=data.name,
+        dimension_type=data.dimension_type,
+    )
+    return await create_dimension(db, model_id=data.model_id, data=create_data)
 
 
 @router.get(

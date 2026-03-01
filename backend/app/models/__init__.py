@@ -26,3 +26,9 @@ from app.models.dca import SelectiveAccessRule, SelectiveAccessGrant, DCAConfig,
 from app.models.ux_page import UXPage, UXPageCard, UXContextSelector
 from app.models.report import Report, ReportSection, ReportExport
 from app.models.workflow import Workflow, WorkflowStage, WorkflowTask, WorkflowApproval
+from app.models.engine_profile import EngineProfile, EngineProfileMetric, ModelDesignGuidance
+from app.models.chunked_upload import ChunkedUpload, UploadChunk, ImportTask, TransactionalBatch
+from app.models.alm import ALMEnvironment, RevisionTag, PromotionRecord
+from app.models.cloudworks import CloudWorksConnection, CloudWorksSchedule, CloudWorksRun
+from app.models.pipeline import Pipeline, PipelineStep, PipelineRun, PipelineStepLog
+from app.models.scim import SCIMConfig, SCIMGroup, SCIMGroupMember, SCIMProvisioningLog

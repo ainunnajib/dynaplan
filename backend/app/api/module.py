@@ -32,6 +32,11 @@ from app.services.module import (
 router = APIRouter(tags=["modules"])
 
 
+class LegacyModuleCreate(ModuleCreate):
+    """Backward-compatible payload for POST /modules."""
+    model_id: uuid.UUID
+
+
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 async def _get_module_or_404(
@@ -76,6 +81,24 @@ async def create_module_endpoint(
     current_user: User = Depends(get_current_user),
 ):
     return await create_module(db, model_id=model_id, data=data)
+
+
+@router.post(
+    "/modules",
+    response_model=ModuleResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_module_legacy_endpoint(
+    data: LegacyModuleCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Legacy endpoint: model_id in body instead of path."""
+    create_data = ModuleCreate(
+        name=data.name,
+        description=data.description,
+    )
+    return await create_module(db, model_id=data.model_id, data=create_data)
 
 
 @router.get(

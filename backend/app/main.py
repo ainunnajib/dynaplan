@@ -30,6 +30,12 @@ from app.api.dca import router as dca_router
 from app.api.ux_page import router as ux_page_router
 from app.api.report import router as report_router
 from app.api.workflow import router as workflow_router
+from app.api.chunked_upload import router as chunked_upload_router
+from app.api.engine_profile import router as engine_profile_router
+from app.api.alm import router as alm_router
+from app.api.cloudworks import router as cloudworks_router
+from app.api.pipeline import router as pipeline_router
+from app.api.scim import router as scim_router
 from app.api.time_dimension import router as time_dimension_router
 from app.api.version import router as version_router
 from app.api.workspace import router as workspace_router
@@ -82,6 +88,12 @@ app.include_router(dca_router)
 app.include_router(ux_page_router)
 app.include_router(report_router)
 app.include_router(workflow_router)
+app.include_router(engine_profile_router)
+app.include_router(chunked_upload_router)
+app.include_router(alm_router)
+app.include_router(cloudworks_router)
+app.include_router(pipeline_router)
+app.include_router(scim_router)
 
 
 @app.get("/health")

@@ -39,4 +39,4 @@ jobs:
         run: pytest -x --tb=short -q
 
       - name: Backpressure gate
-        run: pytest tests/test_cell.py tests/test_api_keys.py tests/test_action.py -m backpressure -q
+        run: pytest tests/test_cell.py tests/test_api_keys.py tests/test_action.py tests/test_chunked_upload.py tests/test_cloudworks.py tests/test_pipeline.py tests/test_engine_profile.py -m backpressure -q
