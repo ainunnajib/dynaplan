@@ -263,7 +263,7 @@
       "category": "Modeling Engine",
       "name": "Time ranges",
       "description": "Define model-level and module-level time ranges to limit applies-to scope and calculation volume for different planning horizons",
-      "status": "pending",
+      "status": "done",
       "priority": "P1"
     },
     {
@@ -271,7 +271,7 @@
       "category": "Modeling Engine",
       "name": "List subsets and line item subsets",
       "description": "Support list subsets and line item subsets for dynamic reporting, selective calculations, and reusable dimensional structures",
-      "status": "pending",
+      "status": "done",
       "priority": "P1"
     },
     {
@@ -279,7 +279,7 @@
       "category": "Admin & Security",
       "name": "Selective access and Dynamic Cell Access (DCA)",
       "description": "Combine role/list-based selective access with read/write driver line items to control visibility and editability at cell level",
-      "status": "pending",
+      "status": "done",
       "priority": "P1"
     },
     {
@@ -287,7 +287,7 @@
       "category": "Grid & UX",
       "name": "UX page types (Board, Worksheet, Report)",
       "description": "Provide dedicated Board, Worksheet, and Report page experiences with context selectors and linked-card interactions",
-      "status": "pending",
+      "status": "done",
       "priority": "P1"
     },
     {
@@ -295,7 +295,7 @@
       "category": "Dashboards",
       "name": "Management reporting",
       "description": "Pixel-perfect reporting pages with narrative text blocks, chart/grid cards, and export-ready layout controls",
-      "status": "pending",
+      "status": "done",
       "priority": "P2"
     },
     {
@@ -303,7 +303,7 @@
       "category": "Workflow",
       "name": "Workflow tasks and approvals",
       "description": "Orchestrate planning cycles with assignees, task status, approvals, and stage-gated collaboration flows",
-      "status": "pending",
+      "status": "done",
       "priority": "P1"
     },
     {

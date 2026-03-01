@@ -24,6 +24,12 @@ from app.api.whatif import router as whatif_router
 from app.api.bulk_ops import router as bulk_ops_router
 from app.api.snapshot import router as snapshot_router
 from app.api.sso import router as sso_router
+from app.api.time_range import router as time_range_router
+from app.api.subset import router as subset_router
+from app.api.dca import router as dca_router
+from app.api.ux_page import router as ux_page_router
+from app.api.report import router as report_router
+from app.api.workflow import router as workflow_router
 from app.api.time_dimension import router as time_dimension_router
 from app.api.version import router as version_router
 from app.api.workspace import router as workspace_router
@@ -70,6 +76,12 @@ app.include_router(bulk_ops_router)
 app.include_router(snapshot_router)
 app.include_router(audit_router)
 app.include_router(sso_router)
+app.include_router(time_range_router)
+app.include_router(subset_router)
+app.include_router(dca_router)
+app.include_router(ux_page_router)
+app.include_router(report_router)
+app.include_router(workflow_router)
 
 
 @app.get("/health")

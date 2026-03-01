@@ -1,6 +1,6 @@
 # Dynaplan Development Progress
 
-## Current Status: F001-F032 COMPLETE (889 backend tests, frontend TS clean)
+## Current Status: F001-F038 COMPLETE (1108 backend tests, frontend TS clean)
 Last updated: 2026-03-02
 
 ## Completed
@@ -36,14 +36,14 @@ Last updated: 2026-03-02
 - [x] F030: Model history & snapshots — create, restore, compare, delete (26 tests)
 - [x] F031: Calculation caching — cache CRUD, invalidate by dependency, stats (32 tests)
 - [x] F032: Bulk data operations — chunked read/write, job tracking, progress (25 tests)
+- [x] F033: Time ranges — model/module time ranges, effective resolution (38 tests)
+- [x] F034: List subsets & line item subsets — static/dynamic, filter expressions (35 tests)
+- [x] F035: Selective access & DCA — rules, grants, driver-based cell access (34 tests)
+- [x] F036: UX page types — board/worksheet/report, cards, context selectors (32 tests)
+- [x] F037: Management reporting — reports, sections, export lifecycle (32 tests)
+- [x] F038: Workflow tasks & approvals — stages, task lifecycle, gate checks (40 tests)
 
 ## Next Up (P1/P2)
-- [ ] F033: Time ranges
-- [ ] F034: List subsets and line item subsets
-- [ ] F035: Selective access and Dynamic Cell Access (DCA)
-- [ ] F036: UX page types (Board, Worksheet, Report)
-- [ ] F037: Management reporting
-- [ ] F038: Workflow tasks and approvals
 - [ ] F039: Application Lifecycle Management (ALM)
 - [ ] F040: CloudWorks scheduled integrations
 - [ ] F041: Data Orchestrator pipelines
@@ -53,10 +53,11 @@ Last updated: 2026-03-02
 
 ## Known Issues
 - Python 3.9.6 — need bcrypt==4.0.1, Optional[str] syntax, numpy>=1.24
-- WebSocket test `test_websocket_presence_leave_on_disconnect` xfail: sync TestClient breaks StaticPool aiosqlite connection
+- WebSocket test `test_websocket_presence_leave_on_disconnect` xfail: sync TestClient breaks aiosqlite connection
+- smoke.test.ts has pre-existing bun:test import error (not in our code)
 
 ## Architecture
-- Backend: FastAPI, 889 tests, SQLite in-memory for tests
+- Backend: FastAPI, 1108 tests, file-backed SQLite with NullPool for tests
 - Engine: Pure Python formula engine + dependency graph + time calendar + spread engine
 - Frontend: Next.js 15 + TypeScript + Tailwind + Recharts, TS compiles clean
 - Cell storage: sparse table with sorted pipe-separated dimension_key
@@ -65,5 +66,7 @@ Last updated: 2026-03-02
 - Actions: chained processes with step ordering, async run
 - Collaboration: WebSocket presence + cursor + cell broadcasts
 - RBAC: workspace roles, model permissions, dimension member access
+- DCA: selective access rules + driver line items for cell-level read/write control
 - SSO: SAML 2.0 + OIDC provider config
-- Backpressure: `pytest -m backpressure` marker added with dedicated CI gate for cell/API-key/action stress tests
+- Workflows: stages, tasks, approvals, gate checks
+- Backpressure: `pytest -m backpressure` marker added with dedicated CI gate
