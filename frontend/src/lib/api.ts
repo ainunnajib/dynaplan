@@ -166,3 +166,118 @@ export async function updateCell(
     body: JSON.stringify(cell),
   });
 }
+
+// ── Dashboard types ───────────────────────────────────────────────────────────
+
+export type WidgetType = "grid" | "chart" | "kpi_card" | "text" | "image";
+
+export interface DashboardWidget {
+  id: string;
+  dashboard_id: string;
+  widget_type: WidgetType;
+  title: string | null;
+  config: Record<string, unknown> | null;
+  position_x: number;
+  position_y: number;
+  width: number;
+  height: number;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Dashboard {
+  id: string;
+  name: string;
+  description: string | null;
+  model_id: string;
+  owner_id: string;
+  is_published: boolean;
+  layout: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DashboardWithWidgets extends Dashboard {
+  widgets: DashboardWidget[];
+}
+
+// ── Dashboard API helpers ─────────────────────────────────────────────────────
+
+export async function getDashboards(modelId: string): Promise<Dashboard[]> {
+  return fetchApi<Dashboard[]>(`/api/models/${modelId}/dashboards`);
+}
+
+export async function getDashboard(dashboardId: string): Promise<DashboardWithWidgets> {
+  return fetchApi<DashboardWithWidgets>(`/api/dashboards/${dashboardId}`);
+}
+
+export async function createDashboard(
+  modelId: string,
+  data: { name: string; description?: string; layout?: Record<string, unknown> }
+): Promise<Dashboard> {
+  return fetchApi<Dashboard>(`/api/models/${modelId}/dashboards`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateDashboard(
+  dashboardId: string,
+  data: {
+    name?: string;
+    description?: string;
+    is_published?: boolean;
+    layout?: Record<string, unknown>;
+  }
+): Promise<Dashboard> {
+  return fetchApi<Dashboard>(`/api/dashboards/${dashboardId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteDashboard(dashboardId: string): Promise<void> {
+  return fetchApi<void>(`/api/dashboards/${dashboardId}`, { method: "DELETE" });
+}
+
+export async function addWidget(
+  dashboardId: string,
+  data: {
+    widget_type: WidgetType;
+    title?: string;
+    config?: Record<string, unknown>;
+    position_x: number;
+    position_y: number;
+    width?: number;
+    height?: number;
+    sort_order?: number;
+  }
+): Promise<DashboardWidget> {
+  return fetchApi<DashboardWidget>(`/api/dashboards/${dashboardId}/widgets`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateWidget(
+  widgetId: string,
+  data: {
+    title?: string;
+    config?: Record<string, unknown>;
+    position_x?: number;
+    position_y?: number;
+    width?: number;
+    height?: number;
+    sort_order?: number;
+  }
+): Promise<DashboardWidget> {
+  return fetchApi<DashboardWidget>(`/api/widgets/${widgetId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteWidget(widgetId: string): Promise<void> {
+  return fetchApi<void>(`/api/widgets/${widgetId}`, { method: "DELETE" });
+}

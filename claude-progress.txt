@@ -1,6 +1,6 @@
 # Dynaplan Development Progress
 
-## Current Status: F001-F014 COMPLETE (393 backend tests, frontend TS clean)
+## Current Status: F001-F020 COMPLETE (525 backend tests, frontend TS clean)
 Last updated: 2026-03-02
 
 ## Completed
@@ -18,14 +18,14 @@ Last updated: 2026-03-02
 - [x] F012: Pivot & filter — drag-and-drop, hierarchical multi-select (frontend)
 - [x] F013: Cell editing — EditableCell, auth context, login/register (frontend)
 - [x] F014: Module builder — blueprint view, workspace/model pages (frontend)
+- [x] F015: Dashboard builder — CRUD, widgets, drag-drop canvas (30 tests + frontend)
+- [x] F016: Charts & visualizations — bar/line/area/pie/waterfall/combo (frontend)
+- [x] F017: Dashboard publishing & sharing — publish, share, context filters (21 tests + frontend)
+- [x] F018: CSV/Excel import & export — parse/export CSV/XLSX (25 tests + frontend)
+- [x] F019: REST API with API key auth — scoped keys, public endpoints (28 tests)
+- [x] F020: Actions & processes — CRUD, run, step ordering (30 tests)
 
 ## Next Up (P2)
-- [ ] F015: Dashboard builder
-- [ ] F016: Charts & visualizations
-- [ ] F017: Dashboard publishing & sharing
-- [ ] F018: CSV/Excel import & export
-- [ ] F019: REST API for data integration
-- [ ] F020: Actions & processes
 - [ ] F021: Real-time collaboration
 - [ ] F022: Comments & annotations
 - [ ] F023: Audit trail & history
@@ -43,7 +43,10 @@ Last updated: 2026-03-02
 - Python 3.9.6 — need bcrypt==4.0.1, Optional[str] syntax, numpy>=1.24
 
 ## Architecture
-- Backend: FastAPI, 393 tests, SQLite in-memory for tests
+- Backend: FastAPI, 525 tests, SQLite in-memory for tests
 - Engine: Pure Python formula engine + dependency graph + time calendar
-- Frontend: Next.js 15 + TypeScript + Tailwind, TS compiles clean
+- Frontend: Next.js 15 + TypeScript + Tailwind + Recharts, TS compiles clean
 - Cell storage: sparse table with sorted pipe-separated dimension_key
+- API keys: hashed with SHA-256, scoped (read:models, write:cells, admin, etc.)
+- Import/export: CSV and Excel via openpyxl
+- Actions: chained processes with step ordering, async run

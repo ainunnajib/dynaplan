@@ -119,7 +119,7 @@
       "category": "Dashboards",
       "name": "Dashboard builder",
       "description": "Drag-and-drop dashboard creation. Add grids, charts, KPI cards, text, images. Responsive layout",
-      "status": "pending",
+      "status": "done",
       "priority": "P1"
     },
     {
@@ -127,7 +127,7 @@
       "category": "Dashboards",
       "name": "Charts & visualizations",
       "description": "Bar, line, area, pie, waterfall, combo charts. Configurable axes, colors, labels. Chart-grid synchronization",
-      "status": "pending",
+      "status": "done",
       "priority": "P1"
     },
     {
@@ -135,7 +135,7 @@
       "category": "Dashboards",
       "name": "Dashboard publishing & sharing",
       "description": "Publish dashboards to end users. View-only mode. Dashboard-level context selectors (filters)",
-      "status": "pending",
+      "status": "done",
       "priority": "P2"
     },
     {
@@ -143,7 +143,7 @@
       "category": "Data Integration",
       "name": "CSV/Excel import & export",
       "description": "Import data from CSV/Excel into modules or lists. Export module data and reports to CSV/Excel",
-      "status": "pending",
+      "status": "done",
       "priority": "P1"
     },
     {
@@ -151,7 +151,7 @@
       "category": "Data Integration",
       "name": "REST API for data integration",
       "description": "Public API for reading/writing model data, triggering actions, managing metadata. API key authentication",
-      "status": "pending",
+      "status": "done",
       "priority": "P1"
     },
     {
@@ -159,7 +159,7 @@
       "category": "Data Integration",
       "name": "Actions & processes",
       "description": "Define import/export actions. Chain actions into processes. Schedule processes or trigger via API",
-      "status": "pending",
+      "status": "done",
       "priority": "P2"
     },
     {
