@@ -353,6 +353,270 @@
       "description": "Engine modes tuned for sparse and high-cardinality models, with guidance for model design and performance boundaries",
       "status": "done",
       "priority": "P2"
+    },
+    {
+      "id": "F045",
+      "category": "Rust Engine",
+      "name": "Rust engine core — sparse block storage",
+      "description": "Rust crate with sparse block arrays, dimension metadata, model container, column-oriented memory layout",
+      "status": "pending",
+      "priority": "P0"
+    },
+    {
+      "id": "F046",
+      "category": "Rust Engine",
+      "name": "Rust formula engine — tokenizer, parser, evaluator",
+      "description": "Port Python formula engine to Rust: tokenizer, recursive-descent parser, AST evaluator, all 20 built-in functions",
+      "status": "pending",
+      "priority": "P0"
+    },
+    {
+      "id": "F047",
+      "category": "Rust Engine",
+      "name": "Rust dependency graph — topo sort, partial recalc, cycles",
+      "description": "Port dependency graph to Rust: Kahn's topo sort, BFS downstream recalc, DFS cycle detection",
+      "status": "pending",
+      "priority": "P0"
+    },
+    {
+      "id": "F048",
+      "category": "Rust Engine",
+      "name": "Rust parallel calculation engine",
+      "description": "Rayon-based parallel recalc: topological level parallelism, block-level parallelism, SIMD aggregation",
+      "status": "pending",
+      "priority": "P0"
+    },
+    {
+      "id": "F049",
+      "category": "Rust Engine",
+      "name": "PyO3 bridge — Rust engine to Python FastAPI",
+      "description": "PyO3 FFI wrapper exposing Rust engine to Python: load_model, write_cell, read_cell, evaluate_formula",
+      "status": "pending",
+      "priority": "P0"
+    },
+    {
+      "id": "F050",
+      "category": "Rust Engine",
+      "name": "Spread & aggregation in Rust",
+      "description": "Port spread/aggregation to Rust: even/proportional/weighted spread, hierarchy aggregation, SIMD vectorization",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F051",
+      "category": "Formula Language",
+      "name": "Time functions (20 functions)",
+      "description": "YEARVALUE, MONTHVALUE, LAG, LEAD, MOVINGSUM, CUMULATE, OFFSET, TIMESUM, INPERIOD, etc.",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F052",
+      "category": "Formula Language",
+      "name": "Lookup & cross-module functions (15 functions)",
+      "description": "FINDITEM, ITEM, PARENT, CHILDREN, SELECT, LOOKUP mapping, RANK, COLLECT, POST",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F053",
+      "category": "Formula Language",
+      "name": "Text & conversion functions (15 functions)",
+      "description": "MID, FIND, SUBSTITUTE, TEXT, VALUE, DATE, DATEVALUE, CEILING, FLOOR, MOD, SIGN",
+      "status": "pending",
+      "priority": "P2"
+    },
+    {
+      "id": "F054",
+      "category": "Formula Language",
+      "name": "Advanced aggregation & statistical functions",
+      "description": "SUMIF, COUNTIF, MEDIAN, STDEV, VARIANCE, PERCENTILE, GROWTH regression",
+      "status": "pending",
+      "priority": "P2"
+    },
+    {
+      "id": "F055",
+      "category": "Formula Language",
+      "name": "Summary method expansion",
+      "description": "OPENING_BALANCE, CLOSING_BALANCE, WEIGHTED_AVERAGE, FORMULA, FIRST, LAST summary methods",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F056",
+      "category": "Model Structure",
+      "name": "Numbered lists (auto-increment dimensions)",
+      "description": "DimensionType.numbered with auto-integer codes, ITEMCOUNT() function, max items config",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F057",
+      "category": "Model Structure",
+      "name": "Composite dimensions",
+      "description": "Multi-dimensional intersections (Product × Region), sparse member generation, grid pivot support",
+      "status": "pending",
+      "priority": "P2"
+    },
+    {
+      "id": "F058",
+      "category": "Model Structure",
+      "name": "Saved views",
+      "description": "User-specific grid configurations: row/col dims, filters, sort. Save/load per module",
+      "status": "pending",
+      "priority": "P2"
+    },
+    {
+      "id": "F059",
+      "category": "Model Structure",
+      "name": "Applies-to normalization (junction table)",
+      "description": "Replace JSON applies_to_dimensions with LineItemDimension junction table for efficient queries",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F060",
+      "category": "Model Structure",
+      "name": "Version dimension integration",
+      "description": "Add version_id to CellValue, actuals/forecast switchover logic, version-aware queries",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F061",
+      "category": "Model Structure",
+      "name": "Model calendar enhancements",
+      "description": "Weekly periods, 4-4-5/4-5-4 retail calendars, half-year periods, fiscal calendar DB persistence",
+      "status": "pending",
+      "priority": "P2"
+    },
+    {
+      "id": "F062",
+      "category": "Execution Runtime",
+      "name": "Background job executor",
+      "description": "APScheduler + async worker pool, job state machine, retry logic, dead letter queue",
+      "status": "pending",
+      "priority": "P0"
+    },
+    {
+      "id": "F063",
+      "category": "Execution Runtime",
+      "name": "CloudWorks connector SDK",
+      "description": "Real connectors: S3, database, SFTP, HTTP/REST, local file. Base class with read/write DataFrame interface",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F064",
+      "category": "Execution Runtime",
+      "name": "CloudWorks scheduler activation",
+      "description": "Wire CRON schedules to APScheduler, execute connectors on trigger, notification webhooks",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F065",
+      "category": "Execution Runtime",
+      "name": "Pipeline step execution runtime",
+      "description": "DataFrame-based step execution: source, transform, filter, map, aggregate, publish with logging",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F066",
+      "category": "Execution Runtime",
+      "name": "ALM promotion engine",
+      "description": "Deep structural diff, conflict detection, merge strategies, promotion execution, rollback",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F067",
+      "category": "Data Integration",
+      "name": "Data Hub (staging area)",
+      "description": "Staging tables for ETL, schema-on-write, connector import, transform before publish, lineage tracking",
+      "status": "pending",
+      "priority": "P2"
+    },
+    {
+      "id": "F068",
+      "category": "Data Integration",
+      "name": "Bulk API CLI (Anaplan Connect)",
+      "description": "CLI tool for bulk import/export/run-process/run-pipeline with API key auth and YAML batch mode",
+      "status": "pending",
+      "priority": "P2"
+    },
+    {
+      "id": "F069",
+      "category": "Scale & Security",
+      "name": "Workspace quotas & cell limits",
+      "description": "WorkspaceQuota model, enforce limits on create/write, usage tracking dashboard",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F070",
+      "category": "Scale & Security",
+      "name": "Data encryption at rest",
+      "description": "Per-model encryption, key rotation, external KMS integration (AWS KMS, Vault)",
+      "status": "pending",
+      "priority": "P2"
+    },
+    {
+      "id": "F071",
+      "category": "Scale & Security",
+      "name": "IP allowlisting & certificate auth",
+      "description": "Workspace-level IP allowlist, mTLS certificate auth, rate limiting per API key",
+      "status": "pending",
+      "priority": "P2"
+    },
+    {
+      "id": "F072",
+      "category": "Scale & Security",
+      "name": "PostgreSQL migration",
+      "description": "Alembic migrations, asyncpg connection pool, read replicas, PostgreSQL test container",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F073",
+      "category": "Advanced UX",
+      "name": "New UX app builder",
+      "description": "Custom app pages, interactive card types, card-to-card linking, context selectors, responsive mobile",
+      "status": "pending",
+      "priority": "P2"
+    },
+    {
+      "id": "F074",
+      "category": "Advanced UX",
+      "name": "Conditional cell formatting",
+      "description": "Rule-based formatting: color, bold, icon based on value thresholds. Stored per line item/module",
+      "status": "pending",
+      "priority": "P2"
+    },
+    {
+      "id": "F075",
+      "category": "Advanced UX",
+      "name": "Grid performance at scale",
+      "description": "Server-side pagination for 100K+ cells, lazy dimension loading, WebSocket cell push, client cache",
+      "status": "pending",
+      "priority": "P1"
+    },
+    {
+      "id": "F076",
+      "category": "Observability",
+      "name": "Metrics & health dashboard",
+      "description": "Engine/API/integration metrics, Prometheus /metrics endpoint, Grafana dashboard templates",
+      "status": "pending",
+      "priority": "P2"
+    },
+    {
+      "id": "F077",
+      "category": "Observability",
+      "name": "Horizontal scaling",
+      "description": "Stateless API servers, Redis session/pub-sub/cache, sticky engine nodes, Kubernetes manifests",
+      "status": "pending",
+      "priority": "P2"
     }
   ]
 }

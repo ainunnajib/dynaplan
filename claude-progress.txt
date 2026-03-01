@@ -49,6 +49,16 @@ Last updated: 2026-03-02
 - [x] F043: SCIM user provisioning — config, users, groups, provisioning logs (33 tests)
 - [x] F044: Engine profiles — Classic/Polaris modes, metrics, design guidance (28 tests)
 
+## Next Up: F045-F077 (see ROADMAP.md)
+- Phase 1: Rust calculation engine (F045-F050) — Hyperblock replacement via PyO3
+- Phase 2: Complete formula language (F051-F055) — 130+ missing functions
+- Phase 3: Model structure gaps (F056-F061) — numbered lists, composite dims, version integration
+- Phase 4: Execution runtimes (F062-F066) — real CloudWorks/Pipeline/ALM execution
+- Phase 5: Data Hub & CLI (F067-F068)
+- Phase 6: Scale & security (F069-F072) — PostgreSQL, encryption, quotas
+- Phase 7: Advanced UX (F073-F075) — app builder, conditional formatting, grid scale
+- Phase 8: Observability (F076-F077) — metrics, horizontal scaling
+
 ## Known Issues
 - Python 3.9.6 — need bcrypt==4.0.1, Optional[str] syntax, numpy>=1.24
 - WebSocket test `test_websocket_presence_leave_on_disconnect` xfail: sync TestClient breaks aiosqlite connection
