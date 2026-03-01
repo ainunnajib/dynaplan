@@ -1,57 +1,39 @@
 # Dynaplan Development Progress
 
-## Current Status: F001-F004, F006, F008 COMPLETE (tests pending run)
+## Current Status: F001-F008 COMPLETE (309 tests passing)
 Last updated: 2026-03-02
 
 ## Completed
-- [x] Project structure created
-- [x] CLAUDE.md configured with workflow rules
-- [x] features.json defined with full Anaplan feature parity list
-- [x] Git repo initialized and pushed to GitHub
-- [x] Backpressure infrastructure (run_silent.sh, test_all.sh, parallel_implement.sh)
+- [x] Project structure + CLAUDE.md + backpressure infrastructure
 - [x] F001: User authentication & authorization (11 tests)
 - [x] F002: Workspace management (14 tests)
 - [x] F003: Model management with clone/archive (27 tests)
 - [x] F004: Dimensions & hierarchies with tree builder (30 tests)
-- [x] F006: Formula engine — tokenizer, parser, evaluator, high-level API (42 tests)
-  - backend/app/engine/tokenizer.py  — regex-based lexer, Token/TokenType
-  - backend/app/engine/parser.py     — recursive-descent parser, full AST
-  - backend/app/engine/evaluator.py  — AST evaluator, FormulaError, 20+ built-ins
-  - backend/app/engine/formula.py    — parse_formula, evaluate_formula, validate_formula, get_references
-  - backend/tests/test_formula_engine.py — 42 self-contained tests
+- [x] F005: Modules & line items with formula/format/dimensions (38 tests)
+- [x] F006: Formula engine — tokenizer, parser, evaluator, 20+ functions (102 tests)
+- [x] F007: Dependency graph — topo sort, cycle detection, partial recalc (42 tests)
+- [x] F008: Cell-level sparse storage — upsert, bulk, query, dimension keys (27 tests)
 
 ## In Progress
-- [ ] F007: Calculation dependency graph — implementation complete, pending test run
-
-## Implemented This Session
-- [x] F008: Cell-level data storage — sparse cell table, upsert, bulk write, query, delete
-  - backend/app/models/cell.py      — CellValue model (Uuid PK, FK, dimension_key, typed value cols, unique constraint + index)
-  - backend/app/schemas/cell.py     — CellWrite, CellBulkWrite, CellRead, CellQuery
-  - backend/app/services/cell.py    — make_dimension_key, write_cell, write_cells_bulk, read_cell, read_cells_for_line_item, delete_cells_for_line_item
-  - backend/app/api/cell.py         — POST /cells, POST /cells/bulk, POST /cells/query, DELETE /cells/line-item/{id}
-  - backend/tests/test_cell.py      — 27 tests covering all scenarios
-  Also registered cell_router in main.py; CellValue added to models/__init__.py
-
-## Next Up (P0)
-- [ ] F005: Modules & line items
-- [ ] F007: Calculation dependency graph
-- [ ] F008: Cell-level data storage (tests pending run — implementation done)
+(nothing)
 
 ## Next Up (P1)
 - [ ] F009: Time dimension & calendar
 - [ ] F010: Versions (actuals, forecast, budget)
-- [ ] F011: Grid view (spreadsheet UI)
-- [ ] F012: Pivot & filter controls
-- [ ] F013: Cell editing & input
-- [ ] F014: Module builder UI
+- [ ] F011: Grid view (spreadsheet UI) — FRONTEND
+- [ ] F012: Pivot & filter controls — FRONTEND
+- [ ] F013: Cell editing & input — FRONTEND
+- [ ] F014: Module builder UI — FRONTEND
+
+## Next Up (P2)
+- [ ] F015-F032: Dashboards, integrations, collaboration, admin features
 
 ## Known Issues
-- Python 3.9.6 on this machine — need bcrypt==4.0.1 (not 5.x) for passlib compatibility
-- Must use Optional[str] not str | None (Python 3.9 compat)
-- numpy pinned to >=1.24.0 for Python 3.9 compat
+- Python 3.9.6 — need bcrypt==4.0.1, Optional[str] syntax, numpy>=1.24
+- Frontend still at Next.js scaffold — no Dynaplan UI yet
 
 ## Architecture Notes
-- Frontend: Next.js 15 App Router at /frontend
-- Backend: FastAPI at /backend
-- Tests: SQLite in-memory with StaticPool (no external DB needed)
-- Calculation engine: Python NumPy/Pandas based, server-side only
+- Backend: FastAPI at /backend, SQLite in-memory for tests
+- Engine: Pure Python formula engine + dependency graph in app/engine/
+- Cell storage: sparse table with sorted pipe-separated dimension_key
+- All P0 backend features complete — ready for frontend work

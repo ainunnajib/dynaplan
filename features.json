@@ -39,7 +39,7 @@
       "category": "Modeling Engine",
       "name": "Modules & line items",
       "description": "Create modules with line items. Each line item has a formula, format, and applies-to dimensions. This is the core data structure",
-      "status": "pending",
+      "status": "done",
       "priority": "P0"
     },
     {
@@ -47,7 +47,7 @@
       "category": "Modeling Engine",
       "name": "Formula engine",
       "description": "Expression parser and evaluator supporting arithmetic, logical, lookup, aggregation, time functions. Anaplan-compatible formula syntax",
-      "status": "pending",
+      "status": "done",
       "priority": "P0"
     },
     {
@@ -55,7 +55,7 @@
       "category": "Modeling Engine",
       "name": "Calculation dependency graph",
       "description": "Automatic dependency tracking between line items. Recalculate only affected cells on change. Circular dependency detection",
-      "status": "pending",
+      "status": "done",
       "priority": "P0"
     },
     {
@@ -63,7 +63,7 @@
       "category": "Modeling Engine",
       "name": "Cell-level data storage",
       "description": "Sparse storage for multidimensional data cubes. Efficient read/write for individual cells and bulk operations",
-      "status": "pending",
+      "status": "done",
       "priority": "P0"
     },
     {
