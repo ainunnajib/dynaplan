@@ -48,7 +48,7 @@ FORCE_ROTATE_SECRETS="${FORCE_ROTATE_SECRETS:-false}"
 
 BACKEND_DB_URL="${BACKEND_DB_URL:-sqlite+aiosqlite:////tmp/dynaplan.db}"
 BACKEND_REDIS_URL="${BACKEND_REDIS_URL:-redis://localhost:6379/0}"
-BACKEND_SECRET_KEY="${BACKEND_SECRET_KEY:-$(openssl rand -hex 32)}"
+BACKEND_SECRET_KEY="${BACKEND_SECRET_KEY:-}"
 
 is_true() {
   local value
@@ -91,6 +91,13 @@ ensure_secret_with_value() {
   fi
 }
 
+get_secret_latest_or_empty() {
+  local name="$1"
+  gcloud secrets versions access latest \
+    --secret "${name}" \
+    --project "${PROJECT_ID}" 2>/dev/null || true
+}
+
 deploy_backend() {
   local cors_url="$1"
   if is_true "${USE_CLOUD_SQL}"; then
@@ -127,6 +134,9 @@ if is_true "${USE_CLOUD_SQL}"; then
   DEFAULT_AUTO_CREATE_SCHEMA="true"
 fi
 BACKEND_AUTO_CREATE_SCHEMA="${BACKEND_AUTO_CREATE_SCHEMA:-${DEFAULT_AUTO_CREATE_SCHEMA}}"
+if ! is_true "${USE_CLOUD_SQL}" && [[ -z "${BACKEND_SECRET_KEY}" ]]; then
+  BACKEND_SECRET_KEY="$(openssl rand -hex 32)"
+fi
 
 if [[ -z "${PROJECT_ID}" ]]; then
   echo "PROJECT_ID is empty. Set PROJECT_ID or configure gcloud core/project." >&2
@@ -194,7 +204,16 @@ if is_true "${USE_CLOUD_SQL}"; then
       --quiet
   fi
 
-  CLOUD_SQL_DB_PASSWORD="${CLOUD_SQL_DB_PASSWORD:-$(openssl rand -hex 24)}"
+  CLOUD_SQL_DB_PASSWORD="${CLOUD_SQL_DB_PASSWORD:-$(get_secret_latest_or_empty "${DB_PASSWORD_SECRET_NAME}")}"
+  if [[ -z "${CLOUD_SQL_DB_PASSWORD}" ]]; then
+    CLOUD_SQL_DB_PASSWORD="$(openssl rand -hex 24)"
+  fi
+  if [[ -z "${BACKEND_SECRET_KEY}" ]]; then
+    BACKEND_SECRET_KEY="$(get_secret_latest_or_empty "${APP_SECRET_KEY_SECRET_NAME}")"
+  fi
+  if [[ -z "${BACKEND_SECRET_KEY}" ]]; then
+    BACKEND_SECRET_KEY="$(openssl rand -hex 32)"
+  fi
   ensure_secret_with_value "${DB_PASSWORD_SECRET_NAME}" "${CLOUD_SQL_DB_PASSWORD}"
   ensure_secret_with_value "${APP_SECRET_KEY_SECRET_NAME}" "${BACKEND_SECRET_KEY}"
   DB_PASSWORD="$(gcloud secrets versions access latest \
