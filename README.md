@@ -4,7 +4,7 @@ Open-source enterprise planning platform. A full-featured replacement for Anapla
 
 ## Tech Stack
 
-- **Frontend**: Next.js 15, TypeScript, Tailwind CSS, shadcn/ui
+- **Frontend**: Next.js 16, TypeScript, Tailwind CSS, shadcn/ui
 - **Backend**: Python, FastAPI, SQLAlchemy, NumPy/Pandas
 - **Database**: PostgreSQL, Redis
 
@@ -98,6 +98,44 @@ USE_CLOUD_SQL=false \
 BACKEND_DB_URL='sqlite+aiosqlite:////tmp/dynaplan.db' \
 BACKEND_AUTO_CREATE_SCHEMA=true \
 ./scripts/deploy_gcp.sh
+```
+
+### Manual Deploy (Without Script)
+
+```bash
+PROJECT_ID=$(gcloud config get-value project)
+REGION=us-central1
+REPOSITORY=dynaplan
+BACKEND_SERVICE=dynaplan-backend
+FRONTEND_SERVICE=dynaplan-frontend
+TAG=$(git rev-parse --short HEAD)
+
+BACKEND_IMAGE=${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/backend:${TAG}
+FRONTEND_IMAGE=${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/frontend:${TAG}
+
+# Build and push backend image to Artifact Registry
+gcloud builds submit --config cloudbuild.backend.yaml \
+  --substitutions _IMAGE=${BACKEND_IMAGE} .
+
+# Deploy backend
+gcloud run deploy ${BACKEND_SERVICE} \
+  --region ${REGION} \
+  --image ${BACKEND_IMAGE} \
+  --allow-unauthenticated
+
+BACKEND_URL=$(gcloud run services describe ${BACKEND_SERVICE} \
+  --region ${REGION} --format='value(status.url)')
+
+# Build and push frontend image to Artifact Registry
+gcloud builds submit --config cloudbuild.frontend.yaml \
+  --substitutions _IMAGE=${FRONTEND_IMAGE},_NEXT_PUBLIC_API_URL=${BACKEND_URL} .
+
+# Deploy frontend
+gcloud run deploy ${FRONTEND_SERVICE} \
+  --region ${REGION} \
+  --image ${FRONTEND_IMAGE} \
+  --allow-unauthenticated \
+  --set-env-vars NEXT_PUBLIC_API_URL=${BACKEND_URL}
 ```
 
 ### Verify Deployment
