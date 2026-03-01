@@ -29,8 +29,16 @@ async def setup_database():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
+    except Exception:
+        # WebSocket tests using Starlette's sync TestClient can leave the
+        # StaticPool single-connection in a broken state.  Dispose and
+        # recreate so subsequent tests start fresh.
+        await engine.dispose()
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all)
 
 
 @pytest.fixture

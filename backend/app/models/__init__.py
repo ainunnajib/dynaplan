@@ -10,3 +10,13 @@ from app.models.dashboard import Dashboard, DashboardWidget
 from app.models.dashboard_share import DashboardShare, DashboardContextFilter
 from app.models.api_key import ApiKey
 from app.models.action import Action, ActionType, Process, ProcessStep, ProcessRun, ProcessStatus
+from app.models.forecast_config import ForecastConfig
+from app.models.comment import Comment, CommentMention, CommentTargetType
+from app.models.whatif import WhatIfScenario, WhatIfAssumption
+from app.models.rbac import WorkspaceMember, ModelAccess, DimensionMemberAccess, WorkspaceRole, ModelPermission
+from app.models.calc_cache import CalcCache
+from app.models.collaboration import PresenceSession
+from app.models.bulk_job import BulkJob, BulkJobStatus, BulkJobType
+from app.models.snapshot import ModelSnapshot
+from app.models.audit import AuditEntry, AuditEventType
+from app.models.sso import SSOProvider, SSOSession

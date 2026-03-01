@@ -167,7 +167,7 @@
       "category": "Collaboration",
       "name": "Real-time collaboration",
       "description": "Multiple users editing the same module simultaneously. Presence indicators, live cell updates via WebSocket",
-      "status": "pending",
+      "status": "done",
       "priority": "P2"
     },
     {
@@ -175,7 +175,7 @@
       "category": "Collaboration",
       "name": "Comments & annotations",
       "description": "Add comments to cells, line items, or modules. @mention users. Comment threads and resolution",
-      "status": "pending",
+      "status": "done",
       "priority": "P2"
     },
     {
@@ -183,7 +183,7 @@
       "category": "Collaboration",
       "name": "Audit trail & history",
       "description": "Track all data changes with user, timestamp, old/new values. Revision history for model structure changes",
-      "status": "pending",
+      "status": "done",
       "priority": "P2"
     },
     {
@@ -191,7 +191,7 @@
       "category": "Planning Features",
       "name": "Scenario comparison",
       "description": "Compare multiple versions/scenarios side by side. Variance analysis with absolute and percentage differences",
-      "status": "pending",
+      "status": "done",
       "priority": "P1"
     },
     {
@@ -199,7 +199,7 @@
       "category": "Planning Features",
       "name": "Top-down & bottom-up planning",
       "description": "Spread values top-down across dimension members (even, proportional, manual). Aggregate bottom-up with configurable summary methods",
-      "status": "pending",
+      "status": "done",
       "priority": "P1"
     },
     {
@@ -207,7 +207,7 @@
       "category": "Planning Features",
       "name": "Rolling forecasts",
       "description": "Automatically advance forecast periods. Configurable forecast horizon. Auto-archive past periods to actuals",
-      "status": "pending",
+      "status": "done",
       "priority": "P2"
     },
     {
@@ -215,7 +215,7 @@
       "category": "Planning Features",
       "name": "What-if analysis",
       "description": "Create temporary scenarios with modified assumptions. Compare outcomes without affecting live model",
-      "status": "pending",
+      "status": "done",
       "priority": "P2"
     },
     {
@@ -223,7 +223,7 @@
       "category": "Admin & Security",
       "name": "Role-based access control",
       "description": "Roles: workspace admin, model builder, end user. Granular permissions on models, modules, dashboards. Selective access on dimension members",
-      "status": "pending",
+      "status": "done",
       "priority": "P1"
     },
     {
@@ -231,7 +231,7 @@
       "category": "Admin & Security",
       "name": "SSO / SAML integration",
       "description": "Enterprise SSO via SAML 2.0 or OIDC. Auto-provisioning of users from identity provider",
-      "status": "pending",
+      "status": "done",
       "priority": "P2"
     },
     {
@@ -239,7 +239,7 @@
       "category": "Admin & Security",
       "name": "Model history & snapshots",
       "description": "Create named snapshots of entire model state. Restore to any snapshot. Compare snapshots",
-      "status": "pending",
+      "status": "done",
       "priority": "P2"
     },
     {
@@ -247,7 +247,7 @@
       "category": "Performance",
       "name": "Calculation caching",
       "description": "Cache computed values. Invalidate selectively based on dependency graph. Background recalculation for large models",
-      "status": "pending",
+      "status": "done",
       "priority": "P1"
     },
     {
@@ -255,7 +255,7 @@
       "category": "Performance",
       "name": "Bulk data operations",
       "description": "Optimized batch read/write for large data volumes. Chunked imports with progress tracking",
-      "status": "pending",
+      "status": "done",
       "priority": "P2"
     },
     {
