@@ -1,0 +1,26 @@
+Implemented F062 with a new background execution foundation (registry + executor + scheduler wrapper), plus tests and progress update.
+
+**What changed**
+- Added job state/registry with transition enforcement, active task tracking, cancellation, timestamps, and state history in [job_registry.py](/Users/ainunnajib/dynaplan/backend/app/engine/job_registry.py:13).
+- Added async queue worker-pool executor with:
+  - submit/start/stop lifecycle,
+  - pending→queued→running→completed/failed/retrying flow,
+  - exponential retry backoff,
+  - timeout enforcement,
+  - cancellation support,
+  - dead-letter queue tracking
+  in [job_executor.py](/Users/ainunnajib/dynaplan/backend/app/engine/job_executor.py:11).
+- Added APScheduler wrapper (with graceful runtime fallback if APScheduler is not installed) in [job_scheduler.py](/Users/ainunnajib/dynaplan/backend/app/engine/job_scheduler.py:22).
+- Exported new engine components in [__init__.py](/Users/ainunnajib/dynaplan/backend/app/engine/__init__.py:1).
+- Added APScheduler dependency pin in [requirements.txt](/Users/ainunnajib/dynaplan/backend/requirements.txt:23).
+- Added F062 test coverage (13 passing tests in this environment) in [test_job_executor.py](/Users/ainunnajib/dynaplan/backend/tests/test_job_executor.py:11).
+- Updated project progress tracking for F062 completion in [claude-progress.txt](/Users/ainunnajib/dynaplan/claude-progress.txt:3).
+
+No new API router/model was required for F062 itself, so no router registration in `main.py` and no model registration in `models/__init__.py` were needed.
+
+**Validation run**
+- `cd backend && .venv/bin/python -m pytest -x --tb=short -q tests/test_job_executor.py` via wrapper: `13 passed`
+- `cd backend && .venv/bin/python -m pytest -x --tb=short -q` via wrapper: `1384 passed`
+- `cd frontend && bun tsc --noEmit` via wrapper: `clean`
+
+Note: there are unrelated pre-existing local changes outside this task (for example `frontend/src/contexts/AuthContext.tsx` and log files), which I left untouched.

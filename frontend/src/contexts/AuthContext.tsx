@@ -70,6 +70,7 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+type TokenValidationResult = AuthUser | null | "transient";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -78,16 +79,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   // Validate token by fetching /auth/me
-  const validateToken = useCallback(async (tok: string): Promise<AuthUser | null> => {
+  const validateToken = useCallback(async (tok: string): Promise<TokenValidationResult> => {
     try {
       const res = await fetch(`${API_BASE}/auth/me`, {
         headers: { Authorization: `Bearer ${tok}` },
       });
-      if (!res.ok) return null;
+      if (res.status === 401 || res.status === 403) return null;
+      if (!res.ok) return "transient";
       const data = (await res.json()) as AuthUser;
       return data;
     } catch {
-      return null;
+      return "transient";
     }
   }, []);
 
@@ -106,9 +108,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     writeTokenCookie(stored);
 
     validateToken(stored).then((u) => {
-      if (u) {
+      if (u && u !== "transient") {
         setToken(stored);
         setUser(u);
+      } else if (u === "transient") {
+        // Preserve token on temporary API/network failure.
+        setToken(stored);
       } else {
         localStorage.removeItem(TOKEN_KEY);
         clearTokenCookie();
@@ -116,6 +121,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
     });
   }, [validateToken]);
+
+  // If token is present but user profile is missing, attempt to hydrate user state.
+  useEffect(() => {
+    if (!token || user) return;
+    validateToken(token).then((u) => {
+      if (u && u !== "transient") {
+        setUser(u);
+      } else if (u === null) {
+        localStorage.removeItem(TOKEN_KEY);
+        clearTokenCookie();
+        setToken(null);
+        setUser(null);
+      }
+    });
+  }, [token, user, validateToken]);
 
   const login = useCallback(
     async (email: string, password: string): Promise<void> => {
@@ -137,14 +157,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       writeTokenCookie(data.access_token);
 
       const me = await validateToken(data.access_token);
-      if (!me) {
+      if (me === null) {
         localStorage.removeItem(TOKEN_KEY);
         clearTokenCookie();
         throw new Error("Failed to validate session");
       }
 
       setToken(data.access_token);
-      setUser(me);
+      if (me && me !== "transient") {
+        setUser(me);
+      }
       router.push("/");
     },
     [router, validateToken]
