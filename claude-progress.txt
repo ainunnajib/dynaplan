@@ -1,6 +1,6 @@
 # Dynaplan Development Progress
 
-## Current Status: F001-F008 COMPLETE (309 tests passing)
+## Current Status: F001-F009 COMPLETE (backend), F012 + F013 COMPLETE (frontend)
 Last updated: 2026-03-02
 
 ## Completed
@@ -13,16 +13,16 @@ Last updated: 2026-03-02
 - [x] F006: Formula engine — tokenizer, parser, evaluator, 20+ functions (102 tests)
 - [x] F007: Dependency graph — topo sort, cycle detection, partial recalc (42 tests)
 - [x] F008: Cell-level sparse storage — upsert, bulk, query, dimension keys (27 tests)
+- [x] F009: Time dimension & calendar — engine + service + API + 20+ engine tests + 10+ API tests
+- [x] F012: Pivot & filter controls — FRONTEND (6 files, TypeScript strict)
+- [x] F013: Cell editing & input — FRONTEND (7 files, TypeScript strict)
 
 ## In Progress
 (nothing)
 
 ## Next Up (P1)
-- [ ] F009: Time dimension & calendar
 - [ ] F010: Versions (actuals, forecast, budget)
 - [ ] F011: Grid view (spreadsheet UI) — FRONTEND
-- [ ] F012: Pivot & filter controls — FRONTEND
-- [ ] F013: Cell editing & input — FRONTEND
 - [ ] F014: Module builder UI — FRONTEND
 
 ## Next Up (P2)
@@ -30,10 +30,40 @@ Last updated: 2026-03-02
 
 ## Known Issues
 - Python 3.9.6 — need bcrypt==4.0.1, Optional[str] syntax, numpy>=1.24
-- Frontend still at Next.js scaffold — no Dynaplan UI yet
 
 ## Architecture Notes
 - Backend: FastAPI at /backend, SQLite in-memory for tests
 - Engine: Pure Python formula engine + dependency graph in app/engine/
 - Cell storage: sparse table with sorted pipe-separated dimension_key
+- Time calendar: app/engine/time_calendar.py (pure), service uses pipe-encoded code column for metadata
 - All P0 backend features complete — ready for frontend work
+
+## F009 Implementation Notes
+- backend/app/engine/time_calendar.py — TimePeriodType enum, FiscalCalendar, generate_time_periods, get_period_for_date, spread_value
+- backend/app/services/time_dimension.py — create_time_dimension (populates DimensionItems), get_time_periods (decodes metadata)
+- backend/app/schemas/time_dimension.py — TimeDimensionCreate, FiscalCalendarConfig, TimePeriodResponse
+- backend/app/api/time_dimension.py — POST /models/{id}/time-dimensions, GET /dimensions/{id}/time-periods
+- backend/tests/test_time_calendar.py — 44 pure-Python engine tests
+- backend/tests/test_time_dimension.py — 12 API integration tests
+- Hierarchy: Year > Half > Quarter > Month > Week encoded via parent_id on DimensionItems
+- Metadata (start_date, end_date, period_type) stored in code column using pipe-separated format
+- Fiscal year labelled by end year: FY starting July 2023 = FY2024
+
+## F012 Implementation Notes
+- frontend/src/lib/pivot-utils.ts — shared types + buildGridLayout, crossProduct, buildDimensionKey
+- frontend/src/components/pivot/DimensionChip.tsx — draggable chip, inline SVG icons, zone color accents
+- frontend/src/components/pivot/DropZone.tsx — HTML5 drop target, dragover highlight, chip container
+- frontend/src/components/pivot/PivotControl.tsx — orchestrates pivot state: Available pool + Rows/Columns/Pages zones
+- frontend/src/components/filter/FilterDropdown.tsx — multi-select with search, hierarchy indentation, Select All/Clear
+- frontend/src/components/filter/FilterPanel.tsx — renders one FilterDropdown per page dimension, Reset all, empty state
+
+## F013 Implementation Notes
+- frontend/src/components/grid/CellFormatting.ts — formatCellValue, parseCellInput, validateCellInput; supports number, text, boolean, date, list, percentage
+- frontend/src/components/grid/EditableCell.tsx — "use client"; 4 states (viewing/editing/saving/error); double-click or Enter to edit; Enter saves, Escape cancels, Tab moves focus; spinner on save; red border + tooltip on error; formula tooltip on calculated cells
+- frontend/src/hooks/useCellData.ts — "use client"; writeCell + writeCellsBulk + queryCells; optimistic updates; 300ms debounced bulk flush; cellKey cache map; auto-flush on unmount
+- frontend/src/hooks/useAuth.ts — "use client"; re-exports useAuthContext as useAuth from AuthContext
+- frontend/src/contexts/AuthContext.tsx — "use client"; AuthProvider with token/user state; localStorage persistence; /auth/me validation on mount; login POST /auth/login; logout clears state + redirects
+- frontend/src/app/login/page.tsx — "use client"; email+password form; error display; calls useAuth().login; redirects to / on success
+- frontend/src/app/register/page.tsx — "use client"; email+fullname+password+confirm form; client-side validation; POST /auth/register; redirects to /login
+- frontend/src/app/layout.tsx — wrapped body children with AuthProvider
+- frontend/package.json — added @tanstack/react-virtual ^3.13.6 (needed by DataGrid); run `cd frontend && bun install`

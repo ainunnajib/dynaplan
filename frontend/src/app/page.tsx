@@ -1,65 +1,83 @@
-import Image from "next/image";
+import Link from "next/link";
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <div className="flex min-h-screen flex-col bg-gray-50">
+      {/* Hero */}
+      <main className="flex flex-1 flex-col items-center justify-center px-6 py-24">
+        <div className="w-full max-w-2xl">
+          <div className="mb-6 inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
+            Open-source Anaplan replacement
+          </div>
+
+          <h1 className="mb-4 text-4xl font-bold tracking-tight text-gray-900">
+            Connected planning,{" "}
+            <span className="text-blue-600">without the lock-in.</span>
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+
+          <p className="mb-8 text-lg leading-relaxed text-gray-500">
+            Dynaplan is a multidimensional planning platform with a formula
+            engine, spreadsheet grid, scenario analysis, and real-time
+            collaboration — built on open standards.
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+          {/* Get Started */}
+          <div className="mb-10 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+            <h2 className="mb-4 text-base font-semibold text-gray-800">
+              Get Started
+            </h2>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Link
+                href="/workspaces"
+                className="flex items-center justify-center rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700"
+              >
+                View Workspaces
+              </Link>
+              <Link
+                href="/models"
+                className="flex items-center justify-center rounded-lg border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+              >
+                Browse Models
+              </Link>
+            </div>
+          </div>
+
+          {/* Feature cards */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {[
+              {
+                title: "Multidimensional",
+                desc: "Model any business structure with named dimensions, hierarchies, and sparse data storage.",
+              },
+              {
+                title: "Formula Engine",
+                desc: "Anaplan-compatible formula syntax with dependency graph and automatic recalculation.",
+              },
+              {
+                title: "Grid View",
+                desc: "High-performance virtualized spreadsheet UI with in-line editing and cell formatting.",
+              },
+            ].map((card) => (
+              <div
+                key={card.title}
+                className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+              >
+                <h3 className="mb-1 text-sm font-semibold text-gray-800">
+                  {card.title}
+                </h3>
+                <p className="text-xs leading-relaxed text-gray-500">
+                  {card.desc}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       </main>
+
+      {/* Footer */}
+      <footer className="border-t border-gray-200 py-4 text-center text-xs text-gray-400">
+        Dynaplan — open-source enterprise planning platform
+      </footer>
     </div>
   );
 }
