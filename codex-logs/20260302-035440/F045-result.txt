@@ -1,0 +1,9 @@
+Unexpected unrelated modifications appeared while I was working, and I paused per your workflow rule:
+
+- [frontend/src/app/login/page.tsx](/Users/ainunnajib/dynaplan/frontend/src/app/login/page.tsx)
+- [frontend/src/app/register/page.tsx](/Users/ainunnajib/dynaplan/frontend/src/app/register/page.tsx)
+
+How do you want to proceed?
+
+1. Ignore these unrelated changes and I’ll continue/finalize only F045 work.
+2. Inspect these changes first and reconcile before I proceed.

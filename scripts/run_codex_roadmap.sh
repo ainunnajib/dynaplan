@@ -50,7 +50,7 @@ run_feature() {
 
   local start_time=$SECONDS
   codex exec --full-auto \
-    --last-message-file "$LOG_DIR/${fid}-result.txt" \
+    -o "$LOG_DIR/${fid}-result.txt" \
     "$prompt" \
     > "$LOG_DIR/${fid}-stdout.log" 2>&1
 
@@ -93,10 +93,6 @@ run_wave() {
 # ── Preflight checks ─────────────────────────────────────────
 if ! command -v codex &> /dev/null; then
   echo "ERROR: codex CLI not found. Install: npm install -g @openai/codex"
-  exit 1
-fi
-if [ -z "${OPENAI_API_KEY:-}" ]; then
-  echo "ERROR: OPENAI_API_KEY not set"
   exit 1
 fi
 

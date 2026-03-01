@@ -1,0 +1,7 @@
+error: unexpected argument '--last-message-file' found
+
+  tip: to pass '--last-message-file' as a value, use '-- --last-message-file'
+
+Usage: codex exec --full-auto [PROMPT]
+
+For more information, try '--help'.

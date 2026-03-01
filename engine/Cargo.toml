@@ -1,0 +1,3 @@
+[workspace]
+members = ["dynaplan-core"]
+resolver = "2"

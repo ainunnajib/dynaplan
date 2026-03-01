@@ -1,0 +1,7 @@
+[package]
+name = "dynaplan-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+uuid = { version = "1.8", features = ["v4"] }
