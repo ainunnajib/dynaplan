@@ -1,0 +1,33 @@
+Implemented F069 end-to-end with backend enforcement + frontend usage tracking.
+
+**What changed**
+- Added workspace quota domain model, service, schemas, and API:
+  - [workspace_quota.py](/Users/ainunnajib/dynaplan/backend/app/models/workspace_quota.py)
+  - [workspace_quota.py](/Users/ainunnajib/dynaplan/backend/app/services/workspace_quota.py)
+  - [workspace_quota.py](/Users/ainunnajib/dynaplan/backend/app/schemas/workspace_quota.py)
+  - [workspace_quota.py](/Users/ainunnajib/dynaplan/backend/app/api/workspace_quota.py)
+- Registered model/router:
+  - [__init__.py](/Users/ainunnajib/dynaplan/backend/app/models/__init__.py)
+  - [main.py](/Users/ainunnajib/dynaplan/backend/app/main.py)
+- Auto-create default quota on workspace creation:
+  - [workspace.py](/Users/ainunnajib/dynaplan/backend/app/services/workspace.py)
+- Enforced quotas on create/write paths:
+  - Model create/clone: [planning_model.py](/Users/ainunnajib/dynaplan/backend/app/services/planning_model.py), [planning_model.py](/Users/ainunnajib/dynaplan/backend/app/api/planning_model.py)
+  - Dimension + time-dimension create: [dimension.py](/Users/ainunnajib/dynaplan/backend/app/services/dimension.py), [time_dimension.py](/Users/ainunnajib/dynaplan/backend/app/services/time_dimension.py), [dimension.py](/Users/ainunnajib/dynaplan/backend/app/api/dimension.py), [time_dimension.py](/Users/ainunnajib/dynaplan/backend/app/api/time_dimension.py)
+  - Cell writes (single + bulk), including storage-limit checks: [cell.py](/Users/ainunnajib/dynaplan/backend/app/services/cell.py), [cell.py](/Users/ainunnajib/dynaplan/backend/app/api/cell.py)
+- Added backend coverage for F069:
+  - [test_workspace_quota.py](/Users/ainunnajib/dynaplan/backend/tests/test_workspace_quota.py) (11 tests)
+- Aligned test DB fixture with your constraint (file-backed SQLite + `NullPool`):
+  - [conftest.py](/Users/ainunnajib/dynaplan/backend/tests/conftest.py)
+- Added frontend quota usage dashboard:
+  - [WorkspaceQuotaDashboard.tsx](/Users/ainunnajib/dynaplan/frontend/src/components/workspace/WorkspaceQuotaDashboard.tsx)
+  - [api.ts](/Users/ainunnajib/dynaplan/frontend/src/lib/api.ts)
+  - [page.tsx](/Users/ainunnajib/dynaplan/frontend/src/app/workspaces/[workspaceId]/page.tsx)
+- Updated progress tracking:
+  - [claude-progress.txt](/Users/ainunnajib/dynaplan/claude-progress.txt)
+
+**Validation**
+- Ran: `cd backend && .venv/bin/python -m pytest -x --tb=short -q`
+  - Result: `1400 passed, 1 skipped, 1 xfailed, 1 xpassed`
+- Ran: `cd frontend && bun tsc --noEmit`
+  - Result: success (no type errors)

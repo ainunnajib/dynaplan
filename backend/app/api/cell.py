@@ -14,6 +14,7 @@ from app.services.cell import (
     write_cell,
     write_cells_bulk,
 )
+from app.services.workspace_quota import WorkspaceQuotaExceededError
 
 router = APIRouter(prefix="/cells", tags=["cells"])
 
@@ -36,6 +37,11 @@ async def write_cell_endpoint(
             dimension_members=data.dimension_members,
             value=data.value,
         )
+    except WorkspaceQuotaExceededError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -56,6 +62,11 @@ async def write_cells_bulk_endpoint(
     """Write (upsert) multiple cell values at once."""
     try:
         return await write_cells_bulk(db, cells=data.cells)
+    except WorkspaceQuotaExceededError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

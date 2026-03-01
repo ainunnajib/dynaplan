@@ -93,6 +93,29 @@ export interface Workspace {
   updated_at: string;
 }
 
+export interface WorkspaceQuotaUsageModel {
+  model_id: string;
+  model_name: string;
+  dimension_count: number;
+  cell_count: number;
+  storage_used_bytes: number;
+  storage_used_mb: number;
+}
+
+export interface WorkspaceQuotaUsage {
+  workspace_id: string;
+  max_models: number;
+  max_cells_per_model: number;
+  max_dimensions_per_model: number;
+  storage_limit_mb: number;
+  model_count: number;
+  total_dimension_count: number;
+  total_cell_count: number;
+  storage_used_bytes: number;
+  storage_used_mb: number;
+  models: WorkspaceQuotaUsageModel[];
+}
+
 export interface PlanningModel {
   id: string;
   workspace_id: string;
@@ -176,6 +199,14 @@ export interface CellValue {
 
 export async function getWorkspaces(): Promise<Workspace[]> {
   return fetchApi<Workspace[]>("/api/workspaces/");
+}
+
+export async function getWorkspaceQuotaUsage(
+  workspaceId: string
+): Promise<WorkspaceQuotaUsage> {
+  return fetchApi<WorkspaceQuotaUsage>(
+    `/api/workspaces/${workspaceId}/quota/usage`
+  );
 }
 
 export async function getModels(workspaceId: string): Promise<PlanningModel[]> {

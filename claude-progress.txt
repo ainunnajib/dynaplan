@@ -1,6 +1,6 @@
 # Dynaplan Development Progress
 
-## Current Status: 47 features complete + F045 implemented (pending Rust toolchain validation)
+## Current Status: 48 features complete + F045 implemented (pending Rust toolchain validation)
 Last updated: 2026-03-01
 
 ## Completed
@@ -51,17 +51,18 @@ Last updated: 2026-03-01
 - [x] F062: Background Job Executor (asyncio queue worker pool, job registry/state machine, retry+backoff, timeout/cancel, dead-letter queue, APScheduler wrapper with graceful fallback) (13 backend tests + full regression pass)
 - [x] F056: Numbered Lists (auto-increment dimensions, max items, ITEMCOUNT) (13 backend tests + formula coverage)
 - [x] F059: Applies-To Normalization (line-item/dimension junction table, snapshot + cell integration, dimension query endpoint) (3 backend tests + full regression pass)
+- [x] F069: Workspace Quotas & Cell Limits (workspace quota model + CRUD/usage API, enforcement on model/dimension/time-dimension/cell writes, frontend usage dashboard) (11 backend tests + full regression pass + frontend type-check)
 
 ## In Progress
 - [~] F045: Rust Engine Core — Sparse Block Storage (workspace + `dynaplan-core` modules + 100K sparse write/read Rust tests added; `cargo test` pending because Rust toolchain is unavailable in this environment)
 
-## Next Up: F045 validation + F046-F055, F057-F061, F063-F077 (see ROADMAP.md)
+## Next Up: F045 validation + F046-F055, F057-F061, F063-F068, F070-F077 (see ROADMAP.md)
 - Phase 1: Rust calculation engine (F045-F050) — Hyperblock replacement via PyO3
 - Phase 2: Complete formula language (F051-F055) — 130+ missing functions
 - Phase 3: Model structure gaps (F057-F061) — composite dims, saved views, version integration
 - Phase 4: Execution runtimes (F063-F066) — real CloudWorks/Pipeline/ALM execution
 - Phase 5: Data Hub & CLI (F067-F068)
-- Phase 6: Scale & security (F069-F072) — PostgreSQL, encryption, quotas
+- Phase 6: Scale & security (F070-F072) — PostgreSQL, encryption, allowlisting
 - Phase 7: Advanced UX (F073-F075) — app builder, conditional formatting, grid scale
 - Phase 8: Observability (F076-F077) — metrics, horizontal scaling
 
@@ -73,6 +74,7 @@ Last updated: 2026-03-01
 ## Architecture
 - Backend: FastAPI, 1384 tests, file-backed SQLite with NullPool for tests
 - Engine: Pure Python formula engine in production + Rust `engine/dynaplan-core` F045 foundation (sparse blocks/model container) pending toolchain validation
+- Quotas: Workspace-level quota controls (max models, max cells/model, max dimensions/model, storage MB) with API usage reporting + enforced create/write guards
 - Execution runtime foundation: async background executor (`job_executor`), scheduler wrapper (`job_scheduler`), and active job registry (`job_registry`)
 - Frontend: Next.js 15 + TypeScript + Tailwind + Recharts, TS compiles clean
 - Cell storage: sparse table with sorted pipe-separated dimension_key

@@ -30,6 +30,7 @@ from app.services.dimension import (
     update_dimension,
     update_dimension_item,
 )
+from app.services.workspace_quota import WorkspaceQuotaExceededError
 
 router = APIRouter(tags=["dimensions"])
 
@@ -84,6 +85,11 @@ async def create_dimension_endpoint(
 ):
     try:
         return await create_dimension(db, model_id=model_id, data=data)
+    except WorkspaceQuotaExceededError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
     except DimensionValidationError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -109,6 +115,11 @@ async def create_dimension_legacy_endpoint(
     )
     try:
         return await create_dimension(db, model_id=data.model_id, data=create_data)
+    except WorkspaceQuotaExceededError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
     except DimensionValidationError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

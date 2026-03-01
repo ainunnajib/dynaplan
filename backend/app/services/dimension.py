@@ -12,6 +12,7 @@ from app.schemas.dimension import (
     DimensionItemUpdate,
     DimensionUpdate,
 )
+from app.services.workspace_quota import enforce_dimension_creation_quota
 
 
 class DimensionValidationError(ValueError):
@@ -55,6 +56,7 @@ async def create_dimension(
     db: AsyncSession, model_id: uuid.UUID, data: DimensionCreate
 ) -> Dimension:
     _validate_dimension_config(data.dimension_type, data.max_items)
+    await enforce_dimension_creation_quota(db, model_id)
 
     dimension = Dimension(
         name=data.name,

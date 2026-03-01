@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { getModels, fetchApi } from "@/lib/api";
+import { getModels, getWorkspaceQuotaUsage, fetchApi } from "@/lib/api";
 import { getModelStatus } from "@/lib/api";
-import type { PlanningModel, Workspace } from "@/lib/api";
+import type { PlanningModel, Workspace, WorkspaceQuotaUsage } from "@/lib/api";
+import WorkspaceQuotaDashboard from "@/components/workspace/WorkspaceQuotaDashboard";
 
 export const metadata = {
   title: "Workspace — Dynaplan",
@@ -16,12 +17,14 @@ export default async function WorkspacePage({ params }: PageProps) {
 
   let workspace: Workspace | null = null;
   let models: PlanningModel[] = [];
+  let quotaUsage: WorkspaceQuotaUsage | null = null;
   let fetchError: string | null = null;
 
   try {
-    [workspace, models] = await Promise.all([
+    [workspace, models, quotaUsage] = await Promise.all([
       fetchApi<Workspace>(`/api/workspaces/${workspaceId}`),
       getModels(workspaceId),
+      getWorkspaceQuotaUsage(workspaceId),
     ]);
   } catch (err) {
     fetchError = err instanceof Error ? err.message : "Failed to load workspace";
@@ -62,26 +65,31 @@ export default async function WorkspacePage({ params }: PageProps) {
           <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             {fetchError}
           </div>
-        ) : models.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-white py-16 text-center">
-            <ModelIcon />
-            <h2 className="mt-4 text-base font-medium text-zinc-700">No models yet</h2>
-            <p className="mt-1 text-sm text-zinc-500">
-              Create a planning model to get started.
-            </p>
-            <Link
-              href={`/workspaces/${workspaceId}/models/new`}
-              className="mt-4 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
-            >
-              Create your first model
-            </Link>
-          </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {models.map((model) => (
-              <ModelCard key={model.id} model={model} />
-            ))}
-          </div>
+          <>
+            {quotaUsage && <WorkspaceQuotaDashboard usage={quotaUsage} />}
+            {models.length === 0 ? (
+              <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-zinc-300 bg-white py-16 text-center">
+                <ModelIcon />
+                <h2 className="mt-4 text-base font-medium text-zinc-700">No models yet</h2>
+                <p className="mt-1 text-sm text-zinc-500">
+                  Create a planning model to get started.
+                </p>
+                <Link
+                  href={`/workspaces/${workspaceId}/models/new`}
+                  className="mt-4 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+                >
+                  Create your first model
+                </Link>
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {models.map((model) => (
+                  <ModelCard key={model.id} model={model} />
+                ))}
+              </div>
+            )}
+          </>
         )}
       </main>
     </div>

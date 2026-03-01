@@ -17,6 +17,7 @@ from app.engine.time_calendar import (
     generate_time_periods,
 )
 from app.models.dimension import Dimension, DimensionItem, DimensionType
+from app.services.workspace_quota import enforce_dimension_creation_quota
 
 
 async def create_time_dimension(
@@ -45,6 +46,8 @@ async def create_time_dimension(
     """
     if fiscal_calendar is None:
         fiscal_calendar = FiscalCalendar()
+
+    await enforce_dimension_creation_quota(db, model_id)
 
     # 1. Create the Dimension row
     dimension = Dimension(

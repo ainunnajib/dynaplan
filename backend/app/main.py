@@ -39,6 +39,7 @@ from app.api.scim import router as scim_router
 from app.api.time_dimension import router as time_dimension_router
 from app.api.version import router as version_router
 from app.api.workspace import router as workspace_router
+from app.api.workspace_quota import router as workspace_quota_router
 from app.core.config import settings
 from app.core.database import engine
 from app.models import Base
@@ -60,6 +61,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(workspace_router)
+app.include_router(workspace_quota_router)
 app.include_router(planning_model_router)
 app.include_router(dimension_router)
 app.include_router(module_router)

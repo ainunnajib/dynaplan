@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.planning_model import PlanningModel
 from app.schemas.planning_model import PlanningModelCreate, PlanningModelUpdate
+from app.services.workspace_quota import enforce_model_creation_quota
 
 
 async def get_model_by_id(
@@ -35,6 +36,8 @@ async def create_model(
     data: PlanningModelCreate,
     owner_id: uuid.UUID,
 ) -> PlanningModel:
+    await enforce_model_creation_quota(db, data.workspace_id)
+
     model = PlanningModel(
         name=data.name,
         description=data.description,
@@ -93,10 +96,15 @@ async def clone_model(
     workspace_id: Optional[uuid.UUID] = None,
 ) -> PlanningModel:
     """Clone a model into the same or a different workspace."""
+    target_workspace_id = (
+        workspace_id if workspace_id is not None else source.workspace_id
+    )
+    await enforce_model_creation_quota(db, target_workspace_id)
+
     cloned = PlanningModel(
         name=new_name,
         description=source.description,
-        workspace_id=workspace_id if workspace_id is not None else source.workspace_id,
+        workspace_id=target_workspace_id,
         owner_id=owner_id,
         settings=dict(source.settings) if source.settings else {},
     )

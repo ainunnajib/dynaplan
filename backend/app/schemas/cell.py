@@ -33,3 +33,17 @@ class CellRead(BaseModel):
 class CellQuery(BaseModel):
     line_item_id: uuid.UUID
     dimension_filters: Optional[Dict[str, List[uuid.UUID]]] = None
+
+
+# ── Legacy module-grid compatibility schemas ──────────────────────────────────
+
+class ModuleCellRead(BaseModel):
+    line_item_id: uuid.UUID
+    dimension_member_ids: List[uuid.UUID]
+    value: Any
+
+
+class ModuleCellWrite(BaseModel):
+    line_item_id: uuid.UUID
+    dimension_member_ids: List[uuid.UUID]
+    value: Any

@@ -20,6 +20,7 @@ from app.schemas.dimension import DimensionResponse
 from app.schemas.time_dimension import TimeDimensionCreate, TimePeriodResponse
 from app.services.dimension import get_dimension_by_id
 from app.services.time_dimension import create_time_dimension, get_time_periods
+from app.services.workspace_quota import WorkspaceQuotaExceededError
 
 router = APIRouter(tags=["time-dimensions"])
 
@@ -40,16 +41,22 @@ async def create_time_dimension_endpoint(
         fiscal_year_start_month=data.fiscal_calendar.fiscal_year_start_month,
         week_start_day=data.fiscal_calendar.week_start_day,
     )
-    dimension = await create_time_dimension(
-        db=db,
-        model_id=model_id,
-        name=data.name,
-        start_year=data.start_year,
-        end_year=data.end_year,
-        granularity=data.granularity,
-        fiscal_calendar=fiscal_calendar,
-    )
-    return dimension
+    try:
+        dimension = await create_time_dimension(
+            db=db,
+            model_id=model_id,
+            name=data.name,
+            start_year=data.start_year,
+            end_year=data.end_year,
+            granularity=data.granularity,
+            fiscal_calendar=fiscal_calendar,
+        )
+        return dimension
+    except WorkspaceQuotaExceededError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
 
 
 @router.get(

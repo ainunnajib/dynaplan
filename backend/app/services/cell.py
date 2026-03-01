@@ -11,6 +11,7 @@ from app.models.cell import CellValue
 from app.models.dimension import DimensionItem
 from app.models.module import LineItem
 from app.schemas.cell import CellRead, CellWrite
+from app.services.workspace_quota import enforce_cell_write_quota
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -135,6 +136,16 @@ async def _upsert_cell_no_commit(
         )
     )
     existing = result.scalar_one_or_none()
+
+    await enforce_cell_write_quota(
+        db=db,
+        line_item_id=line_item_id,
+        dimension_key=dimension_key,
+        value_number=value_number,
+        value_text=value_text,
+        value_boolean=value_boolean,
+        existing_cell=existing,
+    )
 
     if existing is not None:
         existing.value_number = value_number

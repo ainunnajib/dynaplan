@@ -22,6 +22,7 @@ from app.services.planning_model import (
     unarchive_model,
     update_model,
 )
+from app.services.workspace_quota import WorkspaceQuotaExceededError
 
 router = APIRouter(prefix="/models", tags=["models"])
 
@@ -41,8 +42,14 @@ async def create_planning_model(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    model = await create_model(db, data, owner_id=current_user.id)
-    return model
+    try:
+        model = await create_model(db, data, owner_id=current_user.id)
+        return model
+    except WorkspaceQuotaExceededError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
 
 
 @router.get("/workspace/{workspace_id}", response_model=list[PlanningModelResponse])
@@ -108,14 +115,20 @@ async def clone_planning_model(
     current_user: User = Depends(get_current_user),
 ):
     source = _get_model_or_404(await get_model_by_id(db, model_id))
-    cloned = await clone_model(
-        db,
-        source,
-        new_name=data.name,
-        owner_id=current_user.id,
-        workspace_id=data.workspace_id,
-    )
-    return cloned
+    try:
+        cloned = await clone_model(
+            db,
+            source,
+            new_name=data.name,
+            owner_id=current_user.id,
+            workspace_id=data.workspace_id,
+        )
+        return cloned
+    except WorkspaceQuotaExceededError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
 
 
 @router.delete("/{model_id}", status_code=status.HTTP_204_NO_CONTENT)

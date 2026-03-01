@@ -32,3 +32,4 @@ from app.models.alm import ALMEnvironment, RevisionTag, PromotionRecord
 from app.models.cloudworks import CloudWorksConnection, CloudWorksSchedule, CloudWorksRun
 from app.models.pipeline import Pipeline, PipelineStep, PipelineRun, PipelineStepLog
 from app.models.scim import SCIMConfig, SCIMGroup, SCIMGroupMember, SCIMProvisioningLog
+from app.models.workspace_quota import WorkspaceQuota
