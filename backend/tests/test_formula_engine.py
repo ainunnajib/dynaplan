@@ -1,0 +1,514 @@
+"""
+Comprehensive tests for the F006 formula engine.
+
+All tests are self-contained — no database, no HTTP client, no fixtures.
+Run with:  cd backend && pytest tests/test_formula_engine.py -v
+"""
+
+import math
+import pytest
+
+from app.engine.tokenizer import tokenize, Token, TokenType, TokenizerError
+from app.engine.parser import (
+    parse,
+    ParseError,
+    NumberLiteral,
+    StringLiteral,
+    BooleanLiteral,
+    Identifier,
+    BinaryOp,
+    UnaryOp,
+    FunctionCall,
+    Comparison,
+)
+from app.engine.evaluator import Evaluator, FormulaError
+from app.engine.formula import (
+    parse_formula,
+    evaluate_formula,
+    validate_formula,
+    get_references,
+)
+
+
+# ===========================================================================
+# Tokenizer tests
+# ===========================================================================
+
+class TestTokenizer:
+    def test_tokenize_number_integer(self):
+        tokens = tokenize("42")
+        assert len(tokens) == 1
+        assert tokens[0].type == TokenType.NUMBER
+        assert tokens[0].value == "42"
+
+    def test_tokenize_number_float(self):
+        tokens = tokenize("3.14")
+        assert tokens[0].type == TokenType.NUMBER
+        assert tokens[0].value == "3.14"
+
+    def test_tokenize_string_double_quotes(self):
+        tokens = tokenize('"hello"')
+        assert tokens[0].type == TokenType.STRING
+
+    def test_tokenize_boolean_true(self):
+        tokens = tokenize("TRUE")
+        assert tokens[0].type == TokenType.BOOLEAN
+        assert tokens[0].value == "TRUE"
+
+    def test_tokenize_boolean_false_lowercase(self):
+        # Case-insensitive
+        tokens = tokenize("false")
+        assert tokens[0].type == TokenType.BOOLEAN
+        assert tokens[0].value == "FALSE"
+
+    def test_tokenize_logical_and(self):
+        tokens = tokenize("AND")
+        assert tokens[0].type == TokenType.LOGICAL
+
+    def test_tokenize_comparison_neq(self):
+        tokens = tokenize("<>")
+        assert tokens[0].type == TokenType.COMPARISON
+        assert tokens[0].value == "<>"
+
+    def test_tokenize_dotted_identifier(self):
+        tokens = tokenize("Product.Price")
+        assert tokens[0].type == TokenType.IDENTIFIER
+        assert tokens[0].value == "Product.Price"
+
+    def test_tokenize_arithmetic_expression(self):
+        tokens = tokenize("Revenue * 0.15")
+        types = [t.type for t in tokens]
+        assert types == [TokenType.IDENTIFIER, TokenType.OPERATOR, TokenType.NUMBER]
+
+    def test_tokenize_unknown_character_raises(self):
+        with pytest.raises(TokenizerError):
+            tokenize("@Revenue")
+
+    def test_tokenize_whitespace_ignored(self):
+        tokens = tokenize("  1  +  2  ")
+        assert len(tokens) == 3
+
+
+# ===========================================================================
+# Parser / AST tests
+# ===========================================================================
+
+class TestParser:
+    def test_parse_number_literal(self):
+        node = parse("42")
+        assert isinstance(node, NumberLiteral)
+        assert node.value == 42.0
+
+    def test_parse_string_literal(self):
+        node = parse('"hello"')
+        assert isinstance(node, StringLiteral)
+        assert node.value == "hello"
+
+    def test_parse_boolean_literal(self):
+        node = parse("TRUE")
+        assert isinstance(node, BooleanLiteral)
+        assert node.value is True
+
+    def test_parse_identifier(self):
+        node = parse("Revenue")
+        assert isinstance(node, Identifier)
+        assert node.name == "Revenue"
+
+    def test_parse_binary_add(self):
+        node = parse("2 + 3")
+        assert isinstance(node, BinaryOp)
+        assert node.op == "+"
+
+    def test_parse_function_call(self):
+        node = parse("SUM(1, 2, 3)")
+        assert isinstance(node, FunctionCall)
+        assert node.name == "SUM"
+        assert len(node.args) == 3
+
+    def test_parse_unary_minus(self):
+        node = parse("-5")
+        assert isinstance(node, UnaryOp)
+        assert node.op == "-"
+
+    def test_parse_comparison(self):
+        node = parse("Revenue > 1000")
+        assert isinstance(node, Comparison)
+        assert node.op == ">"
+
+    def test_parse_nested_function(self):
+        node = parse("IF(Revenue > 0, Revenue * 0.1, 0)")
+        assert isinstance(node, FunctionCall)
+        assert node.name == "IF"
+        assert len(node.args) == 3
+
+    def test_parse_mismatched_paren_raises(self):
+        with pytest.raises(ParseError):
+            parse("(2 + 3")
+
+    def test_parse_extra_token_raises(self):
+        with pytest.raises(ParseError):
+            parse("2 + 3 )")
+
+    def test_parse_empty_string_raises(self):
+        with pytest.raises(Exception):
+            parse("")
+
+
+# ===========================================================================
+# Evaluator — arithmetic
+# ===========================================================================
+
+class TestArithmetic:
+    def _ev(self, expr: str, ctx: dict = None) -> object:
+        return evaluate_formula(expr, ctx or {})
+
+    def test_addition(self):
+        assert self._ev("2 + 3") == 5.0
+
+    def test_subtraction(self):
+        assert self._ev("10 - 4") == 6.0
+
+    def test_multiplication(self):
+        assert self._ev("3 * 4") == 12.0
+
+    def test_division(self):
+        assert self._ev("10 / 4") == 2.5
+
+    def test_power(self):
+        assert self._ev("2 ^ 3") == 8.0
+
+    def test_operator_precedence_mul_over_add(self):
+        # 2 + 3 * 4 = 14, not 20
+        assert self._ev("2 + 3 * 4") == 14.0
+
+    def test_parentheses_override_precedence(self):
+        assert self._ev("10 * (5 - 2)") == 30.0
+
+    def test_unary_minus(self):
+        assert self._ev("-5 + 10") == 5.0
+
+    def test_nested_arithmetic(self):
+        assert self._ev("(2 + 3) * (4 - 1)") == 15.0
+
+    def test_division_by_zero_raises(self):
+        with pytest.raises(FormulaError, match="Division by zero"):
+            self._ev("10 / 0")
+
+    def test_float_arithmetic(self):
+        result = self._ev("0.1 + 0.2")
+        assert abs(result - 0.3) < 1e-9
+
+
+# ===========================================================================
+# Evaluator — variables
+# ===========================================================================
+
+class TestVariables:
+    def test_single_variable(self):
+        result = evaluate_formula("Revenue * 0.15", {"Revenue": 1000})
+        assert result == 150.0
+
+    def test_multiple_variables(self):
+        result = evaluate_formula("Price * Quantity", {"Price": 25.0, "Quantity": 4})
+        assert result == 100.0
+
+    def test_undefined_variable_raises(self):
+        with pytest.raises(FormulaError, match="Undefined variable"):
+            evaluate_formula("Revenue", {})
+
+    def test_variable_in_condition(self):
+        result = evaluate_formula("Active", {"Active": True})
+        assert result is True
+
+    def test_dotted_variable(self):
+        result = evaluate_formula("Product.Price * 2", {"Product.Price": 50.0})
+        assert result == 100.0
+
+
+# ===========================================================================
+# Evaluator — comparisons
+# ===========================================================================
+
+class TestComparisons:
+    def test_greater_than_true(self):
+        assert evaluate_formula("5 > 3") is True
+
+    def test_greater_than_false(self):
+        assert evaluate_formula("3 > 5") is False
+
+    def test_less_than(self):
+        assert evaluate_formula("2 < 10") is True
+
+    def test_equal(self):
+        assert evaluate_formula("5 = 5") is True
+
+    def test_not_equal(self):
+        result = evaluate_formula("Revenue <> 0", {"Revenue": 100})
+        assert result is True
+
+    def test_less_than_or_equal(self):
+        assert evaluate_formula("5 <= 5") is True
+
+    def test_greater_than_or_equal(self):
+        assert evaluate_formula("6 >= 5") is True
+
+
+# ===========================================================================
+# Evaluator — logical / IF
+# ===========================================================================
+
+class TestLogical:
+    def test_if_true_branch(self):
+        assert evaluate_formula("IF(TRUE, 1, 0)") == 1.0
+
+    def test_if_false_branch(self):
+        assert evaluate_formula("IF(FALSE, 1, 0)") == 0.0
+
+    def test_if_with_comparison(self):
+        result = evaluate_formula(
+            "IF(Revenue > 1000, Revenue * 0.1, Revenue * 0.05)",
+            {"Revenue": 2000},
+        )
+        assert result == 200.0
+
+    def test_if_with_comparison_false_branch(self):
+        result = evaluate_formula(
+            "IF(Revenue > 1000, Revenue * 0.1, Revenue * 0.05)",
+            {"Revenue": 500},
+        )
+        assert result == 25.0
+
+    def test_and_both_true(self):
+        assert evaluate_formula("AND(TRUE, TRUE)") is True
+
+    def test_and_one_false(self):
+        assert evaluate_formula("AND(TRUE, FALSE)") is False
+
+    def test_or_one_true(self):
+        assert evaluate_formula("OR(FALSE, TRUE)") is True
+
+    def test_not_true(self):
+        assert evaluate_formula("NOT(TRUE)") is False
+
+    def test_not_false(self):
+        assert evaluate_formula("NOT(FALSE)") is True
+
+    def test_isblank_zero(self):
+        assert evaluate_formula("ISBLANK(0)") is True
+
+    def test_isblank_nonzero(self):
+        assert evaluate_formula("ISBLANK(1)") is False
+
+    def test_if_wrong_arity_raises(self):
+        with pytest.raises(FormulaError):
+            evaluate_formula("IF(TRUE, 1)")
+
+
+# ===========================================================================
+# Evaluator — math functions
+# ===========================================================================
+
+class TestMathFunctions:
+    def test_abs_negative(self):
+        assert evaluate_formula("ABS(-5)") == 5.0
+
+    def test_abs_positive(self):
+        assert evaluate_formula("ABS(3)") == 3.0
+
+    def test_round(self):
+        assert evaluate_formula("ROUND(3.14159, 2)") == 3.14
+
+    def test_round_to_zero(self):
+        assert evaluate_formula("ROUND(3.7, 0)") == 4.0
+
+    def test_min(self):
+        assert evaluate_formula("MIN(3, 1, 2)") == 1.0
+
+    def test_max(self):
+        assert evaluate_formula("MAX(3, 1, 2)") == 3.0
+
+    def test_power(self):
+        assert evaluate_formula("POWER(2, 10)") == 1024.0
+
+    def test_sqrt(self):
+        assert evaluate_formula("SQRT(9)") == 3.0
+
+    def test_sqrt_negative_raises(self):
+        with pytest.raises(FormulaError, match="SQRT of negative"):
+            evaluate_formula("SQRT(-1)")
+
+    def test_log_base10(self):
+        assert abs(evaluate_formula("LOG(100)") - 2.0) < 1e-9
+
+    def test_log_custom_base(self):
+        result = evaluate_formula("LOG(8, 2)")
+        assert abs(result - 3.0) < 1e-9
+
+
+# ===========================================================================
+# Evaluator — aggregation functions
+# ===========================================================================
+
+class TestAggregation:
+    def test_sum_literals(self):
+        assert evaluate_formula("SUM(1, 2, 3)") == 6.0
+
+    def test_average(self):
+        assert evaluate_formula("AVERAGE(1, 2, 3)") == 2.0
+
+    def test_count(self):
+        assert evaluate_formula("COUNT(1, 2, 3)") == 3.0
+
+    def test_sum_with_variable_list(self):
+        result = evaluate_formula("SUM(Items)", {"Items": [10, 20, 30]})
+        assert result == 60.0
+
+    def test_average_with_variable_list(self):
+        result = evaluate_formula("AVERAGE(Scores)", {"Scores": [80, 90, 100]})
+        assert abs(result - 90.0) < 1e-9
+
+
+# ===========================================================================
+# Evaluator — text functions
+# ===========================================================================
+
+class TestTextFunctions:
+    def test_concatenate(self):
+        result = evaluate_formula('CONCATENATE("Hello", " ", "World")')
+        assert result == "Hello World"
+
+    def test_upper(self):
+        assert evaluate_formula('UPPER("hello")') == "HELLO"
+
+    def test_lower(self):
+        assert evaluate_formula('LOWER("HELLO")') == "hello"
+
+    def test_trim(self):
+        assert evaluate_formula('TRIM("  hello  ")') == "hello"
+
+    def test_left(self):
+        assert evaluate_formula('LEFT("abcdef", 3)') == "abc"
+
+    def test_right(self):
+        assert evaluate_formula('RIGHT("abcdef", 3)') == "def"
+
+    def test_len(self):
+        assert evaluate_formula('LEN("hello")') == 5.0
+
+    def test_concatenate_with_variable(self):
+        result = evaluate_formula('CONCATENATE("Hello, ", Name)', {"Name": "Alice"})
+        assert result == "Hello, Alice"
+
+
+# ===========================================================================
+# High-level API: validate_formula
+# ===========================================================================
+
+class TestValidateFormula:
+    def test_valid_formula_returns_empty_list(self):
+        assert validate_formula("Revenue * 0.15") == []
+
+    def test_empty_formula_returns_error(self):
+        errors = validate_formula("")
+        assert len(errors) > 0
+
+    def test_whitespace_only_returns_error(self):
+        errors = validate_formula("   ")
+        assert len(errors) > 0
+
+    def test_mismatched_paren_returns_error(self):
+        errors = validate_formula("(2 + 3")
+        assert len(errors) > 0
+
+    def test_unknown_char_returns_error(self):
+        errors = validate_formula("@Revenue")
+        assert len(errors) > 0
+
+    def test_valid_function_returns_empty(self):
+        assert validate_formula("IF(Revenue > 0, Revenue * 0.1, 0)") == []
+
+
+# ===========================================================================
+# High-level API: get_references
+# ===========================================================================
+
+class TestGetReferences:
+    def test_single_variable(self):
+        refs = get_references("Revenue * 0.15")
+        assert refs == {"Revenue"}
+
+    def test_multiple_variables(self):
+        refs = get_references("Price * Quantity - Discount")
+        assert refs == {"Price", "Quantity", "Discount"}
+
+    def test_function_name_excluded(self):
+        refs = get_references("SUM(Sales, Returns)")
+        # SUM is a function name, not a variable
+        assert "SUM" not in refs
+        assert "Sales" in refs
+        assert "Returns" in refs
+
+    def test_literals_not_included(self):
+        refs = get_references("2 + 3")
+        assert refs == set()
+
+    def test_nested_formula(self):
+        refs = get_references("IF(Revenue > 1000, Revenue * Rate, MinFee)")
+        assert refs == {"Revenue", "Rate", "MinFee"}
+
+    def test_dotted_reference(self):
+        refs = get_references("Product.Price * Quantity")
+        assert "Product.Price" in refs
+
+    def test_invalid_formula_returns_empty_set(self):
+        refs = get_references("@@@invalid@@@")
+        assert refs == set()
+
+
+# ===========================================================================
+# Edge-case / integration tests
+# ===========================================================================
+
+class TestEdgeCases:
+    def test_deeply_nested_expression(self):
+        result = evaluate_formula("((2 + 3) * (4 - 1)) / 5")
+        assert result == 3.0
+
+    def test_nested_if(self):
+        result = evaluate_formula(
+            "IF(x > 10, IF(x > 20, 3, 2), 1)",
+            {"x": 15},
+        )
+        assert result == 2.0
+
+    def test_boolean_literal_in_expression(self):
+        result = evaluate_formula("IF(Active, Revenue, 0)", {"Active": True, "Revenue": 500})
+        assert result == 500.0
+
+    def test_string_comparison(self):
+        result = evaluate_formula('Status = "Active"', {"Status": "Active"})
+        assert result is True
+
+    def test_chained_and_or(self):
+        result = evaluate_formula(
+            "AND(x > 0, OR(y > 5, z > 5))",
+            {"x": 1, "y": 10, "z": 0},
+        )
+        assert result is True
+
+    def test_not_with_comparison(self):
+        result = evaluate_formula("NOT(x = 0)", {"x": 5})
+        assert result is True
+
+    def test_power_with_variable(self):
+        result = evaluate_formula("x ^ 2", {"x": 5})
+        assert result == 25.0
+
+    def test_syntax_error_in_evaluate_formula_raises(self):
+        with pytest.raises((ParseError, TokenizerError)):
+            evaluate_formula("(2 + 3")
+
+    def test_if_lazy_no_div_by_zero_in_dead_branch(self):
+        # The false branch (1/0) should NOT be evaluated when condition is TRUE
+        result = evaluate_formula("IF(TRUE, 99, 1 / 0)")
+        assert result == 99.0

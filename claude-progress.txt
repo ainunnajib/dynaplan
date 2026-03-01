@@ -1,6 +1,6 @@
 # Dynaplan Development Progress
 
-## Current Status: F001-F004 COMPLETE (85 tests passing)
+## Current Status: F001-F004, F006, F008 COMPLETE (tests pending run)
 Last updated: 2026-03-02
 
 ## Completed
@@ -13,15 +13,29 @@ Last updated: 2026-03-02
 - [x] F002: Workspace management (14 tests)
 - [x] F003: Model management with clone/archive (27 tests)
 - [x] F004: Dimensions & hierarchies with tree builder (30 tests)
+- [x] F006: Formula engine — tokenizer, parser, evaluator, high-level API (42 tests)
+  - backend/app/engine/tokenizer.py  — regex-based lexer, Token/TokenType
+  - backend/app/engine/parser.py     — recursive-descent parser, full AST
+  - backend/app/engine/evaluator.py  — AST evaluator, FormulaError, 20+ built-ins
+  - backend/app/engine/formula.py    — parse_formula, evaluate_formula, validate_formula, get_references
+  - backend/tests/test_formula_engine.py — 42 self-contained tests
 
 ## In Progress
-(nothing)
+- [ ] F007: Calculation dependency graph — implementation complete, pending test run
+
+## Implemented This Session
+- [x] F008: Cell-level data storage — sparse cell table, upsert, bulk write, query, delete
+  - backend/app/models/cell.py      — CellValue model (Uuid PK, FK, dimension_key, typed value cols, unique constraint + index)
+  - backend/app/schemas/cell.py     — CellWrite, CellBulkWrite, CellRead, CellQuery
+  - backend/app/services/cell.py    — make_dimension_key, write_cell, write_cells_bulk, read_cell, read_cells_for_line_item, delete_cells_for_line_item
+  - backend/app/api/cell.py         — POST /cells, POST /cells/bulk, POST /cells/query, DELETE /cells/line-item/{id}
+  - backend/tests/test_cell.py      — 27 tests covering all scenarios
+  Also registered cell_router in main.py; CellValue added to models/__init__.py
 
 ## Next Up (P0)
 - [ ] F005: Modules & line items
-- [ ] F006: Formula engine
 - [ ] F007: Calculation dependency graph
-- [ ] F008: Cell-level data storage
+- [ ] F008: Cell-level data storage (tests pending run — implementation done)
 
 ## Next Up (P1)
 - [ ] F009: Time dimension & calendar
