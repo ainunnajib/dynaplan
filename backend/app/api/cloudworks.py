@@ -26,6 +26,7 @@ from app.services.cloudworks import (
     delete_connection,
     delete_schedule,
     enable_disable_schedule,
+    execute_run,
     get_connection_by_id,
     get_run_by_id,
     get_schedule_by_id,
@@ -271,6 +272,25 @@ async def get_run_endpoint(
 ):
     run = _run_or_404(await get_run_by_id(db, run_id))
     return run
+
+
+@router.post(
+    "/runs/{run_id}/execute",
+    response_model=RunResponse,
+)
+async def execute_run_endpoint(
+    run_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    run = _run_or_404(await get_run_by_id(db, run_id))
+    try:
+        return await execute_run(db, run)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        )
 
 
 @router.post(

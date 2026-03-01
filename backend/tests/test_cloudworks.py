@@ -1,3 +1,4 @@
+import csv
 import uuid
 
 import pytest
@@ -676,7 +677,7 @@ async def test_retry_requires_auth(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_all_connector_types(client: AsyncClient):
     token, model_id = await setup_model(client, "cw_all_types@example.com")
-    for ct in ["s3", "gcs", "azure_blob", "sftp", "http", "database"]:
+    for ct in ["s3", "gcs", "azure_blob", "sftp", "http", "database", "local_file"]:
         resp = await create_connection(client, token, model_id, name=f"{ct} conn", connector_type=ct)
         assert resp.status_code == 201
         assert resp.json()["connector_type"] == ct
@@ -744,3 +745,222 @@ async def test_trigger_run_burst_backpressure(client: AsyncClient):
     )
     assert list_resp.status_code == 200
     assert len(list_resp.json()) == burst_size
+
+
+# ---------------------------------------------------------------------------
+# Connector execution (F063)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_execute_run_import_local_file_to_local_file(
+    client: AsyncClient,
+    tmp_path,
+):
+    token, model_id = await setup_model(client, "cw_exec_import@example.com")
+
+    source_path = tmp_path / "source.csv"
+    source_path.write_text("name,value\nAlpha,10\nBeta,20\n", encoding="utf-8")
+    target_path = tmp_path / "target.csv"
+
+    conn_resp = await create_connection(
+        client,
+        token,
+        model_id,
+        name="Local Source",
+        connector_type="local_file",
+        config={"path": str(source_path), "format": "csv"},
+    )
+    assert conn_resp.status_code == 201
+    conn_id = conn_resp.json()["id"]
+
+    schedule_resp = await client.post(
+        f"/connections/{conn_id}/schedules",
+        json={
+            "name": "Local Import Run",
+            "schedule_type": "import",
+            "cron_expression": "0 0 * * *",
+            "target_config": {
+                "connector_type": "local_file",
+                "path": str(target_path),
+                "format": "csv",
+            },
+        },
+        headers=auth_headers(token),
+    )
+    assert schedule_resp.status_code == 201
+    schedule_id = schedule_resp.json()["id"]
+
+    trigger_resp = await client.post(
+        f"/schedules/{schedule_id}/trigger",
+        headers=auth_headers(token),
+    )
+    assert trigger_resp.status_code == 201
+    run_id = trigger_resp.json()["id"]
+
+    execute_resp = await client.post(
+        f"/runs/{run_id}/execute",
+        headers=auth_headers(token),
+    )
+    assert execute_resp.status_code == 200
+    run_data = execute_resp.json()
+    assert run_data["status"] == "completed"
+    assert run_data["records_processed"] == 2
+    assert run_data["started_at"] is not None
+    assert run_data["completed_at"] is not None
+
+    assert target_path.exists()
+    with target_path.open("r", encoding="utf-8") as target_file:
+        rows = list(csv.DictReader(target_file))
+    assert rows == [
+        {"name": "Alpha", "value": "10"},
+        {"name": "Beta", "value": "20"},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_execute_run_export_local_file_source_to_connection_target(
+    client: AsyncClient,
+    tmp_path,
+):
+    token, model_id = await setup_model(client, "cw_exec_export@example.com")
+
+    source_path = tmp_path / "export_source.csv"
+    source_path.write_text("sku,qty\nS1,3\nS2,8\n", encoding="utf-8")
+    target_path = tmp_path / "export_target.csv"
+
+    conn_resp = await create_connection(
+        client,
+        token,
+        model_id,
+        name="Local Target",
+        connector_type="local_file",
+        config={"path": str(target_path), "format": "csv"},
+    )
+    assert conn_resp.status_code == 201
+    conn_id = conn_resp.json()["id"]
+
+    schedule_resp = await client.post(
+        f"/connections/{conn_id}/schedules",
+        json={
+            "name": "Local Export Run",
+            "schedule_type": "export",
+            "cron_expression": "0 1 * * *",
+            "source_config": {
+                "connector_type": "local_file",
+                "path": str(source_path),
+                "format": "csv",
+            },
+        },
+        headers=auth_headers(token),
+    )
+    assert schedule_resp.status_code == 201
+    schedule_id = schedule_resp.json()["id"]
+
+    trigger_resp = await client.post(
+        f"/schedules/{schedule_id}/trigger",
+        headers=auth_headers(token),
+    )
+    run_id = trigger_resp.json()["id"]
+
+    execute_resp = await client.post(
+        f"/runs/{run_id}/execute",
+        headers=auth_headers(token),
+    )
+    assert execute_resp.status_code == 200
+    run_data = execute_resp.json()
+    assert run_data["status"] == "completed"
+    assert run_data["records_processed"] == 2
+
+    assert target_path.exists()
+    with target_path.open("r", encoding="utf-8") as target_file:
+        rows = list(csv.DictReader(target_file))
+    assert rows == [
+        {"sku": "S1", "qty": "3"},
+        {"sku": "S2", "qty": "8"},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_execute_run_marks_failed_for_unimplemented_connector(
+    client: AsyncClient,
+    tmp_path,
+):
+    token, model_id = await setup_model(client, "cw_exec_fail_connector@example.com")
+    target_path = tmp_path / "failed_target.csv"
+
+    conn_resp = await create_connection(
+        client,
+        token,
+        model_id,
+        name="Unsupported Source",
+        connector_type="gcs",
+        config={"bucket": "unused"},
+    )
+    assert conn_resp.status_code == 201
+    conn_id = conn_resp.json()["id"]
+
+    schedule_resp = await client.post(
+        f"/connections/{conn_id}/schedules",
+        json={
+            "name": "Unsupported Import Run",
+            "schedule_type": "import",
+            "cron_expression": "0 0 * * *",
+            "target_config": {
+                "connector_type": "local_file",
+                "path": str(target_path),
+                "format": "csv",
+            },
+        },
+        headers=auth_headers(token),
+    )
+    assert schedule_resp.status_code == 201
+    schedule_id = schedule_resp.json()["id"]
+
+    trigger_resp = await client.post(
+        f"/schedules/{schedule_id}/trigger",
+        headers=auth_headers(token),
+    )
+    run_id = trigger_resp.json()["id"]
+
+    execute_resp = await client.post(
+        f"/runs/{run_id}/execute",
+        headers=auth_headers(token),
+    )
+    assert execute_resp.status_code == 200
+    run_data = execute_resp.json()
+    assert run_data["status"] == "failed"
+    assert "not implemented" in (run_data["error_message"] or "").lower()
+    assert run_data["completed_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_execute_run_rejects_completed_status(client: AsyncClient):
+    token, model_id, conn_id, sched_id = await setup_schedule(
+        client, "cw_exec_status_guard@example.com"
+    )
+    trigger_resp = await client.post(
+        f"/schedules/{sched_id}/trigger",
+        headers=auth_headers(token),
+    )
+    run_id = trigger_resp.json()["id"]
+
+    complete_resp = await client.post(
+        f"/runs/{run_id}/complete",
+        headers=auth_headers(token),
+    )
+    assert complete_resp.status_code == 200
+    assert complete_resp.json()["status"] == "completed"
+
+    execute_resp = await client.post(
+        f"/runs/{run_id}/execute",
+        headers=auth_headers(token),
+    )
+    assert execute_resp.status_code == 400
+    assert "pending/retrying" in execute_resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_execute_run_requires_auth(client: AsyncClient):
+    resp = await client.post(f"/runs/{uuid.uuid4()}/execute")
+    assert resp.status_code == 401

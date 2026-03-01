@@ -16,6 +16,7 @@ class ConnectorType(str, enum.Enum):
     sftp = "sftp"
     http = "http"
     database = "database"
+    local_file = "local_file"
 
 
 class ScheduleType(str, enum.Enum):
