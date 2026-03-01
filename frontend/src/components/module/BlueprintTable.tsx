@@ -146,7 +146,7 @@ export default function BlueprintTable({
                   {items.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="px-4 py-6 text-center text-sm text-zinc-400">
-                        No line items yet. Click "Add Line Item" below.
+                        No line items yet. Click &quot;Add Line Item&quot; below.
                       </td>
                     </tr>
                   ) : (

@@ -66,7 +66,7 @@ export default async function DashboardPage({ params }: PageProps) {
           </div>
         </main>
       ) : (
-        <DashboardViewClient modelId={modelId} dashboardId={dashboardId} />
+        <DashboardViewClient dashboardId={dashboardId} />
       )}
     </div>
   );

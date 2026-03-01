@@ -1,4 +1,5 @@
 pub mod block;
+pub mod calc;
 pub mod dimension;
 pub mod formula;
 pub mod graph;
@@ -6,6 +7,11 @@ pub mod model;
 pub mod value;
 
 pub use block::CalculationBlock;
+pub use calc::{
+    average_slice, build_cell_context, build_topological_levels, collect_recalc_keys,
+    count_slice, execute_level_parallel, sum_slice, CalcError, ContextError, FormulaSpec,
+    RecalcOrchestrator, RecalcResult,
+};
 pub use dimension::{DimensionDef, DimensionKey};
 pub use formula::{
     evaluate_formula, evaluate_formula_cell_context, get_references, parse_formula,

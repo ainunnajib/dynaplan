@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import AuthNav from "./AuthNav";
 
 interface AppShellProps {
@@ -10,12 +9,7 @@ interface AppShellProps {
 }
 
 export default function AppShell({ children }: AppShellProps) {
-  const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  useEffect(() => {
-    setIsMobileMenuOpen(false);
-  }, [pathname]);
 
   return (
     <div className="flex min-h-svh flex-col">
@@ -93,8 +87,18 @@ export default function AppShell({ children }: AppShellProps) {
               </button>
             </div>
 
-            <SidebarLink href="/workspaces">Workspaces</SidebarLink>
-            <SidebarLink href="/models">Models</SidebarLink>
+            <SidebarLink
+              href="/workspaces"
+              onNavigate={() => setIsMobileMenuOpen(false)}
+            >
+              Workspaces
+            </SidebarLink>
+            <SidebarLink
+              href="/models"
+              onNavigate={() => setIsMobileMenuOpen(false)}
+            >
+              Models
+            </SidebarLink>
           </aside>
         </div>
       )}
@@ -122,13 +126,16 @@ function NavLink({
 function SidebarLink({
   href,
   children,
+  onNavigate,
 }: {
   href: string;
   children: React.ReactNode;
+  onNavigate?: () => void;
 }) {
   return (
     <Link
       href={href}
+      onClick={onNavigate}
       className="rounded px-2 py-1.5 text-sm text-gray-300 transition-colors hover:bg-gray-700 hover:text-white"
     >
       {children}

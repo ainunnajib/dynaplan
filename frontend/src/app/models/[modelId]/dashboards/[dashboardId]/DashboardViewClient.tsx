@@ -7,11 +7,10 @@ import DashboardCanvas from "@/components/dashboard/DashboardCanvas";
 import AddWidgetPanel from "@/components/dashboard/AddWidgetPanel";
 
 interface Props {
-  modelId: string;
   dashboardId: string;
 }
 
-export default function DashboardViewClient({ modelId, dashboardId }: Props) {
+export default function DashboardViewClient({ dashboardId }: Props) {
   const [dashboard, setDashboard] = useState<DashboardWithWidgets | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

@@ -1,0 +1,30 @@
+Implemented F048 in the Rust engine under `engine/dynaplan-core` with a new `calc` module and wired it into the crate exports.
+
+**What I changed**
+- Added Rayon dependency in [engine/dynaplan-core/Cargo.toml](/Users/ainunnajib/dynaplan/engine/dynaplan-core/Cargo.toml).
+- Exposed new calc APIs from [engine/dynaplan-core/src/lib.rs](/Users/ainunnajib/dynaplan/engine/dynaplan-core/src/lib.rs).
+- Added `calc` module files:
+  - [engine/dynaplan-core/src/calc/mod.rs](/Users/ainunnajib/dynaplan/engine/dynaplan-core/src/calc/mod.rs)
+  - [engine/dynaplan-core/src/calc/orchestrator.rs](/Users/ainunnajib/dynaplan/engine/dynaplan-core/src/calc/orchestrator.rs)
+  - [engine/dynaplan-core/src/calc/parallel.rs](/Users/ainunnajib/dynaplan/engine/dynaplan-core/src/calc/parallel.rs)
+  - [engine/dynaplan-core/src/calc/context.rs](/Users/ainunnajib/dynaplan/engine/dynaplan-core/src/calc/context.rs)
+  - [engine/dynaplan-core/src/calc/aggregation.rs](/Users/ainunnajib/dynaplan/engine/dynaplan-core/src/calc/aggregation.rs)
+  - [engine/dynaplan-core/src/calc/tests.rs](/Users/ainunnajib/dynaplan/engine/dynaplan-core/src/calc/tests.rs)
+- Updated progress tracking in [claude-progress.txt](/Users/ainunnajib/dynaplan/claude-progress.txt).
+
+**Implemented behavior**
+- Recalc orchestration from `changed_cells: Vec<(Uuid, DimensionKey)>`.
+- Downstream ordering via existing dependency graph + topo-level grouping.
+- Level execution in parallel with Rayon.
+- Per-cell context building from referenced blocks.
+- Numeric-only writes to `CalculationBlock` with explicit non-numeric error handling.
+- SIMD-friendly aggregation helpers for `SUM/AVERAGE/COUNT` over slices.
+- Rust tests for level building, context/key collection, parallel execution, recalc correctness/error paths, and an ignored 100K/50-line-item stress test.
+
+**Validation run**
+- `cd backend && .venv/bin/python -m pytest -x --tb=short -q`  
+  Result: `1416 passed, 1 skipped, 1 xfailed, 1 xpassed`
+- `cd frontend && bun tsc --noEmit`  
+  Result: pass (no output, exit 0)
+- `cd engine && cargo test -q`  
+  Could not run: `cargo` not installed in this environment (`command not found`).
