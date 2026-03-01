@@ -2,11 +2,14 @@ import uuid
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.auth import get_current_user
 from app.core.database import get_db
+from app.models.cell import CellValue
 from app.models.user import User
+from app.schemas.cell import ModuleCellRead, ModuleCellWrite
 from app.schemas.module import (
     LineItemCreate,
     LineItemResponse,
@@ -16,6 +19,7 @@ from app.schemas.module import (
     ModuleUpdate,
     ModuleWithLineItemsResponse,
 )
+from app.services.cell import write_cell
 from app.services.module import (
     create_line_item,
     create_module,
@@ -29,6 +33,7 @@ from app.services.module import (
     update_line_item,
     update_module,
 )
+from app.services.workspace_quota import WorkspaceQuotaExceededError
 
 router = APIRouter(tags=["modules"])
 
@@ -66,6 +71,22 @@ async def _get_line_item_or_404(
             detail="Line item not found",
         )
     return line_item
+
+
+def _cell_value(cell: CellValue):
+    if cell.value_boolean is not None:
+        return cell.value_boolean
+    if cell.value_number is not None:
+        return cell.value_number
+    if cell.value_text is not None:
+        return cell.value_text
+    return None
+
+
+def _dimension_member_ids(dimension_key: str) -> List[uuid.UUID]:
+    if not dimension_key:
+        return []
+    return [uuid.UUID(part) for part in dimension_key.split("|") if part]
 
 
 # ── Module endpoints ───────────────────────────────────────────────────────────
@@ -145,6 +166,73 @@ async def delete_module_endpoint(
     db: AsyncSession = Depends(get_db),
 ):
     await delete_module(db, module)
+
+
+@router.get(
+    "/modules/{module_id}/cells",
+    response_model=List[ModuleCellRead],
+)
+async def list_module_cells_endpoint(
+    module=Depends(_get_module_or_404),
+    db: AsyncSession = Depends(get_db),
+):
+    line_item_ids = [line_item.id for line_item in module.line_items]
+    if not line_item_ids:
+        return []
+
+    result = await db.execute(
+        select(CellValue).where(CellValue.line_item_id.in_(line_item_ids))
+    )
+    cells = result.scalars().all()
+    return [
+        ModuleCellRead(
+            line_item_id=cell.line_item_id,
+            dimension_member_ids=_dimension_member_ids(cell.dimension_key),
+            value=_cell_value(cell),
+        )
+        for cell in cells
+    ]
+
+
+@router.put(
+    "/modules/{module_id}/cells",
+    response_model=ModuleCellRead,
+)
+async def write_module_cell_endpoint(
+    data: ModuleCellWrite,
+    module=Depends(_get_module_or_404),
+    db: AsyncSession = Depends(get_db),
+):
+    module_line_item_ids = {line_item.id for line_item in module.line_items}
+    if data.line_item_id not in module_line_item_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Line item does not belong to module",
+        )
+
+    try:
+        written = await write_cell(
+            db,
+            line_item_id=data.line_item_id,
+            dimension_members=data.dimension_member_ids,
+            value=data.value,
+        )
+    except WorkspaceQuotaExceededError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    return ModuleCellRead(
+        line_item_id=written.line_item_id,
+        dimension_member_ids=written.dimension_members,
+        value=written.value,
+    )
 
 
 # ── LineItem endpoints ─────────────────────────────────────────────────────────

@@ -31,10 +31,22 @@ export interface CellQueryResult {
   value: number | string | boolean | null;
 }
 
+interface ApiCellQueryResult {
+  line_item_id: string;
+  dimension_members: string[];
+  value: number | string | boolean | null;
+}
+
 interface PendingWrite {
   lineItemId: string;
   dimensionMembers: DimensionMember[];
   value: number | string | boolean | null;
+}
+
+function toApiDimensionMemberIds(
+  dimensionMembers: DimensionMember[]
+): string[] {
+  return dimensionMembers.map((member) => member.member_id);
 }
 
 // Key used to store a cell in the local cache map
@@ -52,7 +64,8 @@ function cellKey(lineItemId: string, dimensionMembers: DimensionMember[]): strin
 // Hook
 // ------------------------------------------------------------------
 
-export function useCellData(moduleId: string) {
+export function useCellData(_moduleId: string) {
+  void _moduleId;
   const { token } = useAuth();
 
   // Local cache: cellKey → value
@@ -83,10 +96,22 @@ export function useCellData(moduleId: string) {
       setIsLoading(true);
       setError(null);
       try {
+        const dimensionFilters = filters.reduce<Record<string, string[]>>(
+          (acc, filter) => {
+            acc[filter.dimension_id] = filter.member_ids;
+            return acc;
+          },
+          {}
+        );
         const res = await fetch(`${API_BASE}/cells/query`, {
           method: "POST",
           headers: authHeaders(),
-          body: JSON.stringify({ module_id: moduleId, line_item_id: lineItemId, filters }),
+          body: JSON.stringify({
+            line_item_id: lineItemId,
+            dimension_filters: Object.keys(dimensionFilters).length
+              ? dimensionFilters
+              : undefined,
+          }),
         });
         if (!res.ok) {
           const body = (await res.json().catch(() => ({}))) as {
@@ -95,7 +120,15 @@ export function useCellData(moduleId: string) {
           };
           throw new Error(body.error ?? body.detail ?? "Query failed");
         }
-        const results = (await res.json()) as CellQueryResult[];
+        const apiResults = (await res.json()) as ApiCellQueryResult[];
+        const results: CellQueryResult[] = apiResults.map((result) => ({
+          line_item_id: result.line_item_id,
+          dimension_members: result.dimension_members.map((memberId) => ({
+            dimension_id: "",
+            member_id: memberId,
+          })),
+          value: result.value,
+        }));
         // Populate cache
         setCellCache((prev) => {
           const next = new Map(prev);
@@ -113,7 +146,7 @@ export function useCellData(moduleId: string) {
         setIsLoading(false);
       }
     },
-    [moduleId, authHeaders]
+    [authHeaders]
   );
 
   // ---- flush pending debounced writes -----------------------------------
@@ -121,9 +154,9 @@ export function useCellData(moduleId: string) {
     const pending = pendingWritesRef.current;
     if (pending.size === 0) return;
 
-    const cells: CellValue[] = Array.from(pending.values()).map((p) => ({
+    const cells = Array.from(pending.values()).map((p) => ({
       line_item_id: p.lineItemId,
-      dimension_members: p.dimensionMembers,
+      dimension_members: toApiDimensionMemberIds(p.dimensionMembers),
       value: p.value,
     }));
     // Clear before the request so new edits can accumulate
@@ -140,7 +173,7 @@ export function useCellData(moduleId: string) {
       const res = await fetch(`${API_BASE}/cells/bulk`, {
         method: "POST",
         headers: authHeaders(),
-        body: JSON.stringify({ module_id: moduleId, cells }),
+        body: JSON.stringify({ cells }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as {
@@ -157,7 +190,7 @@ export function useCellData(moduleId: string) {
       const msg = err instanceof Error ? err.message : "Bulk save failed";
       setError(msg);
     }
-  }, [moduleId, authHeaders]);
+  }, [authHeaders]);
 
   // Schedule a debounced flush (300 ms window)
   const scheduledFlush = useCallback(() => {
@@ -213,11 +246,17 @@ export function useCellData(moduleId: string) {
       });
 
       try {
-        const res = await fetch(`${API_BASE}/cells/bulk`, {
-          method: "POST",
-          headers: authHeaders(),
-          body: JSON.stringify({ module_id: moduleId, cells }),
-        });
+      const res = await fetch(`${API_BASE}/cells/bulk`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          cells: cells.map((cell) => ({
+            line_item_id: cell.line_item_id,
+            dimension_members: toApiDimensionMemberIds(cell.dimension_members),
+            value: cell.value,
+          })),
+        }),
+      });
         if (!res.ok) {
           const body = (await res.json().catch(() => ({}))) as {
             error?: string;
@@ -234,7 +273,7 @@ export function useCellData(moduleId: string) {
         throw err;
       }
     },
-    [moduleId, authHeaders]
+    [authHeaders]
   );
 
   // Flush any remaining pending writes when the component unmounts

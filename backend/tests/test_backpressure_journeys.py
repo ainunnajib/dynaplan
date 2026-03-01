@@ -53,6 +53,41 @@ async def create_model(
     return resp.json()["id"]
 
 
+async def create_module(
+    client: AsyncClient,
+    token: str,
+    model_id: str,
+    name: str,
+) -> str:
+    resp = await client.post(
+        f"/models/{model_id}/modules",
+        json={"name": name},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 201
+    return resp.json()["id"]
+
+
+async def create_line_item(
+    client: AsyncClient,
+    token: str,
+    module_id: str,
+    name: str,
+) -> str:
+    resp = await client.post(
+        f"/modules/{module_id}/line-items",
+        json={
+            "name": name,
+            "format": "number",
+            "summary_method": "sum",
+            "applies_to_dimensions": [],
+        },
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 201
+    return resp.json()["id"]
+
+
 async def run_concurrent(limit: int, coroutines: list[Any]) -> list[Any]:
     semaphore = asyncio.Semaphore(limit)
 
@@ -262,3 +297,53 @@ async def test_auth_me_reads_stay_healthy_during_write_burst(client: AsyncClient
     assert all(r.status_code == 201 for r in write_responses)
     assert all(r.status_code == 200 for r in read_responses)
     assert all(r.status_code < 500 for r in write_responses + read_responses)
+
+
+@pytest.mark.asyncio
+@pytest.mark.backpressure
+async def test_module_grid_cells_read_write_burst_stays_healthy(client: AsyncClient):
+    token = await register_and_login(client, "bp_grid_cells@example.com")
+
+    workspace_id = await create_workspace(client, token, "BP Grid Cells WS")
+    model_id = await create_model(client, token, workspace_id, "BP Grid Cells Model")
+    module_id = await create_module(client, token, model_id, "BP Grid Cells Module")
+    line_item_ids = [
+        await create_line_item(client, token, module_id, f"Revenue {i}")
+        for i in range(5)
+    ]
+
+    write_calls = [
+        client.put(
+            f"/modules/{module_id}/cells",
+            json={
+                "line_item_id": line_item_ids[i % len(line_item_ids)],
+                "dimension_member_ids": [],
+                "value": i,
+            },
+            headers=auth_headers(token),
+        )
+        for i in range(100)
+    ]
+    read_calls = [
+        client.get(
+            f"/modules/{module_id}/cells",
+            headers=auth_headers(token),
+        )
+        for _ in range(100)
+    ]
+
+    responses: list[Response] = await run_concurrent(30, write_calls + read_calls)
+    assert all(r.status_code < 500 for r in responses)
+    assert all(r.status_code not in {401, 403} for r in responses)
+
+    write_responses = [r for r in responses if r.request.method == "PUT"]
+    read_responses = [r for r in responses if r.request.method == "GET"]
+    assert all(r.status_code == 200 for r in write_responses)
+    assert all(r.status_code == 200 for r in read_responses)
+
+    final_read = await client.get(
+        f"/modules/{module_id}/cells",
+        headers=auth_headers(token),
+    )
+    assert final_read.status_code == 200
+    assert len(final_read.json()) >= len(line_item_ids)

@@ -12,7 +12,7 @@ echo "=== Dynaplan Check Suite ==="
 
 # Backend checks
 $RS "backend tests"  "cd backend && if [ -x .venv/bin/pytest ]; then .venv/bin/pytest -x --tb=short -q; else pytest -x --tb=short -q; fi" || FAILED=1
-$RS "backend backpressure" "cd backend && if [ -x .venv/bin/pytest ]; then .venv/bin/pytest tests/test_cell.py tests/test_api_keys.py tests/test_action.py tests/test_chunked_upload.py tests/test_cloudworks.py tests/test_pipeline.py tests/test_engine_profile.py -m backpressure -q; else pytest tests/test_cell.py tests/test_api_keys.py tests/test_action.py tests/test_chunked_upload.py tests/test_cloudworks.py tests/test_pipeline.py tests/test_engine_profile.py -m backpressure -q; fi" || FAILED=1
+$RS "backend backpressure" "cd backend && if [ -x .venv/bin/pytest ]; then .venv/bin/pytest tests/test_cell.py tests/test_api_keys.py tests/test_action.py tests/test_chunked_upload.py tests/test_cloudworks.py tests/test_pipeline.py tests/test_engine_profile.py tests/test_backpressure_journeys.py -m backpressure -q; else pytest tests/test_cell.py tests/test_api_keys.py tests/test_action.py tests/test_chunked_upload.py tests/test_cloudworks.py tests/test_pipeline.py tests/test_engine_profile.py tests/test_backpressure_journeys.py -m backpressure -q; fi" || FAILED=1
 $RS "backend lint"   "cd backend && if [ -x .venv/bin/ruff ]; then .venv/bin/ruff check .; else ruff check .; fi" || FAILED=1
 
 # Frontend checks

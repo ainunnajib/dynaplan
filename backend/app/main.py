@@ -41,7 +41,7 @@ from app.api.version import router as version_router
 from app.api.workspace import router as workspace_router
 from app.api.workspace_quota import router as workspace_quota_router
 from app.core.config import settings
-from app.core.database import engine
+from app.core.database import dispose_engines, engine
 from app.models import Base
 
 app = FastAPI(
@@ -100,14 +100,39 @@ app.include_router(pipeline_router)
 app.include_router(scim_router)
 
 
+async def _ensure_schema_compatibility(conn) -> None:
+    """Patch additive columns that may be missing in long-lived databases."""
+    dialect = conn.dialect.name
+
+    if dialect == "postgresql":
+        await conn.exec_driver_sql(
+            "ALTER TABLE dimensions ADD COLUMN IF NOT EXISTS max_items INTEGER"
+        )
+        return
+
+    if dialect == "sqlite":
+        info = await conn.exec_driver_sql("PRAGMA table_info(dimensions)")
+        columns = {row[1] for row in info.fetchall()}
+        if "max_items" not in columns:
+            await conn.exec_driver_sql(
+                "ALTER TABLE dimensions ADD COLUMN max_items INTEGER"
+            )
+
+
 @app.on_event("startup")
 async def startup_init_schema():
     if not settings.auto_create_schema:
         return
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await _ensure_schema_compatibility(conn)
 
 
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "version": "0.1.0"}
+
+
+@app.on_event("shutdown")
+async def shutdown_dispose_all_engines():
+    await dispose_engines()
