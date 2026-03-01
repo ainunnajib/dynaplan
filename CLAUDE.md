@@ -24,10 +24,32 @@ Dynaplan is an open-source replacement for Anaplan — a connected planning plat
 - YOU MUST read `claude-progress.txt` at the start of every session
 - YOU MUST update `claude-progress.txt` before ending any session
 - Work on ONE feature at a time, commit after each
-- ALWAYS run tests after changes: `pytest -x` (backend) or `bun test --bail` (frontend)
 - Never mark a feature done without passing tests
 - Use subagents for research tasks to preserve main context
-- Use `run_silent` pattern for test output (backpressure)
+
+## Backpressure (CRITICAL — read this)
+YOU MUST use `./scripts/run_silent.sh` for ALL test, lint, and build commands.
+NEVER run pytest, bun test, ruff, tsc, or bun lint directly — always wrap them.
+
+```bash
+# CORRECT — backpressure: ✓ or ✗ + filtered output
+./scripts/run_silent.sh "backend tests" "cd backend && pytest -x --tb=short -q"
+./scripts/run_silent.sh "frontend tests" "cd frontend && bun test --bail"
+./scripts/run_silent.sh "lint backend" "cd backend && ruff check ."
+./scripts/run_silent.sh "lint frontend" "cd frontend && bun lint"
+./scripts/run_silent.sh "type check" "cd frontend && bun tsc --noEmit"
+
+# Run ALL checks at once:
+./scripts/test_all.sh
+
+# WRONG — wastes context with 200+ lines of output
+cd backend && pytest        # ← NEVER do this
+cd frontend && bun test     # ← NEVER do this
+```
+
+Why: A single pytest run can dump 200+ lines. That's 2-3% of your context window
+wasted on info that could be "✓ backend tests (5 passed)". Over a session with
+10+ test runs, that's 20-30% of context gone to noise. Backpressure keeps you sharp.
 
 ## Code Style
 - Python: PEP 8, type hints on all function signatures, async by default for API endpoints

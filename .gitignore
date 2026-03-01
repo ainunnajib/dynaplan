@@ -31,5 +31,5 @@ Thumbs.db
 htmlcov/
 .pytest_cache/
 
-# Claude
-.claude/settings.json
+# Claude (settings.json is checked in for backpressure hook — keep it tracked)
+.claude/settings.local.json

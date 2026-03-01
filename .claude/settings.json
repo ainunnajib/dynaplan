@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "PreToolCall": [
+      {
+        "matcher": "Bash",
+        "command": "node -e \"const c=JSON.parse(process.env.TOOL_INPUT||'{}').command||''; const bad=['pytest','bun test','bun lint','ruff check','tsc --noEmit'].some(t=>c.includes(t)); const ok=c.includes('run_silent')||c.includes('test_all'); if(bad&&!ok){console.error('BLOCKED: Use ./scripts/run_silent.sh or ./scripts/test_all.sh instead of running test/lint commands directly. This saves context (backpressure pattern).'); process.exit(2)}\""
+      }
+    ]
+  }
+}
