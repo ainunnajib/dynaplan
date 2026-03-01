@@ -1,6 +1,6 @@
 # Dynaplan Development Progress
 
-## Current Status: PROJECT INITIALIZATION
+## Current Status: F001 COMPLETE
 Last updated: 2026-03-01
 
 ## Completed
@@ -8,22 +8,28 @@ Last updated: 2026-03-01
 - [x] CLAUDE.md configured with workflow rules
 - [x] features.json defined with full Anaplan feature parity list
 - [x] Git repo initialized and pushed to GitHub
+- [x] Backpressure infrastructure (run_silent.sh, test_all.sh, parallel_implement.sh)
+- [x] F001: User authentication & authorization (11 tests passing)
+  - User model with roles (admin, modeler, viewer)
+  - bcrypt hashing + JWT tokens
+  - Endpoints: register, login, me, logout
+  - SQLite test setup with StaticPool
 
 ## In Progress
-- [ ] Frontend scaffolding (Next.js + shadcn/ui)
-- [ ] Backend scaffolding (FastAPI + SQLAlchemy)
-- [ ] Database schema design
+(nothing)
 
 ## Next Up
-- [ ] Authentication system
-- [ ] Workspace/model management
-- [ ] Multidimensional model engine (core)
+- [ ] F002: Workspace management
+- [ ] F003: Model management
+- [ ] F004: Dimensions & hierarchies
+- [ ] F005: Modules & line items
 
 ## Known Issues
-(none yet)
+- Python 3.9.6 on this machine — need bcrypt==4.0.1 (not 5.x) for passlib compatibility
+- numpy pinned to >=1.24.0 (not 2.1) for Python 3.9 compat
 
 ## Architecture Notes
 - Frontend: Next.js 15 App Router at /frontend
 - Backend: FastAPI at /backend
-- Database: PostgreSQL with SQLAlchemy ORM
+- Tests: SQLite in-memory with StaticPool (no external DB needed)
 - Calculation engine: Python NumPy/Pandas based, server-side only
