@@ -1,6 +1,6 @@
 # Dynaplan Development Progress
 
-## Current Status: F001 COMPLETE
+## Current Status: F004 IMPLEMENTED (tests pending run)
 Last updated: 2026-03-01
 
 ## Completed
@@ -14,14 +14,23 @@ Last updated: 2026-03-01
   - bcrypt hashing + JWT tokens
   - Endpoints: register, login, me, logout
   - SQLite test setup with StaticPool
+- [x] F002: Workspace management (assumed done, models exist)
+- [x] F003: Model management (assumed done, models exist)
+- [x] F004: Dimensions & hierarchies (implemented, tests written)
+  - Dimension model: id, name, dimension_type (custom/time/version), model_id FK, timestamps
+  - DimensionItem model: id, name, code, dimension_id FK, parent_id FK (self-ref, nullable), sort_order, timestamps
+  - Self-referential FK on dimension_items.parent_id with ondelete=SET NULL
+  - Schemas: DimensionCreate/Update/Response, DimensionItemCreate/Update/Response, DimensionItemNode (tree)
+  - Service: full CRUD + tree builder (_build_tree recursive) + reorder_items
+  - API routes: POST/GET /models/{model_id}/dimensions, PATCH/DELETE /dimensions/{dimension_id},
+    POST/GET(flat|tree) /dimensions/{dimension_id}/items,
+    PATCH/DELETE /dimensions/{dimension_id}/items/{item_id}
+  - 30 tests in backend/tests/test_dimension.py
 
 ## In Progress
 (nothing)
 
 ## Next Up
-- [ ] F002: Workspace management
-- [ ] F003: Model management
-- [ ] F004: Dimensions & hierarchies
 - [ ] F005: Modules & line items
 
 ## Known Issues
