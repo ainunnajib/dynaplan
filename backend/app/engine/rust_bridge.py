@@ -14,6 +14,11 @@ from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 from app.engine.dependency_graph import DependencyGraph
 from app.engine.formula import evaluate_formula as evaluate_formula_python
+from app.engine.spread import (
+    SpreadMethod,
+    aggregate_values as aggregate_values_python,
+    spread_value as spread_value_python,
+)
 
 try:
     import dynaplan_engine as _dynaplan_engine  # type: ignore
@@ -270,7 +275,74 @@ def get_recalc_order(handle: Any, changed: Iterable[Any]) -> List[str]:
     return order
 
 
+def _normalize_spread_method(method: Any) -> SpreadMethod:
+    if isinstance(method, SpreadMethod):
+        return method
+    if isinstance(method, str):
+        return SpreadMethod(method)
+    raise ValueError("spread method must be a SpreadMethod enum or string value")
+
+
+def spread_top_down(
+    handle: Any,
+    total: float,
+    member_count: int,
+    method: Any,
+    weights: Optional[List[float]] = None,
+    existing_values: Optional[List[float]] = None,
+) -> List[float]:
+    method_enum = _normalize_spread_method(method)
+
+    if (
+        rust_engine_available()
+        and handle is not None
+        and hasattr(_dynaplan_engine, "spread_top_down")
+    ):
+        result = _dynaplan_engine.spread_top_down(
+            handle,
+            float(total),
+            int(member_count),
+            method_enum.value,
+            weights,
+            existing_values,
+        )
+        return list(result)
+
+    return spread_value_python(
+        total=total,
+        member_count=member_count,
+        method=method_enum,
+        weights=weights,
+        existing_values=existing_values,
+    )
+
+
+def aggregate_bottom_up(
+    handle: Any,
+    values: List[float],
+    method: str,
+) -> float:
+    normalized_method = (method or "sum").strip().lower()
+    if normalized_method in {"none", "formula"}:
+        normalized_method = "sum"
+
+    if (
+        rust_engine_available()
+        and handle is not None
+        and hasattr(_dynaplan_engine, "aggregate_bottom_up")
+    ):
+        result = _dynaplan_engine.aggregate_bottom_up(
+            handle,
+            values,
+            normalized_method,
+        )
+        return float(result)
+
+    return float(aggregate_values_python(values, normalized_method))
+
+
 __all__ = [
+    "aggregate_bottom_up",
     "clear_model_handles",
     "evaluate_formula",
     "get_or_create_model_handle",
@@ -279,6 +351,7 @@ __all__ = [
     "read_cell",
     "read_cells",
     "rust_engine_available",
+    "spread_top_down",
     "write_cell",
     "write_cells_bulk",
 ]

@@ -67,3 +67,78 @@ def test_model_handle_cache_reuses_handle_for_model_id():
     first = rust_bridge.get_or_create_model_handle(model_id)
     second = rust_bridge.get_or_create_model_handle(model_id)
     assert first is second
+
+
+def test_spread_top_down_python_fallback_supports_core_methods():
+    even = rust_bridge.spread_top_down(
+        handle=None,
+        total=90.0,
+        member_count=3,
+        method="even",
+    )
+    assert even == [30.0, 30.0, 30.0]
+
+    proportional = rust_bridge.spread_top_down(
+        handle=None,
+        total=200.0,
+        member_count=2,
+        method="proportional",
+        existing_values=[25.0, 75.0],
+    )
+    assert proportional == [50.0, 150.0]
+
+
+def test_aggregate_bottom_up_python_fallback_normalizes_none_and_formula():
+    values = [10.0, 20.0, 30.0]
+    assert rust_bridge.aggregate_bottom_up(None, values, "none") == 60.0
+    assert rust_bridge.aggregate_bottom_up(None, values, "formula") == 60.0
+    assert rust_bridge.aggregate_bottom_up(None, values, "average") == 20.0
+
+
+def test_f050_bridge_methods_delegate_to_native_module_when_available(monkeypatch):
+    class NativeStub:
+        def __init__(self):
+            self.spread_calls = []
+            self.aggregate_calls = []
+
+        def spread_top_down(
+            self,
+            handle,
+            total,
+            member_count,
+            method,
+            weights,
+            existing_values,
+        ):
+            self.spread_calls.append(
+                (handle, total, member_count, method, weights, existing_values)
+            )
+            return [11.0, 22.0]
+
+        def aggregate_bottom_up(self, handle, values, method):
+            self.aggregate_calls.append((handle, values, method))
+            return 33.0
+
+    native = NativeStub()
+    monkeypatch.setattr(rust_bridge, "_dynaplan_engine", native)
+
+    handle = object()
+    spread = rust_bridge.spread_top_down(
+        handle=handle,
+        total=100.0,
+        member_count=2,
+        method="weighted",
+        weights=[1.0, 3.0],
+    )
+    aggregated = rust_bridge.aggregate_bottom_up(
+        handle=handle,
+        values=[5.0, 10.0],
+        method="sum",
+    )
+
+    assert spread == [11.0, 22.0]
+    assert aggregated == 33.0
+    assert native.spread_calls == [
+        (handle, 100.0, 2, "weighted", [1.0, 3.0], None)
+    ]
+    assert native.aggregate_calls == [(handle, [5.0, 10.0], "sum")]

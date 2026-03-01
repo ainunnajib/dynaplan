@@ -9,10 +9,11 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.engine.spread import SpreadMethod, aggregate_values, spread_value
+from app.engine import rust_bridge
+from app.engine.spread import SpreadMethod
 from app.models.cell import CellValue
 from app.models.dimension import Dimension, DimensionItem
-from app.models.module import LineItem
+from app.models.module import LineItem, Module
 from app.schemas.planning import (
     AggregateResponse,
     BulkSpreadResponse,
@@ -37,6 +38,17 @@ async def _get_line_item(db: AsyncSession, line_item_id: uuid.UUID) -> Optional[
 async def _get_dimension_item(db: AsyncSession, item_id: uuid.UUID) -> Optional[DimensionItem]:
     result = await db.execute(
         select(DimensionItem).where(DimensionItem.id == item_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def _get_model_id_for_line_item(
+    db: AsyncSession, line_item_id: uuid.UUID
+) -> Optional[uuid.UUID]:
+    result = await db.execute(
+        select(Module.model_id)
+        .join(LineItem, LineItem.module_id == Module.id)
+        .where(LineItem.id == line_item_id)
     )
     return result.scalar_one_or_none()
 
@@ -124,6 +136,12 @@ async def spread_top_down(
         )
 
     member_count = len(children)
+    model_id = await _get_model_id_for_line_item(db, line_item_id)
+    engine_handle = (
+        rust_bridge.get_or_create_model_handle(model_id)
+        if model_id is not None
+        else None
+    )
 
     # Gather existing values for proportional/manual methods
     existing_values: Optional[List[float]] = None
@@ -133,7 +151,8 @@ async def spread_top_down(
             val = await _read_cell_value(db, line_item_id, child.id)
             existing_values.append(val)
 
-    distributed = spread_value(
+    distributed = rust_bridge.spread_top_down(
+        handle=engine_handle,
         total=target_value,
         member_count=member_count,
         method=method,
@@ -182,6 +201,12 @@ async def aggregate_bottom_up(
         raise ValueError(f"DimensionItem {parent_dimension_member_id} not found")
 
     children = await _get_children(db, parent_dimension_member_id)
+    model_id = await _get_model_id_for_line_item(db, line_item_id)
+    engine_handle = (
+        rust_bridge.get_or_create_model_handle(model_id)
+        if model_id is not None
+        else None
+    )
 
     children_values: List[MemberValue] = []
     raw_values: List[float] = []
@@ -196,7 +221,11 @@ async def aggregate_bottom_up(
     if summary_str in ("none", "formula"):
         summary_str = "sum"
 
-    parent_value = aggregate_values(raw_values, summary_str)
+    parent_value = rust_bridge.aggregate_bottom_up(
+        handle=engine_handle,
+        values=raw_values,
+        method=summary_str,
+    )
 
     # Write the aggregated value to the parent cell
     await write_cell(
@@ -376,6 +405,12 @@ async def recalculate_hierarchy(
     summary_str = line_item.summary_method.value if line_item.summary_method else "sum"
     if summary_str in ("none", "formula"):
         summary_str = "sum"
+    model_id = await _get_model_id_for_line_item(db, line_item_id)
+    engine_handle = (
+        rust_bridge.get_or_create_model_handle(model_id)
+        if model_id is not None
+        else None
+    )
     members_updated = 0
 
     for parent_id in sorted_parents:
@@ -385,7 +420,11 @@ async def recalculate_hierarchy(
             val = await _read_cell_value(db, line_item_id, child.id)
             raw_values.append(val)
 
-        parent_value = aggregate_values(raw_values, summary_str)
+        parent_value = rust_bridge.aggregate_bottom_up(
+            handle=engine_handle,
+            values=raw_values,
+            method=summary_str,
+        )
         await write_cell(
             db,
             line_item_id=line_item_id,

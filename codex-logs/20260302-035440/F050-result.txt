@@ -1,0 +1,32 @@
+Implemented F050 end-to-end with Rust core + PyO3 + backend integration, while preserving Python fallback behavior.
+
+**What changed**
+- Added new Rust spread/aggregation module:
+  - [engine/dynaplan-core/src/spread/mod.rs](/Users/ainunnajib/dynaplan/engine/dynaplan-core/src/spread/mod.rs:1)
+  - [engine/dynaplan-core/src/spread/top_down.rs](/Users/ainunnajib/dynaplan/engine/dynaplan-core/src/spread/top_down.rs:1)
+  - [engine/dynaplan-core/src/spread/bottom_up.rs](/Users/ainunnajib/dynaplan/engine/dynaplan-core/src/spread/bottom_up.rs:1)
+  - [engine/dynaplan-core/src/spread/hierarchy.rs](/Users/ainunnajib/dynaplan/engine/dynaplan-core/src/spread/hierarchy.rs:1)
+- Exported spread APIs from core:
+  - [engine/dynaplan-core/src/lib.rs](/Users/ainunnajib/dynaplan/engine/dynaplan-core/src/lib.rs:1)
+- Exposed F050 PyO3 functions (`spread_top_down`, `aggregate_bottom_up`):
+  - [engine/dynaplan-py/src/lib.rs](/Users/ainunnajib/dynaplan/engine/dynaplan-py/src/lib.rs:317)
+- Extended Python bridge with stable wrappers + fallback:
+  - [backend/app/engine/rust_bridge.py](/Users/ainunnajib/dynaplan/backend/app/engine/rust_bridge.py:278)
+- Updated planning service to use bridge for spread/aggregate/recalc computations:
+  - [backend/app/services/planning.py](/Users/ainunnajib/dynaplan/backend/app/services/planning.py:45)
+  - [backend/app/services/planning.py](/Users/ainunnajib/dynaplan/backend/app/services/planning.py:154)
+  - [backend/app/services/planning.py](/Users/ainunnajib/dynaplan/backend/app/services/planning.py:224)
+  - [backend/app/services/planning.py](/Users/ainunnajib/dynaplan/backend/app/services/planning.py:423)
+- Added backend tests for new bridge behavior:
+  - [backend/tests/test_rust_bridge.py](/Users/ainunnajib/dynaplan/backend/tests/test_rust_bridge.py:72)
+- Updated progress tracking:
+  - [claude-progress.txt](/Users/ainunnajib/dynaplan/claude-progress.txt:3)
+
+**Validation run**
+- `cd backend && .venv/bin/python -m pytest -x --tb=short -q`
+  - Result: `1423 passed, 1 skipped, 1 xfailed, 1 xpassed`
+- `cd frontend && bun tsc --noEmit`
+  - Result: success (no type errors)
+
+**Note**
+- Native Rust build/test (`cargo test`) is still pending Rust toolchain availability in this environment.

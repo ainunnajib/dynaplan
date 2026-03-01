@@ -1,6 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
-use dynaplan_core::{evaluate_formula as evaluate_formula_rust, DimensionDef, FormulaSpec, RecalcResult};
+use dynaplan_core::{
+    aggregate_values, evaluate_formula as evaluate_formula_rust, spread_value, DimensionDef,
+    FormulaSpec, RecalcResult, SpreadMethod, SummaryMethod,
+};
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
@@ -311,6 +314,40 @@ fn get_recalc_order(handle: &ModelHandle, changed: Vec<String>) -> PyResult<Vec<
     Ok(order.into_iter().map(|id| id.to_string()).collect::<Vec<String>>())
 }
 
+#[pyfunction]
+fn spread_top_down(
+    handle: &ModelHandle,
+    total: f64,
+    member_count: usize,
+    method: &str,
+    weights: Option<Vec<f64>>,
+    existing_values: Option<Vec<f64>>,
+) -> PyResult<Vec<f64>> {
+    let _ = handle;
+    let parsed_method = SpreadMethod::parse(method)
+        .map_err(|err| PyValueError::new_err(format!("Invalid spread method: {}", err)))?;
+    spread_value(
+        total,
+        member_count,
+        parsed_method,
+        weights.as_deref(),
+        existing_values.as_deref(),
+    )
+    .map_err(|err| PyValueError::new_err(format!("Spread calculation failed: {}", err)))
+}
+
+#[pyfunction]
+fn aggregate_bottom_up(
+    handle: &ModelHandle,
+    values: Vec<f64>,
+    method: &str,
+) -> PyResult<f64> {
+    let _ = handle;
+    let parsed_method = SummaryMethod::parse(method)
+        .map_err(|err| PyValueError::new_err(format!("Invalid summary method: {}", err)))?;
+    Ok(aggregate_values(&values, parsed_method))
+}
+
 #[pymodule]
 fn dynaplan_engine(_py: Python<'_>, module: &PyModule) -> PyResult<()> {
     module.add_class::<ModelHandle>()?;
@@ -321,5 +358,7 @@ fn dynaplan_engine(_py: Python<'_>, module: &PyModule) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(read_cells, module)?)?;
     module.add_function(wrap_pyfunction!(evaluate_formula, module)?)?;
     module.add_function(wrap_pyfunction!(get_recalc_order, module)?)?;
+    module.add_function(wrap_pyfunction!(spread_top_down, module)?)?;
+    module.add_function(wrap_pyfunction!(aggregate_bottom_up, module)?)?;
     Ok(())
 }

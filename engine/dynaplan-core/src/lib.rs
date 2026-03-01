@@ -4,6 +4,7 @@ pub mod dimension;
 pub mod formula;
 pub mod graph;
 pub mod model;
+pub mod spread;
 pub mod value;
 
 pub use block::CalculationBlock;
@@ -20,6 +21,10 @@ pub use formula::{
 };
 pub use graph::{DependencyGraph, GraphError};
 pub use model::ModelState;
+pub use spread::{
+    aggregate_hierarchy, aggregate_values, compute_proportions, spread_value, SpreadError,
+    SpreadMethod, SummaryMethod,
+};
 pub use value::CellValue;
 
 #[cfg(test)]

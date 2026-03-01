@@ -1,6 +1,6 @@
 # Dynaplan Development Progress
 
-## Current Status: 49 features complete + F045/F048/F049 implemented (pending Rust toolchain validation)
+## Current Status: 49 features complete + F045/F048/F049/F050 implemented (pending Rust toolchain validation)
 Last updated: 2026-03-01
 
 ## Completed
@@ -57,7 +57,8 @@ Last updated: 2026-03-01
 ## In Progress
 - [~] F045: Rust Engine Core — Sparse Block Storage (workspace + `dynaplan-core` modules + 100K sparse write/read Rust tests added; `cargo test` pending because Rust toolchain is unavailable in this environment)
 - [~] F048: Rust Parallel Calculation Engine (`calc/` module added with recalc orchestrator, topo-level parallelism via rayon, context builder, SIMD-friendly aggregations, and Rust tests including 100K/50-line-item stress coverage; `cargo test` pending because Rust toolchain is unavailable in this environment)
-- [~] F049: PyO3 Bridge — Rust Engine ↔ Python FastAPI (`engine/dynaplan-py` crate added with PyO3 surface (`load_model`, `write_cell`, `write_cells_bulk`, `read_cell`, `read_cells`, `evaluate_formula`, `get_recalc_order`), Python fallback bridge at `backend/app/engine/rust_bridge.py`, and `cell.py` engine-selection integration; full backend regression + frontend type-check passed; native Rust extension build/test still pending due unavailable Rust toolchain)
+- [~] F049: PyO3 Bridge — Rust Engine ↔ Python FastAPI (`engine/dynaplan-py` crate added with PyO3 surface (`load_model`, `write_cell`, `write_cells_bulk`, `read_cell`, `read_cells`, `evaluate_formula`, `get_recalc_order`, `spread_top_down`, `aggregate_bottom_up`), Python fallback bridge at `backend/app/engine/rust_bridge.py`, and `cell.py` engine-selection integration; full backend regression + frontend type-check passed; native Rust extension build/test still pending due unavailable Rust toolchain)
+- [~] F050: Spread & Aggregation in Rust (`engine/dynaplan-core/src/spread/` added with top-down spread methods, summary aggregation, and bottom-up hierarchy aggregation; PyO3 + Python bridge wiring added and `backend/app/services/planning.py` now routes spread/aggregate/recalc calculations through the bridge; backend regression + frontend type-check passed, `cargo test` pending because Rust toolchain is unavailable in this environment)
 
 ## Next Up: F045 validation + F046-F055, F057-F061, F063-F068, F070-F071, F073-F077 (see ROADMAP.md)
 - Phase 1: Rust calculation engine (F045-F050) — Hyperblock replacement via PyO3
@@ -76,7 +77,7 @@ Last updated: 2026-03-01
 
 ## Architecture
 - Backend: FastAPI, 1420 tests, file-backed SQLite with NullPool for tests (+ optional PostgreSQL test-container path)
-- Engine: Pure Python formula engine in production + Rust `engine/dynaplan-core` F045 foundation (sparse blocks/model container), F048 calc runtime scaffolding (`calc/orchestrator`, `calc/parallel`, `calc/context`, `calc/aggregation`), and F049 PyO3 bridge scaffold (`engine/dynaplan-py` + Python `rust_bridge`) pending Rust toolchain validation
+- Engine: Pure Python formula engine in production + Rust `engine/dynaplan-core` foundations for F045 sparse blocks, F048 calc runtime (`calc/orchestrator`, `calc/parallel`, `calc/context`, `calc/aggregation`), and F050 spread/aggregation (`spread/top_down`, `spread/bottom_up`, `spread/hierarchy`) with F049 PyO3 bridge surface (`engine/dynaplan-py` + Python `rust_bridge`) pending Rust toolchain validation
 - Quotas: Workspace-level quota controls (max models, max cells/model, max dimensions/model, storage MB) with API usage reporting + enforced create/write guards
 - Database infra: Alembic runtime + revision chain in `backend/alembic`, asyncpg pool controls, optional read-replica session dependency
 - Execution runtime foundation: async background executor (`job_executor`), scheduler wrapper (`job_scheduler`), and active job registry (`job_registry`)
