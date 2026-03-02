@@ -128,6 +128,7 @@ async def _serialize_model_state(
                 "name": module.name,
                 "description": module.description,
                 "model_id": str(module.model_id),
+                "conditional_format_rules": module.conditional_format_rules or [],
             }
         )
         for line_item in sorted(module.line_items, key=lambda li: (li.sort_order, li.name)):
@@ -140,6 +141,7 @@ async def _serialize_model_state(
                     "format": line_item.format.value,
                     "formula": line_item.formula,
                     "summary_method": line_item.summary_method.value,
+                    "conditional_format_rules": line_item.conditional_format_rules or [],
                     "sort_order": line_item.sort_order,
                     "applies_to_dimensions": [
                         str(link.dimension_id)
@@ -276,12 +278,16 @@ def _index_modules(
                 "format": line_item.get("format"),
                 "formula": line_item.get("formula"),
                 "summary_method": line_item.get("summary_method"),
+                "conditional_format_rules": line_item.get("conditional_format_rules")
+                or [],
                 "sort_order": line_item.get("sort_order", 0),
                 "applies_to_dimensions": applies_to_dimension_names,
             }
 
         modules_by_name[module_name] = {
             "description": raw_module.get("description"),
+            "conditional_format_rules": raw_module.get("conditional_format_rules")
+            or [],
             "line_items": indexed_line_items,
         }
 
@@ -404,11 +410,23 @@ def _build_structural_diff(
     module_removed_names = sorted([name for name in target_modules.keys() if name not in source_modules])
 
     modules_added = [
-        {"name": name, "description": source_modules[name].get("description")}
+        {
+            "name": name,
+            "description": source_modules[name].get("description"),
+            "conditional_format_rules": source_modules[name].get(
+                "conditional_format_rules"
+            ),
+        }
         for name in module_added_names
     ]
     modules_removed = [
-        {"name": name, "description": target_modules[name].get("description")}
+        {
+            "name": name,
+            "description": target_modules[name].get("description"),
+            "conditional_format_rules": target_modules[name].get(
+                "conditional_format_rules"
+            ),
+        }
         for name in module_removed_names
     ]
 
@@ -428,6 +446,9 @@ def _build_structural_diff(
                     "format": payload.get("format"),
                     "formula": payload.get("formula"),
                     "summary_method": payload.get("summary_method"),
+                    "conditional_format_rules": payload.get(
+                        "conditional_format_rules"
+                    ),
                 }
             )
 
@@ -442,6 +463,9 @@ def _build_structural_diff(
                     "format": payload.get("format"),
                     "formula": payload.get("formula"),
                     "summary_method": payload.get("summary_method"),
+                    "conditional_format_rules": payload.get(
+                        "conditional_format_rules"
+                    ),
                 }
             )
 
@@ -454,6 +478,14 @@ def _build_structural_diff(
             module_changes["description"] = {
                 "source": source_module.get("description"),
                 "target": target_module.get("description"),
+            }
+        if (
+            source_module.get("conditional_format_rules")
+            != target_module.get("conditional_format_rules")
+        ):
+            module_changes["conditional_format_rules"] = {
+                "source": source_module.get("conditional_format_rules"),
+                "target": target_module.get("conditional_format_rules"),
             }
         if module_changes:
             modules_modified.append({"name": module_name, "changes": module_changes})
@@ -470,6 +502,9 @@ def _build_structural_diff(
                     "format": payload.get("format"),
                     "formula": payload.get("formula"),
                     "summary_method": payload.get("summary_method"),
+                    "conditional_format_rules": payload.get(
+                        "conditional_format_rules"
+                    ),
                 }
             )
 
@@ -482,6 +517,9 @@ def _build_structural_diff(
                     "format": payload.get("format"),
                     "formula": payload.get("formula"),
                     "summary_method": payload.get("summary_method"),
+                    "conditional_format_rules": payload.get(
+                        "conditional_format_rules"
+                    ),
                 }
             )
 
@@ -493,6 +531,7 @@ def _build_structural_diff(
                 "format",
                 "formula",
                 "summary_method",
+                "conditional_format_rules",
                 "sort_order",
                 "applies_to_dimensions",
             ]:
@@ -751,6 +790,8 @@ async def _apply_replace_promotion(
             id=uuid.uuid4(),
             name=module_name,
             description=raw_module.get("description"),
+            conditional_format_rules=raw_module.get("conditional_format_rules")
+            or [],
             model_id=target_model_id,
         )
         db.add(target_module)
@@ -780,6 +821,10 @@ async def _apply_replace_promotion(
                 formula=raw_line_item.get("formula"),
                 summary_method=_resolve_summary_method(raw_line_item.get("summary_method")),
                 sort_order=int(raw_line_item.get("sort_order") or 0),
+                conditional_format_rules=raw_line_item.get(
+                    "conditional_format_rules"
+                )
+                or [],
             )
             db.add(target_line_item)
             source_line_item_id_to_target_id[source_line_item_id] = target_line_item.id
@@ -989,6 +1034,8 @@ async def _apply_additive_promotion(
                 id=uuid.uuid4(),
                 name=module_name,
                 description=raw_module.get("description"),
+                conditional_format_rules=raw_module.get("conditional_format_rules")
+                or [],
                 model_id=target_model_id,
             )
             db.add(target_module)
@@ -1031,6 +1078,10 @@ async def _apply_additive_promotion(
                 formula=raw_line_item.get("formula"),
                 summary_method=_resolve_summary_method(raw_line_item.get("summary_method")),
                 sort_order=int(raw_line_item.get("sort_order") or 0),
+                conditional_format_rules=raw_line_item.get(
+                    "conditional_format_rules"
+                )
+                or [],
             )
             db.add(new_line_item)
             await db.flush()

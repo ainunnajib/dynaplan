@@ -1,9 +1,21 @@
 import enum
 import uuid
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text, Uuid, UniqueConstraint, Index, func
+from sqlalchemy import (
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    Uuid,
+    UniqueConstraint,
+    Index,
+    JSON,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -48,6 +60,9 @@ class Module(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+    conditional_format_rules: Mapped[List[Dict[str, Any]]] = mapped_column(
+        JSON, nullable=False, default=list
+    )
 
     line_items: Mapped[List["LineItem"]] = relationship(
         "LineItem",
@@ -81,6 +96,9 @@ class LineItem(Base):
         Enum(SummaryMethod), nullable=False, default=SummaryMethod.sum
     )
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    conditional_format_rules: Mapped[List[Dict[str, Any]]] = mapped_column(
+        JSON, nullable=False, default=list
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

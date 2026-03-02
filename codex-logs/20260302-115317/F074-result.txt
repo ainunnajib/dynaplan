@@ -1,0 +1,19 @@
+Implemented F074 end-to-end: backend rule storage/validation + frontend rule editor and in-grid rendering.
+
+- Added persistent `conditional_format_rules` on modules and line items in [module.py](/Users/ainunnajib/dynaplan/backend/app/models/module.py:46).
+- Added typed conditional-format schemas (operators, styles, validators) in [module.py](/Users/ainunnajib/dynaplan/backend/app/schemas/module.py:15).
+- Wired create/update service handling for module/line-item rules in [module.py](/Users/ainunnajib/dynaplan/backend/app/services/module.py:21).
+- Added schema compatibility patches for existing DBs in [main.py](/Users/ainunnajib/dynaplan/backend/app/main.py:122).
+- Included rule data in snapshot + ALM serialization/promotion flows in [snapshot.py](/Users/ainunnajib/dynaplan/backend/app/services/snapshot.py:72) and [alm.py](/Users/ainunnajib/dynaplan/backend/app/services/alm.py:131).
+- Added backend coverage for create/update/validation of conditional rules in [test_module.py](/Users/ainunnajib/dynaplan/backend/tests/test_module.py:426).
+- Added frontend API types for conditional formatting in [api.ts](/Users/ainunnajib/dynaplan/frontend/src/lib/api.ts:136).
+- Added grid settings UI (with color pickers) in [ConditionalFormattingSettings.tsx](/Users/ainunnajib/dynaplan/frontend/src/components/grid/ConditionalFormattingSettings.tsx:1).
+- Added rule evaluator in [conditionalFormatting.ts](/Users/ainunnajib/dynaplan/frontend/src/components/grid/conditionalFormatting.ts:1).
+- Applied formatting at render-time in [DataGrid.tsx](/Users/ainunnajib/dynaplan/frontend/src/components/grid/DataGrid.tsx:393) and [EditableCell.tsx](/Users/ainunnajib/dynaplan/frontend/src/components/grid/EditableCell.tsx:8), and wired module grid state in [ModuleGridClient.tsx](/Users/ainunnajib/dynaplan/frontend/src/app/models/[modelId]/modules/[moduleId]/ModuleGridClient.tsx:30) and [page.tsx](/Users/ainunnajib/dynaplan/frontend/src/app/models/[modelId]/modules/[moduleId]/page.tsx:75).
+- Updated progress tracking in [claude-progress.txt](/Users/ainunnajib/dynaplan/claude-progress.txt:3).
+
+Validation run:
+- `cd backend && .venv/bin/python -m pytest -x --tb=short -q`  
+  Result: `1623 passed, 1 skipped, 1 xfailed, 1 xpassed`.
+- `cd frontend && bun tsc --noEmit`  
+  Result: success (no type errors).

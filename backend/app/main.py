@@ -121,6 +121,14 @@ async def _ensure_schema_compatibility(conn) -> None:
 
     if dialect == "postgresql":
         await conn.exec_driver_sql(
+            "ALTER TABLE modules ADD COLUMN IF NOT EXISTS conditional_format_rules JSON "
+            "NOT NULL DEFAULT '[]'::json"
+        )
+        await conn.exec_driver_sql(
+            "ALTER TABLE line_items ADD COLUMN IF NOT EXISTS conditional_format_rules JSON "
+            "NOT NULL DEFAULT '[]'::json"
+        )
+        await conn.exec_driver_sql(
             "ALTER TABLE dimensions ADD COLUMN IF NOT EXISTS max_items INTEGER"
         )
         await conn.exec_driver_sql(
@@ -149,6 +157,28 @@ async def _ensure_schema_compatibility(conn) -> None:
         return
 
     if dialect == "sqlite":
+        module_info = await conn.exec_driver_sql("PRAGMA table_info(modules)")
+        module_columns = {row[1] for row in module_info.fetchall()}
+        if "conditional_format_rules" not in module_columns:
+            await conn.exec_driver_sql(
+                "ALTER TABLE modules ADD COLUMN conditional_format_rules JSON DEFAULT '[]'"
+            )
+        await conn.exec_driver_sql(
+            "UPDATE modules SET conditional_format_rules = '[]' "
+            "WHERE conditional_format_rules IS NULL"
+        )
+
+        line_item_info = await conn.exec_driver_sql("PRAGMA table_info(line_items)")
+        line_item_columns = {row[1] for row in line_item_info.fetchall()}
+        if "conditional_format_rules" not in line_item_columns:
+            await conn.exec_driver_sql(
+                "ALTER TABLE line_items ADD COLUMN conditional_format_rules JSON DEFAULT '[]'"
+            )
+        await conn.exec_driver_sql(
+            "UPDATE line_items SET conditional_format_rules = '[]' "
+            "WHERE conditional_format_rules IS NULL"
+        )
+
         info = await conn.exec_driver_sql("PRAGMA table_info(dimensions)")
         columns = {row[1] for row in info.fetchall()}
         if "max_items" not in columns:

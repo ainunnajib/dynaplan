@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.module import LineItem, LineItemDimension, Module
 from app.schemas.module import (
+    ConditionalFormatRule,
     LineItemCreate,
     LineItemUpdate,
     ModuleCreate,
@@ -16,6 +17,13 @@ from app.schemas.module import (
 
 # ── Module CRUD ─────────────────────────────────────────────────────────────────
 
+
+def _serialize_conditional_format_rules(
+    rules: List[ConditionalFormatRule],
+) -> List[dict]:
+    return [rule.model_dump(mode="json") for rule in rules]
+
+
 async def create_module(
     db: AsyncSession, model_id: uuid.UUID, data: ModuleCreate
 ) -> Module:
@@ -23,6 +31,9 @@ async def create_module(
         name=data.name,
         description=data.description,
         model_id=model_id,
+        conditional_format_rules=_serialize_conditional_format_rules(
+            data.conditional_format_rules
+        ),
     )
     db.add(module)
     await db.commit()
@@ -61,6 +72,12 @@ async def update_module(
         module.name = data.name
     if "description" in data.model_fields_set:
         module.description = data.description
+    if "conditional_format_rules" in data.model_fields_set:
+        module.conditional_format_rules = _serialize_conditional_format_rules(
+            data.conditional_format_rules
+            if data.conditional_format_rules is not None
+            else []
+        )
     await db.commit()
     await db.refresh(module)
     return module
@@ -133,6 +150,9 @@ async def create_line_item(
         formula=data.formula,
         summary_method=data.summary_method,
         sort_order=data.sort_order,
+        conditional_format_rules=_serialize_conditional_format_rules(
+            data.conditional_format_rules
+        ),
     )
     db.add(line_item)
     await db.flush()
@@ -225,6 +245,12 @@ async def update_line_item(
         )
     if data.sort_order is not None:
         line_item.sort_order = data.sort_order
+    if "conditional_format_rules" in data.model_fields_set:
+        line_item.conditional_format_rules = _serialize_conditional_format_rules(
+            data.conditional_format_rules
+            if data.conditional_format_rules is not None
+            else []
+        )
     await db.commit()
     updated = await get_line_item_by_id(db, line_item.id)
     return updated if updated is not None else line_item

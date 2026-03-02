@@ -138,6 +138,7 @@ export interface Module {
   model_id: string;
   name: string;
   description: string | null;
+  conditional_format_rules: ConditionalFormatRule[];
   created_at: string;
   updated_at: string;
 }
@@ -174,6 +175,7 @@ export interface LineItem {
     | "closing_balance"
     | "weighted_average"
     | null;
+  conditional_format_rules: ConditionalFormatRule[];
   created_at: string;
   updated_at: string;
 }
@@ -208,6 +210,34 @@ export interface CellValue {
   line_item_id: string;
   dimension_member_ids: string[];
   value: number | string | boolean | null;
+}
+
+export type ConditionalFormatOperator =
+  | "gt"
+  | "gte"
+  | "lt"
+  | "lte"
+  | "eq"
+  | "neq";
+
+export type ConditionalNumberFormat = "number" | "currency" | "percentage";
+
+export interface ConditionalFormatStyle {
+  background_color?: string | null;
+  text_color?: string | null;
+  bold?: boolean | null;
+  italic?: boolean | null;
+  number_format?: ConditionalNumberFormat | null;
+  icon?: string | null;
+}
+
+export interface ConditionalFormatRule {
+  id: string;
+  name?: string | null;
+  enabled: boolean;
+  operator: ConditionalFormatOperator;
+  value: number | string | boolean;
+  style: ConditionalFormatStyle;
 }
 
 export interface SavedViewSortConfig {

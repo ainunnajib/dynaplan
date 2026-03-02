@@ -69,6 +69,7 @@ async def _serialize_model(db: AsyncSession, model_id: uuid.UUID) -> Dict[str, A
             "name": m.name,
             "description": m.description,
             "model_id": str(m.model_id),
+            "conditional_format_rules": m.conditional_format_rules or [],
         })
 
     # Line items — fetch for all modules in the model
@@ -91,6 +92,7 @@ async def _serialize_model(db: AsyncSession, model_id: uuid.UUID) -> Dict[str, A
                 "format": li.format.value,
                 "formula": li.formula,
                 "summary_method": li.summary_method.value,
+                "conditional_format_rules": li.conditional_format_rules or [],
                 "applies_to_dimensions": [
                     str(dimension_id)
                     for dimension_id in li.applies_to_dimensions
@@ -335,6 +337,7 @@ async def restore_snapshot(
             name=m["name"],
             description=m.get("description"),
             model_id=model_id,
+            conditional_format_rules=m.get("conditional_format_rules") or [],
         )
         db.add(new_mod)
         restored_modules += 1
@@ -359,6 +362,7 @@ async def restore_snapshot(
             formula=li.get("formula"),
             summary_method=li.get("summary_method", "sum"),
             sort_order=li.get("sort_order", 0),
+            conditional_format_rules=li.get("conditional_format_rules") or [],
         )
         db.add(new_li)
 

@@ -78,6 +78,7 @@ export default async function ModulePage({ params }: ModulePageProps) {
         dimensions={dimensions}
         dimensionItems={dimensionItems}
         initialCells={[]}
+        moduleConditionalFormatRules={mod.conditional_format_rules ?? []}
       />
     </div>
   );

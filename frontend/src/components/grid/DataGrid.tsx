@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
+  type ConditionalFormatRule,
   type LineItem,
   type Dimension,
   type DimensionItem,
@@ -15,10 +16,12 @@ import { useCellData, type DimensionMember } from "@/hooks/useCellData";
 import EditableCell from "./EditableCell";
 import type { CellFormat } from "./CellFormatting";
 import GridHeader, { type ColumnDef } from "./GridHeader";
+import { resolveConditionalFormatting } from "./conditionalFormatting";
 
 export interface DataGridProps {
   moduleId: string;
   lineItems: LineItem[];
+  moduleConditionalFormatRules?: ConditionalFormatRule[];
   dimensions: Dimension[];
   dimensionItems: DimensionItem[];
   /** Initial cells pre-fetched server-side (hydrates the local cache). */
@@ -161,6 +164,7 @@ function toDimensionMembers(
 export default function DataGrid({
   moduleId,
   lineItems,
+  moduleConditionalFormatRules = [],
   dimensions,
   dimensionItems,
   initialCells,
@@ -386,6 +390,13 @@ export default function DataGrid({
                     const members = toDimensionMembers(col, dimensions, dimensionItems);
                     const cachedVal = getCachedValue(lineItem.id, members);
                     const isCalculated = Boolean(lineItem.formula);
+                    const resolvedFormatting = resolveConditionalFormatting(
+                      cachedVal ?? null,
+                      [
+                        ...moduleConditionalFormatRules,
+                        ...(lineItem.conditional_format_rules ?? []),
+                      ]
+                    );
 
                     return (
                       <td
@@ -396,6 +407,14 @@ export default function DataGrid({
                         <EditableCell
                           value={cachedVal ?? null}
                           format={lineItem.format as CellFormat}
+                          displayFormat={resolvedFormatting.displayFormat}
+                          leadingIcon={resolvedFormatting.icon}
+                          conditionalStyle={{
+                            backgroundColor: resolvedFormatting.backgroundColor,
+                            textColor: resolvedFormatting.textColor,
+                            bold: resolvedFormatting.bold,
+                            italic: resolvedFormatting.italic,
+                          }}
                           isCalculated={isCalculated}
                           formula={lineItem.formula ?? undefined}
                           onChange={async (newValue) => {

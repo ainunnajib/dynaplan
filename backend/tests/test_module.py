@@ -424,6 +424,48 @@ async def test_create_line_item_with_formula(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_create_line_item_with_conditional_format_rules(client: AsyncClient):
+    token = await register_and_login(client, "li_conditional_create@example.com")
+    ws_id = await create_workspace(client, token)
+    model_id = await create_model(client, token, ws_id)
+    module = await create_module(client, token, model_id)
+    module_id = module["id"]
+
+    rule_id = str(uuid.uuid4())
+    rule_payload = [
+        {
+            "id": rule_id,
+            "name": "High value",
+            "enabled": True,
+            "operator": "gt",
+            "value": 100,
+            "style": {
+                "background_color": "#ffedd5",
+                "text_color": "#9a3412",
+                "bold": True,
+                "icon": "warning",
+                "number_format": "currency",
+            },
+        }
+    ]
+
+    resp = await client.post(
+        f"/modules/{module_id}/line-items",
+        json={
+            "name": "Revenue",
+            "conditional_format_rules": rule_payload,
+        },
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["conditional_format_rules"][0]["id"] == rule_id
+    assert data["conditional_format_rules"][0]["operator"] == "gt"
+    assert data["conditional_format_rules"][0]["style"]["background_color"] == "#ffedd5"
+    assert data["conditional_format_rules"][0]["style"]["icon"] == "warning"
+
+
+@pytest.mark.asyncio
 async def test_create_line_item_with_applies_to_dimensions(client: AsyncClient):
     token = await register_and_login(client, "li_dims@example.com")
     ws_id = await create_workspace(client, token)
@@ -592,6 +634,43 @@ async def test_update_line_item_set_formula(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_update_line_item_conditional_format_rules(client: AsyncClient):
+    token = await register_and_login(client, "li_conditional_update@example.com")
+    ws_id = await create_workspace(client, token)
+    model_id = await create_model(client, token, ws_id)
+    module = await create_module(client, token, model_id)
+    module_id = module["id"]
+    line_item = await create_line_item(client, token, module_id, name="Revenue")
+
+    rule_payload = [
+        {
+            "id": str(uuid.uuid4()),
+            "name": "Negative values",
+            "enabled": True,
+            "operator": "lt",
+            "value": 0,
+            "style": {
+                "text_color": "#b91c1c",
+                "italic": True,
+                "icon": "arrow-down",
+            },
+        }
+    ]
+
+    resp = await client.patch(
+        f"/line-items/{line_item['id']}",
+        json={"conditional_format_rules": rule_payload},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["conditional_format_rules"]) == 1
+    assert body["conditional_format_rules"][0]["operator"] == "lt"
+    assert body["conditional_format_rules"][0]["style"]["text_color"] == "#b91c1c"
+    assert body["conditional_format_rules"][0]["style"]["italic"] is True
+
+
+@pytest.mark.asyncio
 async def test_update_line_item_change_summary_method(client: AsyncClient):
     token = await register_and_login(client, "li_summary_change@example.com")
     ws_id = await create_workspace(client, token)
@@ -642,6 +721,41 @@ async def test_update_line_item_not_found(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_update_module_conditional_format_rules(client: AsyncClient):
+    token = await register_and_login(client, "mod_conditional_update@example.com")
+    ws_id = await create_workspace(client, token)
+    model_id = await create_model(client, token, ws_id)
+    module = await create_module(client, token, model_id, name="P&L")
+
+    rule_payload = [
+        {
+            "id": str(uuid.uuid4()),
+            "name": "Highlight exact",
+            "enabled": True,
+            "operator": "eq",
+            "value": "Alert",
+            "style": {
+                "background_color": "#fee2e2",
+                "text_color": "#991b1b",
+                "bold": True,
+                "icon": "warning",
+            },
+        }
+    ]
+
+    resp = await client.patch(
+        f"/modules/{module['id']}",
+        json={"conditional_format_rules": rule_payload},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 200
+    updated = resp.json()
+    assert len(updated["conditional_format_rules"]) == 1
+    assert updated["conditional_format_rules"][0]["operator"] == "eq"
+    assert updated["conditional_format_rules"][0]["style"]["bold"] is True
+
+
+@pytest.mark.asyncio
 async def test_update_line_item_requires_auth(client: AsyncClient):
     fake_id = str(uuid.uuid4())
     resp = await client.patch(
@@ -649,6 +763,32 @@ async def test_update_line_item_requires_auth(client: AsyncClient):
         json={"name": "No Auth"},
     )
     assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_create_line_item_conditional_format_rule_requires_style(client: AsyncClient):
+    token = await register_and_login(client, "li_conditional_style_required@example.com")
+    ws_id = await create_workspace(client, token)
+    model_id = await create_model(client, token, ws_id)
+    module = await create_module(client, token, model_id)
+    module_id = module["id"]
+
+    resp = await client.post(
+        f"/modules/{module_id}/line-items",
+        json={
+            "name": "Invalid Rule",
+            "conditional_format_rules": [
+                {
+                    "id": str(uuid.uuid4()),
+                    "operator": "gt",
+                    "value": 10,
+                    "style": {},
+                }
+            ],
+        },
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 422
 
 
 @pytest.mark.asyncio

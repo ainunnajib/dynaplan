@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, KeyboardEvent } from "react";
+import { useState, useRef, useEffect, useCallback, KeyboardEvent, type CSSProperties } from "react";
 import { CellFormat, formatCellValue, parseCellInput, validateCellInput } from "./CellFormatting";
 
 type CellState = "viewing" | "editing" | "saving" | "error";
@@ -8,6 +8,14 @@ type CellState = "viewing" | "editing" | "saving" | "error";
 interface EditableCellProps {
   value: number | string | boolean | null | undefined;
   format: CellFormat;
+  displayFormat?: CellFormat;
+  leadingIcon?: string;
+  conditionalStyle?: {
+    backgroundColor?: string;
+    textColor?: string;
+    bold?: boolean;
+    italic?: boolean;
+  };
   onChange: (value: number | string | boolean | null) => Promise<void>;
   isCalculated?: boolean;
   formula?: string;
@@ -21,6 +29,9 @@ interface EditableCellProps {
 export default function EditableCell({
   value,
   format,
+  displayFormat,
+  leadingIcon,
+  conditionalStyle,
   onChange,
   isCalculated = false,
   formula,
@@ -34,6 +45,27 @@ export default function EditableCell({
   const [showTooltip, setShowTooltip] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const checkboxRef = useRef<HTMLInputElement>(null);
+  const effectiveDisplayFormat = displayFormat ?? format;
+  const alignmentClass =
+    effectiveDisplayFormat === "number" ||
+    effectiveDisplayFormat === "percentage" ||
+    effectiveDisplayFormat === "currency"
+      ? "text-right"
+      : "text-left";
+
+  const displayStyle: CSSProperties = {};
+  if (conditionalStyle?.backgroundColor) {
+    displayStyle.backgroundColor = conditionalStyle.backgroundColor;
+  }
+  if (conditionalStyle?.textColor) {
+    displayStyle.color = conditionalStyle.textColor;
+  }
+  if (typeof conditionalStyle?.bold === "boolean") {
+    displayStyle.fontWeight = conditionalStyle.bold ? 700 : 400;
+  }
+  if (typeof conditionalStyle?.italic === "boolean") {
+    displayStyle.fontStyle = conditionalStyle.italic ? "italic" : "normal";
+  }
 
   // Focus input when entering edit mode
   useEffect(() => {
@@ -141,7 +173,10 @@ export default function EditableCell({
     [commitEdit, cancelEditing, onTabNext, onTabPrev]
   );
 
-  const displayValue = formatCellValue(value, format, decimals);
+  const displayValue = formatCellValue(value, effectiveDisplayFormat, decimals);
+  const renderedDisplayValue = leadingIcon
+    ? `${leadingIcon} ${displayValue}`.trim()
+    : displayValue;
 
   // ---- Boolean cell ----
   if (format === "boolean") {
@@ -151,7 +186,13 @@ export default function EditableCell({
         : value === "true" || value === "1" || value === 1;
 
     return (
-      <div className="flex items-center justify-center w-full h-full px-2 py-1">
+      <div
+        className="flex items-center justify-center w-full h-full px-2 py-1"
+        style={displayStyle}
+      >
+        {leadingIcon && (
+          <span className="mr-1 text-xs text-zinc-500">{leadingIcon}</span>
+        )}
         {cellState === "saving" ? (
           <span className="inline-block w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
         ) : (
@@ -188,10 +229,11 @@ export default function EditableCell({
         <div
           className={[
             "w-full h-full px-2 py-1 text-sm select-none bg-zinc-50 text-zinc-400 cursor-not-allowed",
-            format === "number" || format === "percentage" ? "text-right" : "text-left",
+            alignmentClass,
           ].join(" ")}
+          style={displayStyle}
         >
-          {displayValue}
+          {renderedDisplayValue}
         </div>
         {showTooltip && formula && (
           <div className="absolute z-50 bottom-full left-0 mb-1 px-2 py-1 text-xs bg-zinc-800 text-white rounded shadow-lg whitespace-nowrap pointer-events-none">
@@ -252,13 +294,14 @@ export default function EditableCell({
       <div
         className={[
           "flex items-center w-full h-full px-2 py-1 text-sm bg-white text-zinc-400",
-          format === "number" || format === "percentage"
+          alignmentClass === "text-right"
             ? "justify-end"
             : "justify-start",
         ].join(" ")}
+        style={displayStyle}
       >
         <span className="mr-1 inline-block w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-        {displayValue}
+        {renderedDisplayValue}
       </div>
     );
   }
@@ -280,11 +323,13 @@ export default function EditableCell({
       }}
       className={[
         "w-full h-full px-2 py-1 text-sm select-none cursor-pointer",
-        "hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-400",
-        format === "number" || format === "percentage" ? "text-right" : "text-left",
+        conditionalStyle?.backgroundColor ? "" : "hover:bg-blue-50",
+        "focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-400",
+        alignmentClass,
       ].join(" ")}
+      style={displayStyle}
     >
-      {displayValue || <span className="text-zinc-300">&nbsp;</span>}
+      {renderedDisplayValue || <span className="text-zinc-300">&nbsp;</span>}
     </div>
   );
 }
