@@ -728,3 +728,261 @@ fn if_lazy_no_div_by_zero_in_dead_branch() {
     let result = as_number(ev("IF(TRUE, 99, 1 / 0)", vec![]));
     assert_eq!(result, 99.0);
 }
+
+#[test]
+fn yearvalue_uses_current_period_when_target_omitted() {
+    let result = as_number(ev(
+        "YEARVALUE(Sales)",
+        vec![
+            (
+                "Sales",
+                FormulaValue::List(vec![
+                    FormulaValue::Number(5.0),
+                    FormulaValue::Number(10.0),
+                    FormulaValue::Number(20.0),
+                ]),
+            ),
+            (
+                "TIME_PERIODS",
+                FormulaValue::List(vec![
+                    FormulaValue::Text("2023-12".to_string()),
+                    FormulaValue::Text("2024-01".to_string()),
+                    FormulaValue::Text("2024-02".to_string()),
+                ]),
+            ),
+            ("CURRENT_PERIOD", FormulaValue::Text("2024-02".to_string())),
+        ],
+    ));
+    assert_eq!(result, 30.0);
+}
+
+#[test]
+fn monthvalue_with_target_month() {
+    let result = as_number(ev(
+        "MONTHVALUE(Sales, 2)",
+        vec![
+            (
+                "Sales",
+                FormulaValue::List(vec![
+                    FormulaValue::Number(10.0),
+                    FormulaValue::Number(20.0),
+                    FormulaValue::Number(30.0),
+                ]),
+            ),
+            (
+                "TIME_PERIODS",
+                FormulaValue::List(vec![
+                    FormulaValue::Text("2024-01".to_string()),
+                    FormulaValue::Text("2024-02".to_string()),
+                    FormulaValue::Text("2024-02".to_string()),
+                ]),
+            ),
+        ],
+    ));
+    assert_eq!(result, 50.0);
+}
+
+#[test]
+fn quartervalue_with_target_quarter() {
+    let result = as_number(ev(
+        "QUARTERVALUE(Sales, 2)",
+        vec![
+            (
+                "Sales",
+                FormulaValue::List(vec![
+                    FormulaValue::Number(10.0),
+                    FormulaValue::Number(20.0),
+                    FormulaValue::Number(30.0),
+                    FormulaValue::Number(40.0),
+                ]),
+            ),
+            (
+                "TIME_PERIODS",
+                FormulaValue::List(vec![
+                    FormulaValue::Text("FY2024-Q1".to_string()),
+                    FormulaValue::Text("FY2024-Q2".to_string()),
+                    FormulaValue::Text("FY2024-Q2".to_string()),
+                    FormulaValue::Text("FY2024-Q3".to_string()),
+                ]),
+            ),
+        ],
+    ));
+    assert_eq!(result, 50.0);
+}
+
+#[test]
+fn current_period_start_from_context() {
+    let result = as_text(ev(
+        "CURRENTPERIODSTART()",
+        vec![("CURRENT_PERIOD", FormulaValue::Text("2024-03".to_string()))],
+    ));
+    assert_eq!(result, "2024-03-01");
+}
+
+#[test]
+fn current_period_end_with_argument() {
+    let result = as_text(ev("CURRENTPERIODEND(\"FY2024-Q1\")", vec![]));
+    assert_eq!(result, "2024-03-31");
+}
+
+#[test]
+fn timesum_with_range() {
+    let result = as_number(ev(
+        "TIMESUM(Sales, \"2024-02\", \"2024-03\")",
+        vec![
+            (
+                "Sales",
+                FormulaValue::List(vec![
+                    FormulaValue::Number(10.0),
+                    FormulaValue::Number(20.0),
+                    FormulaValue::Number(30.0),
+                    FormulaValue::Number(40.0),
+                ]),
+            ),
+            (
+                "TIME_PERIODS",
+                FormulaValue::List(vec![
+                    FormulaValue::Text("2024-01".to_string()),
+                    FormulaValue::Text("2024-02".to_string()),
+                    FormulaValue::Text("2024-03".to_string()),
+                    FormulaValue::Text("2024-04".to_string()),
+                ]),
+            ),
+        ],
+    ));
+    assert_eq!(result, 50.0);
+}
+
+#[test]
+fn timeaverage_with_range() {
+    let result = as_number(ev(
+        "TIMEAVERAGE(Sales, \"2024-02\", \"2024-03\")",
+        vec![
+            (
+                "Sales",
+                FormulaValue::List(vec![
+                    FormulaValue::Number(10.0),
+                    FormulaValue::Number(20.0),
+                    FormulaValue::Number(30.0),
+                    FormulaValue::Number(40.0),
+                ]),
+            ),
+            (
+                "TIME_PERIODS",
+                FormulaValue::List(vec![
+                    FormulaValue::Text("2024-01".to_string()),
+                    FormulaValue::Text("2024-02".to_string()),
+                    FormulaValue::Text("2024-03".to_string()),
+                    FormulaValue::Text("2024-04".to_string()),
+                ]),
+            ),
+        ],
+    ));
+    assert_eq!(result, 25.0);
+}
+
+#[test]
+fn lag_uses_current_index() {
+    let result = as_number(ev(
+        "LAG(Sales, 1)",
+        vec![
+            (
+                "Sales",
+                FormulaValue::List(vec![
+                    FormulaValue::Number(10.0),
+                    FormulaValue::Number(20.0),
+                    FormulaValue::Number(30.0),
+                ]),
+            ),
+            ("CURRENT_INDEX", FormulaValue::Number(2.0)),
+        ],
+    ));
+    assert_eq!(result, 20.0);
+}
+
+#[test]
+fn lead_uses_current_index() {
+    let result = as_number(ev(
+        "LEAD(Sales, 1)",
+        vec![
+            (
+                "Sales",
+                FormulaValue::List(vec![
+                    FormulaValue::Number(10.0),
+                    FormulaValue::Number(20.0),
+                    FormulaValue::Number(30.0),
+                ]),
+            ),
+            ("CURRENT_INDEX", FormulaValue::Number(0.0)),
+        ],
+    ));
+    assert_eq!(result, 20.0);
+}
+
+#[test]
+fn moving_sum_window() {
+    let result = as_number(ev(
+        "MOVINGSUM(Sales, 3)",
+        vec![
+            (
+                "Sales",
+                FormulaValue::List(vec![
+                    FormulaValue::Number(1.0),
+                    FormulaValue::Number(2.0),
+                    FormulaValue::Number(3.0),
+                    FormulaValue::Number(4.0),
+                ]),
+            ),
+            ("CURRENT_INDEX", FormulaValue::Number(3.0)),
+        ],
+    ));
+    assert_eq!(result, 9.0);
+}
+
+#[test]
+fn moving_average_window() {
+    let result = as_number(ev(
+        "MOVINGAVERAGE(Sales, 2)",
+        vec![
+            (
+                "Sales",
+                FormulaValue::List(vec![
+                    FormulaValue::Number(1.0),
+                    FormulaValue::Number(2.0),
+                    FormulaValue::Number(3.0),
+                    FormulaValue::Number(4.0),
+                ]),
+            ),
+            ("CURRENT_INDEX", FormulaValue::Number(3.0)),
+        ],
+    ));
+    assert_eq!(result, 3.5);
+}
+
+#[test]
+fn cumulate_to_current_index() {
+    let result = as_number(ev(
+        "CUMULATE(Sales)",
+        vec![
+            (
+                "Sales",
+                FormulaValue::List(vec![
+                    FormulaValue::Number(1.0),
+                    FormulaValue::Number(2.0),
+                    FormulaValue::Number(3.0),
+                    FormulaValue::Number(4.0),
+                ]),
+            ),
+            ("CURRENT_INDEX", FormulaValue::Number(2.0)),
+        ],
+    ));
+    assert_eq!(result, 6.0);
+}
+
+#[test]
+fn inperiod_true() {
+    assert!(as_bool(ev(
+        "INPERIOD(\"2024-03-15\", \"FY2024-Q1\")",
+        vec![],
+    )));
+}

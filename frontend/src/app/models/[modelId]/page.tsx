@@ -216,7 +216,25 @@ function DimensionRow({
     },
   };
 
-  const config = typeConfig[dimension.type];
+  const normalizedTypeRaw = (
+    (
+      dimension as Dimension & {
+        dimension_type?: string;
+        type?: string;
+      }
+    ).type ??
+    (
+      dimension as Dimension & {
+        dimension_type?: string;
+      }
+    ).dimension_type ??
+    "custom"
+  ).toLowerCase();
+  const normalizedType: Dimension["type"] =
+    normalizedTypeRaw in typeConfig
+      ? (normalizedTypeRaw as Dimension["type"])
+      : "custom";
+  const config = typeConfig[normalizedType];
 
   return (
     <div className="flex items-start justify-between gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2.5 sm:items-center">

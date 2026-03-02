@@ -175,6 +175,7 @@ export interface Dimension {
   model_id: string;
   name: string;
   type: "custom" | "time" | "version" | "numbered";
+  dimension_type?: "custom" | "time" | "version" | "numbered";
   created_at: string;
   updated_at: string;
 }
@@ -183,8 +184,10 @@ export interface DimensionItem {
   id: string;
   dimension_id: string;
   name: string;
+  code?: string;
   parent_id: string | null;
   order: number;
+  sort_order?: number;
   created_at: string;
   updated_at: string;
 }
@@ -232,15 +235,25 @@ export async function getLineItems(moduleId: string): Promise<LineItem[]> {
 }
 
 export async function getDimensions(modelId: string): Promise<Dimension[]> {
-  return fetchApi<Dimension[]>(`/api/models/${modelId}/dimensions`);
+  const rows = await fetchApi<Array<Dimension & { dimension_type?: Dimension["type"] }>>(
+    `/api/models/${modelId}/dimensions`
+  );
+  return rows.map((row) => ({
+    ...row,
+    type: row.type ?? row.dimension_type ?? "custom",
+  }));
 }
 
 export async function getDimensionItems(
   dimensionId: string
 ): Promise<DimensionItem[]> {
-  return fetchApi<DimensionItem[]>(
+  const rows = await fetchApi<Array<DimensionItem & { sort_order?: number }>>(
     `/api/dimensions/${dimensionId}/items`
   );
+  return rows.map((row) => ({
+    ...row,
+    order: row.order ?? row.sort_order ?? 0,
+  }));
 }
 
 export async function getCells(moduleId: string): Promise<CellValue[]> {

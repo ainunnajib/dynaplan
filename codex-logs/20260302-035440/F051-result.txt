@@ -1,0 +1,15 @@
+Implemented F051 end-to-end with Python runtime support, Rust parity, tests, and progress tracking updates.
+
+- Added all F051 time functions in Python formula evaluator (period parsing, range aggregations, time shifts, moving/cumulative ops, period boundary ops, `INPERIOD`) in [evaluator.py](/Users/ainunnajib/dynaplan/backend/app/engine/evaluator.py:355).
+- Registered new built-in function names in [formula.py](/Users/ainunnajib/dynaplan/backend/app/engine/formula.py:126).
+- Added backend coverage for F051 functions in [test_formula_engine.py](/Users/ainunnajib/dynaplan/backend/tests/test_formula_engine.py:388).
+- Added Rust-side parity for F051 functions in [functions.rs](/Users/ainunnajib/dynaplan/engine/dynaplan-core/src/formula/functions.rs:6), plus evaluator context accessor in [evaluator.rs](/Users/ainunnajib/dynaplan/engine/dynaplan-core/src/formula/evaluator.rs:123), and Rust tests in [tests.rs](/Users/ainunnajib/dynaplan/engine/dynaplan-core/src/formula/tests.rs:735).
+- Added `chrono` dependency for Rust period/date handling in [Cargo.toml](/Users/ainunnajib/dynaplan/engine/dynaplan-core/Cargo.toml:8).
+- Updated feature tracking in [claude-progress.txt](/Users/ainunnajib/dynaplan/claude-progress.txt:1).
+
+Validation run results:
+- `cd backend && .venv/bin/python -m pytest -x --tb=short -q` -> `1464 passed`
+- `cd frontend && bun tsc --noEmit` -> `clean`
+
+Additional note:
+- Rust toolchain is not installed here (`cargo: command not found`), so Rust tests could not be executed in this environment.

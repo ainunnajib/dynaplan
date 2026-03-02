@@ -6,6 +6,7 @@ Run with:  cd backend && pytest tests/test_formula_engine.py -v
 """
 
 import math
+from datetime import date
 import pytest
 
 from app.engine.tokenizer import tokenize, Token, TokenType, TokenizerError
@@ -379,6 +380,210 @@ class TestAggregation:
         result = evaluate_formula("AVERAGE(Scores)", {"Scores": [80, 90, 100]})
         assert abs(result - 90.0) < 1e-9
 
+
+# ===========================================================================
+# Evaluator — time functions (F051)
+# ===========================================================================
+
+class TestTimeFunctions:
+    def test_yearvalue_uses_current_period_when_target_omitted(self):
+        result = evaluate_formula(
+            "YEARVALUE(Sales)",
+            {
+                "Sales": [5, 10, 20],
+                "TIME_PERIODS": ["2023-12", "2024-01", "2024-02"],
+                "CURRENT_PERIOD": "2024-02",
+            },
+        )
+        assert result == 30.0
+
+    def test_yearvalue_with_explicit_target(self):
+        result = evaluate_formula(
+            "YEARVALUE(Sales, 2024)",
+            {
+                "Sales": {"2023-12": 5, "2024-01": 10, "2024-02": 20},
+            },
+        )
+        assert result == 30.0
+
+    def test_monthvalue_with_target_month(self):
+        result = evaluate_formula(
+            "MONTHVALUE(Sales, 2)",
+            {
+                "Sales": [10, 20, 30],
+                "TIME_PERIODS": ["2024-01", "2024-02", "2024-02"],
+            },
+        )
+        assert result == 50.0
+
+    def test_quartervalue_with_target_quarter(self):
+        result = evaluate_formula(
+            "QUARTERVALUE(Sales, 2)",
+            {
+                "Sales": [10, 20, 30, 40],
+                "TIME_PERIODS": ["FY2024-Q1", "FY2024-Q2", "FY2024-Q2", "FY2024-Q3"],
+            },
+        )
+        assert result == 50.0
+
+    def test_weekvalue_with_target_week(self):
+        result = evaluate_formula(
+            "WEEKVALUE(Sales, 2)",
+            {"Sales": {"2024-W01": 3, "2024-W02": 7, "2024-W03": 2}},
+        )
+        assert result == 7.0
+
+    def test_halfyearvalue_with_target_half(self):
+        result = evaluate_formula(
+            "HALFYEARVALUE(Sales, 2)",
+            {"Sales": {"FY2024-H1": 30, "FY2024-H2": 70}},
+        )
+        assert result == 70.0
+
+    def test_currentperiodstart_from_context(self):
+        result = evaluate_formula(
+            "CURRENTPERIODSTART()",
+            {"CURRENT_PERIOD": "2024-03"},
+        )
+        assert result == "2024-03-01"
+
+    def test_currentperiodend_with_explicit_period(self):
+        result = evaluate_formula('CURRENTPERIODEND("FY2024-Q1")')
+        assert result == "2024-03-31"
+
+    def test_periodstart_for_month(self):
+        result = evaluate_formula('PERIODSTART("2024-02")')
+        assert result == "2024-02-01"
+
+    def test_periodend_for_week(self):
+        result = evaluate_formula('PERIODEND("2024-W01")')
+        assert result == "2024-01-07"
+
+    def test_timesum_full_series(self):
+        result = evaluate_formula(
+            "TIMESUM(Sales)",
+            {
+                "Sales": [10, 20, 30, 40],
+                "TIME_PERIODS": ["2024-01", "2024-02", "2024-03", "2024-04"],
+            },
+        )
+        assert result == 100.0
+
+    def test_timesum_with_range(self):
+        result = evaluate_formula(
+            'TIMESUM(Sales, "2024-02", "2024-03")',
+            {
+                "Sales": [10, 20, 30, 40],
+                "TIME_PERIODS": ["2024-01", "2024-02", "2024-03", "2024-04"],
+            },
+        )
+        assert result == 50.0
+
+    def test_timeaverage_with_range(self):
+        result = evaluate_formula(
+            'TIMEAVERAGE(Sales, "2024-02", "2024-03")',
+            {
+                "Sales": [10, 20, 30, 40],
+                "TIME_PERIODS": ["2024-01", "2024-02", "2024-03", "2024-04"],
+            },
+        )
+        assert result == 25.0
+
+    def test_timecount_with_range(self):
+        result = evaluate_formula(
+            'TIMECOUNT(Sales, "2024-02", "2024-03")',
+            {
+                "Sales": [10, 20, 30, 40],
+                "TIME_PERIODS": ["2024-01", "2024-02", "2024-03", "2024-04"],
+            },
+        )
+        assert result == 2.0
+
+    def test_lag_uses_current_index(self):
+        result = evaluate_formula(
+            "LAG(Sales, 1)",
+            {"Sales": [10, 20, 30], "CURRENT_INDEX": 2},
+        )
+        assert result == 20
+
+    def test_lag_out_of_bounds_returns_default(self):
+        result = evaluate_formula(
+            "LAG(Sales, 5, 99)",
+            {"Sales": [10, 20, 30], "CURRENT_INDEX": 2},
+        )
+        assert result == 99.0
+
+    def test_lead_uses_current_index(self):
+        result = evaluate_formula(
+            "LEAD(Sales, 1)",
+            {"Sales": [10, 20, 30], "CURRENT_INDEX": 0},
+        )
+        assert result == 20
+
+    def test_offset_supports_negative_offsets(self):
+        result = evaluate_formula(
+            "OFFSET(Sales, -2)",
+            {"Sales": [10, 20, 30], "CURRENT_INDEX": 2},
+        )
+        assert result == 10
+
+    def test_movingsum_window(self):
+        result = evaluate_formula(
+            "MOVINGSUM(Sales, 3)",
+            {"Sales": [1, 2, 3, 4], "CURRENT_INDEX": 3},
+        )
+        assert result == 9.0
+
+    def test_movingaverage_window(self):
+        result = evaluate_formula(
+            "MOVINGAVERAGE(Sales, 2)",
+            {"Sales": [1, 2, 3, 4], "CURRENT_INDEX": 3},
+        )
+        assert result == 3.5
+
+    def test_cumulate_to_current_index(self):
+        result = evaluate_formula(
+            "CUMULATE(Sales)",
+            {"Sales": [1, 2, 3, 4], "CURRENT_INDEX": 2},
+        )
+        assert result == 6.0
+
+    def test_previous(self):
+        result = evaluate_formula(
+            "PREVIOUS(Sales)",
+            {"Sales": [10, 20, 30], "CURRENT_INDEX": 2},
+        )
+        assert result == 20
+
+    def test_next(self):
+        result = evaluate_formula(
+            "NEXT(Sales)",
+            {"Sales": [10, 20, 30], "CURRENT_INDEX": 1},
+        )
+        assert result == 30
+
+    def test_inperiod_true(self):
+        assert evaluate_formula('INPERIOD("2024-03-15", "FY2024-Q1")') is True
+
+    def test_inperiod_false(self):
+        assert evaluate_formula(
+            "INPERIOD(InputDate, Period)",
+            {"InputDate": date(2024, 4, 1), "Period": "FY2024-Q1"},
+        ) is False
+
+    def test_currentperiodstart_requires_context_or_arg(self):
+        with pytest.raises(FormulaError, match="CURRENTPERIODSTART"):
+            evaluate_formula("CURRENTPERIODSTART()")
+
+    def test_timeaverage_empty_range_raises(self):
+        with pytest.raises(FormulaError, match="TIMEAVERAGE"):
+            evaluate_formula(
+                'TIMEAVERAGE(Sales, "2025-01", "2025-12")',
+                {
+                    "Sales": [10, 20],
+                    "TIME_PERIODS": ["2024-01", "2024-02"],
+                },
+            )
 
 # ===========================================================================
 # Evaluator — text functions

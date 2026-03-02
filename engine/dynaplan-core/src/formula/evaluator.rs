@@ -120,6 +120,10 @@ impl Evaluator {
         }
     }
 
+    pub(crate) fn context_value(&self, key: &str) -> Option<&FormulaValue> {
+        self.context.get(key)
+    }
+
     fn eval_unary(&self, op: UnaryOperator, operand: &ASTNode) -> Result<FormulaValue, FormulaError> {
         let value = self.evaluate(operand)?;
         match op {
