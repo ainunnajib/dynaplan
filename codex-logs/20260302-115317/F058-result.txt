@@ -1,0 +1,28 @@
+Implemented F058 end-to-end with backend + frontend + tests.
+
+**What I changed**
+- Added `SavedView` data model (user-scoped, module-scoped, JSON config, default flag, uniqueness/indexing): [saved_view.py](/Users/ainunnajib/dynaplan/backend/app/models/saved_view.py#L21)
+- Added schema types for `view_config` (`row_dims`, `col_dims`, `filters`, `sort`) and CRUD payloads: [saved_view.py](/Users/ainunnajib/dynaplan/backend/app/schemas/saved_view.py#L7)
+- Added service layer with async CRUD and per-user/per-module default enforcement: [saved_view.py](/Users/ainunnajib/dynaplan/backend/app/services/saved_view.py#L12)
+- Added FastAPI router endpoints:
+  - `POST /modules/{module_id}/saved-views`
+  - `GET /modules/{module_id}/saved-views`
+  - `GET /saved-views/{saved_view_id}`
+  - `PATCH /saved-views/{saved_view_id}`
+  - `PUT /saved-views/{saved_view_id}/default`
+  - `DELETE /saved-views/{saved_view_id}`
+  File: [saved_view.py](/Users/ainunnajib/dynaplan/backend/app/api/saved_view.py#L54)
+- Registered router in app startup wiring: [main.py](/Users/ainunnajib/dynaplan/backend/app/main.py#L42), [main.py](/Users/ainunnajib/dynaplan/backend/app/main.py#L109)
+- Registered model export: [__init__.py](/Users/ainunnajib/dynaplan/backend/app/models/__init__.py#L40)
+- Linked `Module` ↔ `SavedView` relationship: [module.py](/Users/ainunnajib/dynaplan/backend/app/models/module.py#L58)
+- Added backend tests for CRUD/default/user-scope/validation: [test_saved_view.py](/Users/ainunnajib/dynaplan/backend/tests/test_saved_view.py#L70)
+- Added frontend API types/helpers for saved views: [api.ts](/Users/ainunnajib/dynaplan/frontend/src/lib/api.ts#L213)
+- Added saved-view toolbar component (save/load/update/delete/set-default) in module grid UI: [SavedViewToolbar.tsx](/Users/ainunnajib/dynaplan/frontend/src/components/saved-view/SavedViewToolbar.tsx#L34)
+- Wired toolbar + grid state in module page client: [ModuleGridClient.tsx](/Users/ainunnajib/dynaplan/frontend/src/app/models/[modelId]/modules/[moduleId]/ModuleGridClient.tsx#L27)
+- Updated grid to apply/sync saved view config (currently drives sort + stores dims/filters in config): [DataGrid.tsx](/Users/ainunnajib/dynaplan/frontend/src/components/grid/DataGrid.tsx#L19)
+- Updated project progress tracker for F058 completion: [claude-progress.txt](/Users/ainunnajib/dynaplan/claude-progress.txt#L3)
+
+**Validation run**
+- `cd backend && .venv/bin/python -m pytest -x --tb=short -q tests/test_saved_view.py` via backpressure wrapper: `4 passed`
+- `cd backend && .venv/bin/python -m pytest -x --tb=short -q` via backpressure wrapper: `1553 passed`
+- `cd frontend && bun tsc --noEmit` via backpressure wrapper: `clean`

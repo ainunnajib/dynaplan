@@ -39,6 +39,7 @@ from app.api.alm import router as alm_router
 from app.api.cloudworks import router as cloudworks_router
 from app.api.pipeline import router as pipeline_router
 from app.api.scim import router as scim_router
+from app.api.saved_view import router as saved_view_router
 from app.api.time_dimension import router as time_dimension_router
 from app.api.version import router as version_router
 from app.api.workspace import router as workspace_router
@@ -105,6 +106,7 @@ app.include_router(alm_router)
 app.include_router(cloudworks_router)
 app.include_router(pipeline_router)
 app.include_router(scim_router)
+app.include_router(saved_view_router)
 
 
 async def _ensure_schema_compatibility(conn) -> None:

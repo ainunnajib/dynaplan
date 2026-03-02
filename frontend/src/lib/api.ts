@@ -210,6 +210,51 @@ export interface CellValue {
   value: number | string | boolean | null;
 }
 
+export interface SavedViewSortConfig {
+  column_key: string | null;
+  direction: "asc" | "desc";
+}
+
+export interface SavedViewConfig {
+  row_dims: string[];
+  col_dims: string[];
+  filters: Record<string, string[]>;
+  sort: SavedViewSortConfig;
+}
+
+export const DEFAULT_SAVED_VIEW_CONFIG: SavedViewConfig = {
+  row_dims: [],
+  col_dims: [],
+  filters: {},
+  sort: {
+    column_key: null,
+    direction: "asc",
+  },
+};
+
+export interface SavedView {
+  id: string;
+  user_id: string;
+  module_id: string;
+  name: string;
+  view_config: SavedViewConfig;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SavedViewCreateInput {
+  name: string;
+  view_config?: SavedViewConfig;
+  is_default?: boolean;
+}
+
+export interface SavedViewUpdateInput {
+  name?: string;
+  view_config?: SavedViewConfig;
+  is_default?: boolean;
+}
+
 // ── API helpers ───────────────────────────────────────────────────────────────
 
 export async function getWorkspaces(): Promise<Workspace[]> {
@@ -279,6 +324,42 @@ export async function updateCell(
   return fetchApi<CellValue>(`/api/modules/${moduleId}/cells`, {
     method: "PUT",
     body: JSON.stringify(cell),
+  });
+}
+
+export async function getSavedViews(moduleId: string): Promise<SavedView[]> {
+  return fetchApi<SavedView[]>(`/api/modules/${moduleId}/saved-views`);
+}
+
+export async function createSavedView(
+  moduleId: string,
+  data: SavedViewCreateInput
+): Promise<SavedView> {
+  return fetchApi<SavedView>(`/api/modules/${moduleId}/saved-views`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateSavedView(
+  savedViewId: string,
+  data: SavedViewUpdateInput
+): Promise<SavedView> {
+  return fetchApi<SavedView>(`/api/saved-views/${savedViewId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function setSavedViewDefault(savedViewId: string): Promise<SavedView> {
+  return fetchApi<SavedView>(`/api/saved-views/${savedViewId}/default`, {
+    method: "PUT",
+  });
+}
+
+export async function deleteSavedView(savedViewId: string): Promise<void> {
+  return fetchApi<void>(`/api/saved-views/${savedViewId}`, {
+    method: "DELETE",
   });
 }
 

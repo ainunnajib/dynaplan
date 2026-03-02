@@ -55,6 +55,12 @@ class Module(Base):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+    saved_views: Mapped[List["SavedView"]] = relationship(
+        "SavedView",
+        back_populates="module",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
 
 
 class LineItem(Base):

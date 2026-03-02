@@ -7,6 +7,7 @@ import {
   type Dimension,
   type DimensionItem,
   type CellValue,
+  type SavedViewConfig,
   getLineItemDimensionIds,
   getCells,
 } from "@/lib/api";
@@ -22,6 +23,10 @@ export interface DataGridProps {
   dimensionItems: DimensionItem[];
   /** Initial cells pre-fetched server-side (hydrates the local cache). */
   initialCells?: CellValue[];
+  /** Saved-view configuration currently applied from the toolbar. */
+  appliedViewConfig?: SavedViewConfig;
+  /** Emits the latest grid view configuration when sort state changes. */
+  onViewConfigChange?: (viewConfig: SavedViewConfig) => void;
 }
 
 const ROW_HEIGHT = 36;
@@ -120,6 +125,19 @@ function buildColumns(
   }));
 }
 
+function collectUsedDimensionIds(lineItems: LineItem[]): string[] {
+  const ordered: string[] = [];
+  const seen = new Set<string>();
+  for (const lineItem of lineItems) {
+    for (const dimId of getLineItemDimensionIds(lineItem)) {
+      if (seen.has(dimId)) continue;
+      seen.add(dimId);
+      ordered.push(dimId);
+    }
+  }
+  return ordered;
+}
+
 // ── Convert ColumnDef members to the DimensionMember shape useCellData uses ──
 
 function toDimensionMembers(
@@ -146,6 +164,8 @@ export default function DataGrid({
   dimensions,
   dimensionItems,
   initialCells,
+  appliedViewConfig,
+  onViewConfigChange,
 }: DataGridProps) {
   const { writeCell, getCachedValue, isLoading, error, initCache } = useCellData(moduleId);
 
@@ -191,13 +211,47 @@ export default function DataGrid({
     };
   }, [hydrateCache, initialCells, moduleId]);
 
-  const [sortColumn, setSortColumn] = useState<string | null>(null);
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [sortColumn, setSortColumn] = useState<string | null>(
+    appliedViewConfig?.sort.column_key ?? null
+  );
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">(
+    appliedViewConfig?.sort.direction ?? "asc"
+  );
 
   const columns = useMemo(
     () => buildColumns(lineItems, dimensions, dimensionItems),
     [lineItems, dimensions, dimensionItems]
   );
+  const usedDimensionIds = useMemo(
+    () => collectUsedDimensionIds(lineItems),
+    [lineItems]
+  );
+
+  useEffect(() => {
+    setSortColumn(appliedViewConfig?.sort.column_key ?? null);
+    setSortDirection(appliedViewConfig?.sort.direction ?? "asc");
+  }, [appliedViewConfig?.sort.column_key, appliedViewConfig?.sort.direction]);
+
+  useEffect(() => {
+    if (!onViewConfigChange) return;
+    onViewConfigChange({
+      row_dims: appliedViewConfig?.row_dims ?? [],
+      col_dims: appliedViewConfig?.col_dims ?? usedDimensionIds,
+      filters: appliedViewConfig?.filters ?? {},
+      sort: {
+        column_key: sortColumn,
+        direction: sortDirection,
+      },
+    });
+  }, [
+    appliedViewConfig?.col_dims,
+    appliedViewConfig?.filters,
+    appliedViewConfig?.row_dims,
+    onViewConfigChange,
+    sortColumn,
+    sortDirection,
+    usedDimensionIds,
+  ]);
 
   // Sort line items
   const sortedLineItems = useMemo(() => {
