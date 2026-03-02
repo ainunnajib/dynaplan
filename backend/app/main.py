@@ -1,6 +1,7 @@
 import logging
+import time
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.action import router as action_router
@@ -47,10 +48,12 @@ from app.api.version import router as version_router
 from app.api.workspace import router as workspace_router
 from app.api.workspace_security import router as workspace_security_router
 from app.api.workspace_quota import router as workspace_quota_router
+from app.api.observability import router as observability_router
 from app.core.config import settings
 from app.core.database import dispose_engines, engine
 from app.models import Base
 from app.services.cloudworks import shutdown_cloudworks_runtime, start_cloudworks_runtime
+from app.services.observability import api_metrics_collector
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +70,28 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def observability_metrics_middleware(request: Request, call_next):
+    # Avoid self-scrape recursion/noise on the Prometheus endpoint itself.
+    if request.url.path == "/metrics":
+        return await call_next(request)
+
+    api_metrics_collector.request_started()
+    status_code = 500
+    started_at = time.perf_counter()
+
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+        return response
+    finally:
+        elapsed = time.perf_counter() - started_at
+        api_metrics_collector.request_finished(
+            latency_seconds=elapsed,
+            status_code=status_code,
+        )
 
 
 app.include_router(auth_router)
@@ -113,6 +138,7 @@ app.include_router(scim_router)
 app.include_router(saved_view_router)
 app.include_router(data_hub_router)
 app.include_router(model_encryption_router)
+app.include_router(observability_router)
 
 
 async def _ensure_schema_compatibility(conn) -> None:

@@ -1,7 +1,7 @@
 # Dynaplan Development Progress
 
-## Current Status: 69 features complete + F045/F048/F049/F050 implemented (pending Rust toolchain validation)
-Last updated: 2026-03-02 (F075 completed: backend `1626 passed, 1 skipped, 1 xfailed, 1 xpassed`; frontend `bun tsc --noEmit` clean)
+## Current Status: 70 features complete + F045/F048/F049/F050 implemented (pending Rust toolchain validation)
+Last updated: 2026-03-02 (F076 completed: backend `1636 passed, 1 skipped, 1 xfailed, 1 xpassed`; frontend `bun tsc --noEmit` clean)
 
 ## Completed
 - [x] F001: User authentication & authorization (11 tests)
@@ -65,6 +65,7 @@ Last updated: 2026-03-02 (F075 completed: backend `1626 passed, 1 skipped, 1 xfa
 - [x] F073: New UX App Builder (UX page hierarchy via `parent_page_id` with cycle/same-model guards, new `button` card type, `/models/{modelId}/apps` + `/models/{modelId}/apps/{pageId}` frontend app-builder routes, navigation tree UI, linked interactive grid/chart/button/filter/text cards, page-level context selectors propagated across cards, and responsive mobile card layouts for board/worksheet/report pages) (4 backend tests added in `test_ux_page.py`; full backend regression `1619 passed, 1 skipped, 1 xfailed, 1 xpassed` + frontend type-check)
 - [x] F074: Conditional Cell Formatting (module + line-item `conditional_format_rules` persisted in backend model/schema/service/API, rule validation for operator/style payloads, snapshot/ALM serialization support, and frontend module-grid conditional-format settings with color pickers + in-grid runtime styling for background/text/bold/italic/number-format/icon) (4 backend tests added in `test_module.py`; full backend regression `1623 passed, 1 skipped, 1 xfailed, 1 xpassed` + frontend type-check)
 - [x] F075: Grid Performance at Scale (new backend paginated grid-cell endpoint `/modules/{module_id}/cells/page` and paginated dimension-member endpoint `/dimensions/{dimension_id}/items/page` with optional search; module grid now fetches dimension members lazily client-side and streams cell pages with incremental cache hydration/invalidation; WebSocket collaboration hook integrated into grid for `cell_change` push updates and remote cache application) (3 backend tests added across `test_module_cells_compat.py` and `test_dimension.py`; full backend regression `1626 passed, 1 skipped, 1 xfailed, 1 xpassed` + frontend type-check)
+- [x] F076: Metrics & Health Dashboard (new observability service/router with authenticated `/observability/dashboard`, Prometheus-compatible `/metrics`, and `/observability/grafana-template`; API request middleware now tracks latency/error/in-flight metrics; dashboard aggregates engine metrics (calc time, cache hit ratio, memory usage), API metrics (latency/error rate/active users), and integration metrics (CloudWorks success rate, pipeline throughput); Grafana template JSON shipped under `backend/app/monitoring/grafana/`; frontend model page now includes `components/observability/HealthDashboard.tsx`) (10 backend tests in `test_observability.py` + full backend regression `1636 passed, 1 skipped, 1 xfailed, 1 xpassed` + frontend type-check)
 - [x] F066: ALM Promotion Engine (deep structural diff + change detection, last-sync conflict detection, additive/replace/manual merge strategy execution, structural promotion runtime with cell copy and rollback restore path, revision tags now auto-capture model snapshots) (15 ALM tests, 55 ALM total, full backend regression + frontend type-check)
 - [x] F067: Anaplan Data Hub (new `DataHubTable`/`DataHubRow`/`DataHubLineage` models and `/data-hub/*` API + service layer for schema-on-write row validation, connector imports, pipeline-style transform operations, publish-to-module cell writes, and lineage tracking; frontend `DataHubManager` integrated on model page) (6 backend tests in `test_data_hub.py` + full backend regression `1578 passed, 1 skipped, 1 xfailed, 1 xpassed` + frontend type-check)
 - [x] F068: Anaplan Connect (Bulk API CLI) (new top-level `cli/` Click package with `import`/`export`/`run-process`/`run-pipeline` commands + YAML/JSON `batch` mode + progress output; backend public API expanded with API-key endpoints for import/export and process/pipeline run lifecycle under `/api/v1`; tests added in `test_api_keys.py` and `test_dynaplan_cli.py`; full backend regression `1590 passed, 1 skipped, 1 xfailed, 1 xpassed` + frontend type-check)
@@ -80,9 +81,9 @@ Last updated: 2026-03-02 (F075 completed: backend `1626 passed, 1 skipped, 1 xfa
 - [~] F049: PyO3 Bridge — Rust Engine ↔ Python FastAPI (`engine/dynaplan-py` crate added with PyO3 surface (`load_model`, `write_cell`, `write_cells_bulk`, `read_cell`, `read_cells`, `evaluate_formula`, `get_recalc_order`, `spread_top_down`, `aggregate_bottom_up`), Python fallback bridge at `backend/app/engine/rust_bridge.py`, and `cell.py` engine-selection integration; full backend regression + frontend type-check passed; native Rust extension build/test still pending due unavailable Rust toolchain)
 - [~] F050: Spread & Aggregation in Rust (`engine/dynaplan-core/src/spread/` added with top-down spread methods, summary aggregation, and bottom-up hierarchy aggregation; PyO3 + Python bridge wiring added and `backend/app/services/planning.py` now routes spread/aggregate/recalc calculations through the bridge; backend regression + frontend type-check passed, `cargo test` pending because Rust toolchain is unavailable in this environment)
 
-## Next Up: F045 validation + F046-F047, F076-F077 (see ROADMAP.md)
+## Next Up: F045 validation + F046-F047, F077 (see ROADMAP.md)
 - Phase 1: Rust calculation engine (F045-F050) — Hyperblock replacement via PyO3
-- Phase 8: Observability (F076-F077) — metrics, horizontal scaling
+- Phase 8: Observability (F077) — horizontal scaling
 
 ## Known Issues
 - Python 3.9.6 — need bcrypt==4.0.1, Optional[str] syntax, numpy>=1.24
@@ -90,7 +91,7 @@ Last updated: 2026-03-02 (F075 completed: backend `1626 passed, 1 skipped, 1 xfa
 - smoke.test.ts has pre-existing bun:test import error (not in our code)
 
 ## Architecture
-- Backend: FastAPI, 1626 tests (latest run: 1626 passed, 1 skipped, 1 xfailed, 1 xpassed), file-backed SQLite with NullPool for tests (+ optional PostgreSQL test-container path)
+- Backend: FastAPI, 1636 tests (latest run: 1636 passed, 1 skipped, 1 xfailed, 1 xpassed), file-backed SQLite with NullPool for tests (+ optional PostgreSQL test-container path)
 - Engine: Pure Python formula engine in production now includes F051 time functions, F052 lookup/cross-module functions, F053 text/conversion functions, F054 advanced aggregation/statistical functions (SUMIF/COUNTIF/AVERAGEIF, MEDIAN/STDEV/VARIANCE, PERCENTILE/LARGE/SMALL, GROWTH), and F061 calendar enhancements (`PERIODOFFSET`, context-backed retail period bounds) with matching Rust formula-module implementation (`engine/dynaplan-core/src/formula/functions.rs`) pending Rust toolchain validation
 - Quotas: Workspace-level quota controls (max models, max cells/model, max dimensions/model, storage MB) with API usage reporting + enforced create/write guards
 - Encryption: model-scoped at-rest cell encryption with per-model key versioning/rotation (`model_encryption_keys`), encrypted payload storage (`cell_values.value_encrypted`), and pluggable KMS wrapping providers (`local`, `aws_kms`, `vault`)
@@ -114,4 +115,5 @@ Last updated: 2026-03-02 (F075 completed: backend `1626 passed, 1 skipped, 1 xfa
 - Pipelines: no-code data orchestration with executable step chains (source/transform/filter/map/aggregate/publish), per-step records/logging, and failure-aware run lifecycle
 - SCIM: automated user/group provisioning with enterprise IdP integration
 - Engine profiles: Classic and Polaris-like modes for large model optimization
+- Observability: in-process API request metrics middleware + Prometheus `/metrics` exposition, authenticated observability dashboard API (`/observability/dashboard`) with health checks, and Grafana dashboard template endpoint/assets (`/observability/grafana-template`, `backend/app/monitoring/grafana/dynaplan-observability-dashboard.json`)
 - Backpressure: `pytest -m backpressure` marker added with dedicated CI gate

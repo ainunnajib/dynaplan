@@ -1,0 +1,29 @@
+Implemented F076 end-to-end.
+
+**Backend**
+- Added observability router with:
+  - Authenticated dashboard: `/observability/dashboard`
+  - Authenticated Grafana template: `/observability/grafana-template`
+  - Prometheus endpoint: `/metrics`  
+  in [observability.py](/Users/ainunnajib/dynaplan/backend/app/api/observability.py#L24).
+- Added full observability service (API request metrics collector, engine/api/integration aggregations, health checks, Prometheus rendering) in [observability.py](/Users/ainunnajib/dynaplan/backend/app/services/observability.py#L25).
+- Added Pydantic response schemas in [observability.py](/Users/ainunnajib/dynaplan/backend/app/schemas/observability.py#L8).
+- Registered middleware + router in [main.py](/Users/ainunnajib/dynaplan/backend/app/main.py#L75) and [main.py](/Users/ainunnajib/dynaplan/backend/app/main.py#L141).
+- Added Grafana dashboard template JSON at [dynaplan-observability-dashboard.json](/Users/ainunnajib/dynaplan/backend/app/monitoring/grafana/dynaplan-observability-dashboard.json#L1).
+
+**Frontend**
+- Added new health dashboard component in [HealthDashboard.tsx](/Users/ainunnajib/dynaplan/frontend/src/components/observability/HealthDashboard.tsx#L23).
+- Added observability API types/helpers in [api.ts](/Users/ainunnajib/dynaplan/frontend/src/lib/api.ts#L1004).
+- Integrated dashboard into model page in [page.tsx](/Users/ainunnajib/dynaplan/frontend/src/app/models/[modelId]/page.tsx#L196).
+
+**Tests**
+- Added 10 backend tests covering metrics format, auth, engine/api/integration aggregation, Grafana template, and health checks in [test_observability.py](/Users/ainunnajib/dynaplan/backend/tests/test_observability.py#L77).
+
+**Validation**
+- `cd backend && .venv/bin/python -m pytest -x --tb=short -q`  
+  Result: `1636 passed, 1 skipped, 1 xfailed, 1 xpassed`
+- `cd frontend && bun tsc --noEmit`  
+  Result: clean
+
+**Progress tracking**
+- Updated F076 completion/status in [claude-progress.txt](/Users/ainunnajib/dynaplan/claude-progress.txt#L3).

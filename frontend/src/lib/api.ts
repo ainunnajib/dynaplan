@@ -1000,3 +1000,61 @@ export async function deleteUXContextSelector(selectorId: string): Promise<void>
     method: "DELETE",
   });
 }
+
+// ── Observability API types/helpers ──────────────────────────────────────────
+
+export interface ObservabilityEngineModelMetrics {
+  model_id: string;
+  calc_time_ms_avg: number | null;
+  calc_time_ms_latest: number | null;
+  cache_hit_ratio: number | null;
+  memory_usage_mb: number | null;
+}
+
+export interface ObservabilityHealthCheck {
+  name: string;
+  status: "ok" | "degraded";
+  detail: string;
+}
+
+export interface ObservabilityDashboard {
+  generated_at: string;
+  health_status: "ok" | "degraded";
+  engine: {
+    tracked_models: number;
+    models: ObservabilityEngineModelMetrics[];
+  };
+  api: {
+    request_latency_ms_avg: number;
+    request_latency_ms_avg_last_5m: number;
+    error_rate: number;
+    error_rate_last_5m: number;
+    requests_total: number;
+    requests_last_5m: number;
+    in_flight_requests: number;
+    active_users: number;
+  };
+  integration: {
+    cloudworks_runs_total: number;
+    cloudworks_run_success_rate: number;
+    pipeline_runs_total: number;
+    pipeline_throughput_records_per_minute: number;
+  };
+  checks: ObservabilityHealthCheck[];
+}
+
+export interface GrafanaTemplateResponse {
+  title: string;
+  template: Record<string, unknown>;
+}
+
+export async function getObservabilityDashboard(
+  modelId?: string
+): Promise<ObservabilityDashboard> {
+  const query = modelId ? `?model_id=${encodeURIComponent(modelId)}` : "";
+  return fetchApi<ObservabilityDashboard>(`/api/observability/dashboard${query}`);
+}
+
+export async function getGrafanaTemplate(): Promise<GrafanaTemplateResponse> {
+  return fetchApi<GrafanaTemplateResponse>("/api/observability/grafana-template");
+}

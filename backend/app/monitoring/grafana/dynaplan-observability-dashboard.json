@@ -1,0 +1,118 @@
+{
+  "title": "Dynaplan Observability",
+  "description": "Dashboard template for API, engine, and integration observability metrics.",
+  "timezone": "browser",
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "version": 1,
+  "tags": [
+    "dynaplan",
+    "observability"
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "model_id",
+        "type": "query",
+        "datasource": "Prometheus",
+        "query": "label_values(dynaplan_engine_calc_time_ms_avg, model_id)",
+        "refresh": 1,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "API Request Latency (ms)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "(dynaplan_api_request_latency_seconds_sum / clamp_min(dynaplan_api_request_latency_seconds_count, 1)) * 1000",
+          "legendFormat": "avg latency"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "API Error Rate (%)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "(dynaplan_api_errors_total / clamp_min(dynaplan_api_requests_total, 1)) * 100",
+          "legendFormat": "error rate"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Engine Calc Time Avg (ms)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "dynaplan_engine_calc_time_ms_avg{model_id=~\"$model_id\"}",
+          "legendFormat": "{{model_id}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Engine Cache Hit Ratio",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "dynaplan_engine_cache_hit_ratio{model_id=~\"$model_id\"}",
+          "legendFormat": "{{model_id}}"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "CloudWorks Success Rate",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "expr": "dynaplan_cloudworks_run_success_rate * 100",
+          "legendFormat": "success rate"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Pipeline Throughput (records/min)",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 16 },
+      "targets": [
+        {
+          "expr": "dynaplan_pipeline_throughput_records_per_minute",
+          "legendFormat": "throughput"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Health Status",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 16 },
+      "targets": [
+        {
+          "expr": "dynaplan_health_status",
+          "legendFormat": "health"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": { "text": "Degraded" },
+                "1": { "text": "OK" }
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
