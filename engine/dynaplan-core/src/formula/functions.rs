@@ -17,6 +17,16 @@ pub const BUILTIN_FUNCTIONS: &[&str] = &[
     "SUM",
     "AVERAGE",
     "COUNT",
+    "SUMIF",
+    "COUNTIF",
+    "AVERAGEIF",
+    "MEDIAN",
+    "STDEV",
+    "VARIANCE",
+    "PERCENTILE",
+    "LARGE",
+    "SMALL",
+    "GROWTH",
     "IF",
     "AND",
     "OR",
@@ -231,6 +241,16 @@ pub(crate) fn evaluate_function(
                 .sum::<usize>();
             Ok(FormulaValue::Number(count as f64))
         }
+        "SUMIF" => fn_sumif(evaluator, name, &args),
+        "COUNTIF" => fn_countif(evaluator, name, &args),
+        "AVERAGEIF" => fn_averageif(evaluator, name, &args),
+        "MEDIAN" => fn_median(evaluator, name, &args),
+        "STDEV" => fn_stdev(evaluator, name, &args),
+        "VARIANCE" => fn_variance(evaluator, name, &args),
+        "PERCENTILE" => fn_percentile(evaluator, name, &args),
+        "LARGE" => fn_large(evaluator, name, &args),
+        "SMALL" => fn_small(evaluator, name, &args),
+        "GROWTH" => fn_growth(evaluator, name, &args),
         "AND" => Ok(FormulaValue::Bool(args.iter().all(|a| evaluator.to_bool(a)))),
         "OR" => Ok(FormulaValue::Bool(args.iter().any(|a| evaluator.to_bool(a)))),
         "NOT" => {
@@ -1399,6 +1419,462 @@ fn fn_sum_mapped(
         .iter()
         .sum::<f64>();
     Ok(FormulaValue::Number(total))
+}
+
+fn range_values(value: &FormulaValue) -> Vec<FormulaValue> {
+    match value {
+        FormulaValue::List(values) => values.clone(),
+        FormulaValue::Map(values) => {
+            let mut keys = values.keys().cloned().collect::<Vec<String>>();
+            keys.sort();
+            keys.into_iter()
+                .filter_map(|key| values.get(&key).cloned())
+                .collect::<Vec<FormulaValue>>()
+        }
+        other => vec![other.clone()],
+    }
+}
+
+fn range_numbers(
+    evaluator: &Evaluator,
+    value: &FormulaValue,
+    context_label: &str,
+) -> Result<Vec<f64>, FormulaError> {
+    let values = range_values(value);
+    values
+        .iter()
+        .map(|item| evaluator.num(item, context_label))
+        .collect::<Result<Vec<f64>, FormulaError>>()
+}
+
+fn maybe_num(value: &FormulaValue) -> Option<f64> {
+    match value {
+        FormulaValue::Number(v) => Some(*v),
+        FormulaValue::Bool(v) => Some(if *v { 1.0 } else { 0.0 }),
+        FormulaValue::Text(text) => {
+            let trimmed = text.trim();
+            if trimmed.is_empty() {
+                return None;
+            }
+            trimmed.parse::<f64>().ok()
+        }
+        _ => None,
+    }
+}
+
+fn coerce_criteria_operand(text: &str) -> FormulaValue {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return FormulaValue::Text(String::new());
+    }
+
+    if trimmed.len() >= 2
+        && ((trimmed.starts_with('"') && trimmed.ends_with('"'))
+            || (trimmed.starts_with('\'') && trimmed.ends_with('\'')))
+    {
+        return FormulaValue::Text(trimmed[1..trimmed.len() - 1].to_string());
+    }
+
+    let upper = trimmed.to_ascii_uppercase();
+    if upper == "TRUE" {
+        return FormulaValue::Bool(true);
+    }
+    if upper == "FALSE" {
+        return FormulaValue::Bool(false);
+    }
+
+    if let Ok(parsed) = trimmed.parse::<f64>() {
+        return FormulaValue::Number(parsed);
+    }
+
+    FormulaValue::Text(trimmed.to_string())
+}
+
+fn criteria_matches(
+    value: &FormulaValue,
+    criteria: &FormulaValue,
+    context_label: &str,
+) -> Result<bool, FormulaError> {
+    let mut operator = "=";
+    let mut operand = criteria.clone();
+
+    if let FormulaValue::Text(criteria_text) = criteria {
+        let trimmed = criteria_text.trim();
+        let mut matched_prefix = false;
+        for prefix in [">=", "<=", "<>", ">", "<", "="] {
+            if trimmed.starts_with(prefix) {
+                operator = prefix;
+                operand = coerce_criteria_operand(&trimmed[prefix.len()..]);
+                matched_prefix = true;
+                break;
+            }
+        }
+        if !matched_prefix {
+            operand = coerce_criteria_operand(trimmed);
+        }
+    }
+
+    let left_num = maybe_num(value);
+    let right_num = maybe_num(&operand);
+
+    if operator == "=" {
+        if let (Some(left), Some(right)) = (left_num, right_num) {
+            return Ok(left == right);
+        }
+        return Ok(coerce_text_output(value) == coerce_text_output(&operand));
+    }
+
+    if operator == "<>" {
+        if let (Some(left), Some(right)) = (left_num, right_num) {
+            return Ok(left != right);
+        }
+        return Ok(coerce_text_output(value) != coerce_text_output(&operand));
+    }
+
+    if let (Some(left), Some(right)) = (left_num, right_num) {
+        return Ok(match operator {
+            ">" => left > right,
+            "<" => left < right,
+            ">=" => left >= right,
+            "<=" => left <= right,
+            _ => {
+                return Err(FormulaError::new(format!(
+                    "{} received unsupported criteria {:?}",
+                    context_label,
+                    coerce_text_output(criteria)
+                )))
+            }
+        });
+    }
+
+    let left_text = coerce_text_output(value);
+    let right_text = coerce_text_output(&operand);
+    Ok(match operator {
+        ">" => left_text > right_text,
+        "<" => left_text < right_text,
+        ">=" => left_text >= right_text,
+        "<=" => left_text <= right_text,
+        _ => {
+            return Err(FormulaError::new(format!(
+                "{} received unsupported criteria {:?}",
+                context_label,
+                coerce_text_output(criteria)
+            )))
+        }
+    })
+}
+
+fn sample_variance(values: &[f64], context_label: &str) -> Result<f64, FormulaError> {
+    if values.len() < 2 {
+        return Err(FormulaError::new(format!(
+            "{} requires at least 2 values",
+            context_label
+        )));
+    }
+
+    let mean = values.iter().sum::<f64>() / values.len() as f64;
+    let sum_sq = values
+        .iter()
+        .map(|value| (value - mean) * (value - mean))
+        .sum::<f64>();
+    Ok(sum_sq / (values.len() as f64 - 1.0))
+}
+
+fn percentile(values: &[f64], mut k: f64, context_label: &str) -> Result<f64, FormulaError> {
+    if values.is_empty() {
+        return Err(FormulaError::new(format!(
+            "{} called with empty range",
+            context_label
+        )));
+    }
+
+    if k > 1.0 && k <= 100.0 {
+        k /= 100.0;
+    }
+    if k < 0.0 || k > 1.0 {
+        return Err(FormulaError::new(format!(
+            "{} requires k between 0 and 1 inclusive",
+            context_label
+        )));
+    }
+
+    let mut ordered = values.to_vec();
+    ordered.sort_by(|left, right| {
+        left.partial_cmp(right)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    if ordered.len() == 1 {
+        return Ok(ordered[0]);
+    }
+
+    let rank = k * (ordered.len() as f64 - 1.0);
+    let lower = rank.floor() as usize;
+    let upper = rank.ceil() as usize;
+    if lower == upper {
+        return Ok(ordered[lower]);
+    }
+
+    let weight = rank - lower as f64;
+    Ok(ordered[lower] + (ordered[upper] - ordered[lower]) * weight)
+}
+
+fn growth_known_pairs(
+    evaluator: &Evaluator,
+    known_y: &FormulaValue,
+    known_x: &FormulaValue,
+    context_label: &str,
+) -> Result<(Vec<f64>, Vec<f64>), FormulaError> {
+    if let (FormulaValue::Map(y_map), FormulaValue::Map(x_map)) = (known_y, known_x) {
+        let mut keys = y_map
+            .keys()
+            .filter(|key| x_map.contains_key(*key))
+            .cloned()
+            .collect::<Vec<String>>();
+        keys.sort();
+        if keys.is_empty() {
+            return Err(FormulaError::new(
+                "GROWTH requires known_y and known_x maps to share at least one key",
+            ));
+        }
+
+        let mut y_values = Vec::with_capacity(keys.len());
+        let mut x_values = Vec::with_capacity(keys.len());
+        for key in keys {
+            if let (Some(y), Some(x)) = (y_map.get(&key), x_map.get(&key)) {
+                y_values.push(evaluator.num(y, context_label)?);
+                x_values.push(evaluator.num(x, context_label)?);
+            }
+        }
+        return Ok((y_values, x_values));
+    }
+
+    let y_items = range_values(known_y);
+    let x_items = range_values(known_x);
+    if y_items.len() != x_items.len() {
+        return Err(FormulaError::new(
+            "GROWTH requires known_y and known_x with matching lengths",
+        ));
+    }
+    if y_items.is_empty() {
+        return Err(FormulaError::new("GROWTH requires at least one known data point"));
+    }
+
+    let y_values = y_items
+        .iter()
+        .map(|value| evaluator.num(value, context_label))
+        .collect::<Result<Vec<f64>, FormulaError>>()?;
+    let x_values = x_items
+        .iter()
+        .map(|value| evaluator.num(value, context_label))
+        .collect::<Result<Vec<f64>, FormulaError>>()?;
+    Ok((y_values, x_values))
+}
+
+fn fn_sumif(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 2, 2)?;
+    let values = range_values(&args[0]);
+    let mut total = 0.0;
+    for value in values {
+        if criteria_matches(&value, &args[1], name)? {
+            total += evaluator.num(&value, name)?;
+        }
+    }
+    Ok(FormulaValue::Number(total))
+}
+
+fn fn_countif(
+    _evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 2, 2)?;
+    let values = range_values(&args[0]);
+    let mut count = 0usize;
+    for value in values {
+        if criteria_matches(&value, &args[1], name)? {
+            count += 1;
+        }
+    }
+    Ok(FormulaValue::Number(count as f64))
+}
+
+fn fn_averageif(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 2, 2)?;
+    let values = range_values(&args[0]);
+    let mut matched = Vec::new();
+    for value in values {
+        if criteria_matches(&value, &args[1], name)? {
+            matched.push(evaluator.num(&value, name)?);
+        }
+    }
+    if matched.is_empty() {
+        return Err(FormulaError::new("AVERAGEIF found no matching values"));
+    }
+    Ok(FormulaValue::Number(
+        matched.iter().sum::<f64>() / matched.len() as f64,
+    ))
+}
+
+fn fn_median(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 1, 1)?;
+    let mut values = range_numbers(evaluator, &args[0], name)?;
+    if values.is_empty() {
+        return Err(FormulaError::new("MEDIAN called with empty range"));
+    }
+    values.sort_by(|left, right| {
+        left.partial_cmp(right)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    let mid = values.len() / 2;
+    if values.len() % 2 == 1 {
+        return Ok(FormulaValue::Number(values[mid]));
+    }
+    Ok(FormulaValue::Number((values[mid - 1] + values[mid]) / 2.0))
+}
+
+fn fn_stdev(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 1, 1)?;
+    let values = range_numbers(evaluator, &args[0], name)?;
+    let variance = sample_variance(&values, name)?;
+    Ok(FormulaValue::Number(variance.sqrt()))
+}
+
+fn fn_variance(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 1, 1)?;
+    let values = range_numbers(evaluator, &args[0], name)?;
+    Ok(FormulaValue::Number(sample_variance(&values, name)?))
+}
+
+fn fn_percentile(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 2, 2)?;
+    let values = range_numbers(evaluator, &args[0], name)?;
+    let k = evaluator.num(&args[1], name)?;
+    Ok(FormulaValue::Number(percentile(&values, k, name)?))
+}
+
+fn fn_large(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 2, 2)?;
+    let mut values = range_numbers(evaluator, &args[0], name)?;
+    let k = evaluator.num(&args[1], name)?.trunc() as i64;
+    if k <= 0 {
+        return Err(FormulaError::new("LARGE requires k >= 1"));
+    }
+    values.sort_by(|left, right| {
+        right
+            .partial_cmp(left)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    if k as usize > values.len() {
+        return Err(FormulaError::new("LARGE k is out of bounds for range length"));
+    }
+    Ok(FormulaValue::Number(values[(k as usize) - 1]))
+}
+
+fn fn_small(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 2, 2)?;
+    let mut values = range_numbers(evaluator, &args[0], name)?;
+    let k = evaluator.num(&args[1], name)?.trunc() as i64;
+    if k <= 0 {
+        return Err(FormulaError::new("SMALL requires k >= 1"));
+    }
+    values.sort_by(|left, right| {
+        left.partial_cmp(right)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    if k as usize > values.len() {
+        return Err(FormulaError::new("SMALL k is out of bounds for range length"));
+    }
+    Ok(FormulaValue::Number(values[(k as usize) - 1]))
+}
+
+fn fn_growth(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 3, 3)?;
+    let (known_y, known_x) = growth_known_pairs(evaluator, &args[0], &args[1], name)?;
+    if known_y.len() < 2 {
+        return Err(FormulaError::new(
+            "GROWTH requires at least 2 known data points",
+        ));
+    }
+
+    let mean_x = known_x.iter().sum::<f64>() / known_x.len() as f64;
+    let mean_y = known_y.iter().sum::<f64>() / known_y.len() as f64;
+    let denominator = known_x
+        .iter()
+        .map(|value| (value - mean_x) * (value - mean_x))
+        .sum::<f64>();
+    if denominator == 0.0 {
+        return Err(FormulaError::new(
+            "GROWTH requires known_x values with non-zero variance",
+        ));
+    }
+
+    let numerator = known_x
+        .iter()
+        .zip(known_y.iter())
+        .map(|(x, y)| (x - mean_x) * (y - mean_y))
+        .sum::<f64>();
+    let slope = numerator / denominator;
+    let intercept = mean_y - slope * mean_x;
+
+    match &args[2] {
+        FormulaValue::Map(values) => {
+            let mut result = HashMap::new();
+            for (key, value) in values {
+                let x = evaluator.num(value, name)?;
+                result.insert(key.clone(), FormulaValue::Number(intercept + slope * x));
+            }
+            Ok(FormulaValue::Map(result))
+        }
+        FormulaValue::List(values) => {
+            let mut result = Vec::with_capacity(values.len());
+            for value in values {
+                let x = evaluator.num(value, name)?;
+                result.push(FormulaValue::Number(intercept + slope * x));
+            }
+            Ok(FormulaValue::List(result))
+        }
+        value => {
+            let x = evaluator.num(value, name)?;
+            Ok(FormulaValue::Number(intercept + slope * x))
+        }
+    }
 }
 
 fn fn_name(

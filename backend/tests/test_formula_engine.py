@@ -382,6 +382,97 @@ class TestAggregation:
 
 
 # ===========================================================================
+# Evaluator — advanced aggregation/statistical functions (F054)
+# ===========================================================================
+
+class TestAdvancedAggregationFunctions:
+    def test_sumif_numeric_criteria(self):
+        result = evaluate_formula(
+            'SUMIF(Sales, ">15")',
+            {"Sales": [10, 20, 30]},
+        )
+        assert result == 50.0
+
+    def test_countif_text_criteria(self):
+        result = evaluate_formula(
+            "COUNTIF(Statuses, StatusCriteria)",
+            {
+                "Statuses": ["Open", "Closed", "Open", "Hold"],
+                "StatusCriteria": "Open",
+            },
+        )
+        assert result == 2.0
+
+    def test_averageif_numeric_criteria(self):
+        result = evaluate_formula(
+            "AVERAGEIF(Sales, Criteria)",
+            {"Sales": [10, 20, 30], "Criteria": ">=20"},
+        )
+        assert result == 25.0
+
+    def test_averageif_no_match_raises(self):
+        with pytest.raises(FormulaError, match="AVERAGEIF found no matching values"):
+            evaluate_formula(
+                'AVERAGEIF(Sales, ">100")',
+                {"Sales": [10, 20, 30]},
+            )
+
+    def test_median_odd_range(self):
+        result = evaluate_formula("MEDIAN(Values)", {"Values": [7, 1, 3]})
+        assert result == 3.0
+
+    def test_median_even_range(self):
+        result = evaluate_formula("MEDIAN(Values)", {"Values": [1, 2, 3, 4]})
+        assert result == 2.5
+
+    def test_stdev_sample(self):
+        result = evaluate_formula("STDEV(Values)", {"Values": [1, 2, 3]})
+        assert abs(result - 1.0) < 1e-9
+
+    def test_variance_sample(self):
+        result = evaluate_formula("VARIANCE(Values)", {"Values": [1, 2, 3]})
+        assert abs(result - 1.0) < 1e-9
+
+    def test_percentile_with_fractional_k(self):
+        result = evaluate_formula("PERCENTILE(Values, 0.25)", {"Values": [10, 20, 30, 40]})
+        assert result == 17.5
+
+    def test_percentile_accepts_percentage_k(self):
+        result = evaluate_formula("PERCENTILE(Values, 25)", {"Values": [10, 20, 30, 40]})
+        assert result == 17.5
+
+    def test_large_and_small(self):
+        values = {"Values": [4, 9, 1, 7]}
+        assert evaluate_formula("LARGE(Values, 2)", values) == 7.0
+        assert evaluate_formula("SMALL(Values, 3)", values) == 7.0
+
+    def test_growth_linear_regression_scalar_new_x(self):
+        result = evaluate_formula(
+            "GROWTH(KnownY, KnownX, 5)",
+            {"KnownY": [3, 5, 7, 9], "KnownX": [1, 2, 3, 4]},
+        )
+        assert abs(result - 11.0) < 1e-9
+
+    def test_growth_linear_regression_list_new_x(self):
+        result = evaluate_formula(
+            "GROWTH(KnownY, KnownX, NewX)",
+            {
+                "KnownY": [3, 5, 7, 9],
+                "KnownX": [1, 2, 3, 4],
+                "NewX": [5, 6],
+            },
+        )
+        assert result == [11.0, 13.0]
+
+    def test_growth_requires_non_zero_known_x_variance(self):
+        with pytest.raises(FormulaError, match="non-zero variance"):
+            evaluate_formula(
+                "GROWTH(KnownY, KnownX, 10)",
+                {"KnownY": [1, 2, 3], "KnownX": [5, 5, 5]},
+            )
+
+
+# ===========================================================================
 # Evaluator — time functions (F051)
 # ===========================================================================
 

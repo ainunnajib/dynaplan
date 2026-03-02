@@ -1,0 +1,34 @@
+Implemented F054 end-to-end for formula engine parity (Python + Rust) and updated project progress.
+
+**Code changes**
+- Added F054 function execution + helpers in Python evaluator:
+  - `SUMIF`, `COUNTIF`, `AVERAGEIF`, `MEDIAN`, `STDEV`, `VARIANCE`, `PERCENTILE`, `LARGE`, `SMALL`, `GROWTH`
+  - Criteria parsing/matching, sample variance, percentile interpolation, and linear regression
+  - [backend/app/engine/evaluator.py:303](/Users/ainunnajib/dynaplan/backend/app/engine/evaluator.py:303)
+  - [backend/app/engine/evaluator.py:897](/Users/ainunnajib/dynaplan/backend/app/engine/evaluator.py:897)
+- Updated builtin function registry list:
+  - [backend/app/engine/formula.py:129](/Users/ainunnajib/dynaplan/backend/app/engine/formula.py:129)
+- Added backend formula tests for F054 coverage:
+  - [backend/tests/test_formula_engine.py:388](/Users/ainunnajib/dynaplan/backend/tests/test_formula_engine.py:388)
+
+- Added Rust formula parity:
+  - Builtin registration + dispatch wiring
+  - Full F054 helper/function implementations mirroring Python behavior
+  - [engine/dynaplan-core/src/formula/functions.rs:9](/Users/ainunnajib/dynaplan/engine/dynaplan-core/src/formula/functions.rs:9)
+  - [engine/dynaplan-core/src/formula/functions.rs:244](/Users/ainunnajib/dynaplan/engine/dynaplan-core/src/formula/functions.rs:244)
+  - [engine/dynaplan-core/src/formula/functions.rs:1674](/Users/ainunnajib/dynaplan/engine/dynaplan-core/src/formula/functions.rs:1674)
+- Added Rust formula tests for F054:
+  - [engine/dynaplan-core/src/formula/tests.rs:555](/Users/ainunnajib/dynaplan/engine/dynaplan-core/src/formula/tests.rs:555)
+
+- Updated progress tracking:
+  - [claude-progress.txt:3](/Users/ainunnajib/dynaplan/claude-progress.txt:3)
+  - [claude-progress.txt:61](/Users/ainunnajib/dynaplan/claude-progress.txt:61)
+
+**Validation run**
+- `cd backend && .venv/bin/python -m pytest -x --tb=short -q`  
+  Result: `1518 passed, 1 skipped, 1 xfailed, 1 xpassed`
+- `cd frontend && bun tsc --noEmit`  
+  Result: passed (no output/errors)
+
+**Note**
+- Rust tests could not be executed in this environment because `cargo` is not installed (`command not found`).

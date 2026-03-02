@@ -552,6 +552,285 @@ fn average_with_variable_list() {
 }
 
 #[test]
+fn sumif_numeric_criteria() {
+    let result = as_number(ev(
+        "SUMIF(Sales, \">15\")",
+        vec![(
+            "Sales",
+            FormulaValue::List(vec![
+                FormulaValue::Number(10.0),
+                FormulaValue::Number(20.0),
+                FormulaValue::Number(30.0),
+            ]),
+        )],
+    ));
+    assert_eq!(result, 50.0);
+}
+
+#[test]
+fn countif_text_criteria() {
+    let result = as_number(ev(
+        "COUNTIF(Statuses, Criteria)",
+        vec![
+            (
+                "Statuses",
+                FormulaValue::List(vec![
+                    FormulaValue::Text("Open".to_string()),
+                    FormulaValue::Text("Closed".to_string()),
+                    FormulaValue::Text("Open".to_string()),
+                    FormulaValue::Text("Hold".to_string()),
+                ]),
+            ),
+            ("Criteria", FormulaValue::Text("Open".to_string())),
+        ],
+    ));
+    assert_eq!(result, 2.0);
+}
+
+#[test]
+fn averageif_numeric_criteria() {
+    let result = as_number(ev(
+        "AVERAGEIF(Sales, Criteria)",
+        vec![
+            (
+                "Sales",
+                FormulaValue::List(vec![
+                    FormulaValue::Number(10.0),
+                    FormulaValue::Number(20.0),
+                    FormulaValue::Number(30.0),
+                ]),
+            ),
+            ("Criteria", FormulaValue::Text(">=20".to_string())),
+        ],
+    ));
+    assert_eq!(result, 25.0);
+}
+
+#[test]
+fn averageif_no_match_raises() {
+    assert!(evaluate_formula(
+        "AVERAGEIF(Sales, \">100\")",
+        ctx(vec![(
+            "Sales",
+            FormulaValue::List(vec![
+                FormulaValue::Number(10.0),
+                FormulaValue::Number(20.0),
+                FormulaValue::Number(30.0),
+            ]),
+        )]),
+    )
+    .is_err());
+}
+
+#[test]
+fn median_odd_range() {
+    let result = as_number(ev(
+        "MEDIAN(Values)",
+        vec![(
+            "Values",
+            FormulaValue::List(vec![
+                FormulaValue::Number(7.0),
+                FormulaValue::Number(1.0),
+                FormulaValue::Number(3.0),
+            ]),
+        )],
+    ));
+    assert_eq!(result, 3.0);
+}
+
+#[test]
+fn median_even_range() {
+    let result = as_number(ev(
+        "MEDIAN(Values)",
+        vec![(
+            "Values",
+            FormulaValue::List(vec![
+                FormulaValue::Number(1.0),
+                FormulaValue::Number(2.0),
+                FormulaValue::Number(3.0),
+                FormulaValue::Number(4.0),
+            ]),
+        )],
+    ));
+    assert_eq!(result, 2.5);
+}
+
+#[test]
+fn stdev_sample() {
+    let result = as_number(ev(
+        "STDEV(Values)",
+        vec![(
+            "Values",
+            FormulaValue::List(vec![
+                FormulaValue::Number(1.0),
+                FormulaValue::Number(2.0),
+                FormulaValue::Number(3.0),
+            ]),
+        )],
+    ));
+    assert!((result - 1.0).abs() < 1e-9);
+}
+
+#[test]
+fn variance_sample() {
+    let result = as_number(ev(
+        "VARIANCE(Values)",
+        vec![(
+            "Values",
+            FormulaValue::List(vec![
+                FormulaValue::Number(1.0),
+                FormulaValue::Number(2.0),
+                FormulaValue::Number(3.0),
+            ]),
+        )],
+    ));
+    assert!((result - 1.0).abs() < 1e-9);
+}
+
+#[test]
+fn percentile_with_fractional_k() {
+    let result = as_number(ev(
+        "PERCENTILE(Values, 0.25)",
+        vec![(
+            "Values",
+            FormulaValue::List(vec![
+                FormulaValue::Number(10.0),
+                FormulaValue::Number(20.0),
+                FormulaValue::Number(30.0),
+                FormulaValue::Number(40.0),
+            ]),
+        )],
+    ));
+    assert_eq!(result, 17.5);
+}
+
+#[test]
+fn percentile_accepts_percentage_k() {
+    let result = as_number(ev(
+        "PERCENTILE(Values, 25)",
+        vec![(
+            "Values",
+            FormulaValue::List(vec![
+                FormulaValue::Number(10.0),
+                FormulaValue::Number(20.0),
+                FormulaValue::Number(30.0),
+                FormulaValue::Number(40.0),
+            ]),
+        )],
+    ));
+    assert_eq!(result, 17.5);
+}
+
+#[test]
+fn large_and_small() {
+    let entries = vec![(
+        "Values",
+        FormulaValue::List(vec![
+            FormulaValue::Number(4.0),
+            FormulaValue::Number(9.0),
+            FormulaValue::Number(1.0),
+            FormulaValue::Number(7.0),
+        ]),
+    )];
+    assert_eq!(as_number(ev("LARGE(Values, 2)", entries.clone())), 7.0);
+    assert_eq!(as_number(ev("SMALL(Values, 3)", entries)), 7.0);
+}
+
+#[test]
+fn growth_linear_regression_scalar_new_x() {
+    let result = as_number(ev(
+        "GROWTH(KnownY, KnownX, 5)",
+        vec![
+            (
+                "KnownY",
+                FormulaValue::List(vec![
+                    FormulaValue::Number(3.0),
+                    FormulaValue::Number(5.0),
+                    FormulaValue::Number(7.0),
+                    FormulaValue::Number(9.0),
+                ]),
+            ),
+            (
+                "KnownX",
+                FormulaValue::List(vec![
+                    FormulaValue::Number(1.0),
+                    FormulaValue::Number(2.0),
+                    FormulaValue::Number(3.0),
+                    FormulaValue::Number(4.0),
+                ]),
+            ),
+        ],
+    ));
+    assert!((result - 11.0).abs() < 1e-9);
+}
+
+#[test]
+fn growth_linear_regression_list_new_x() {
+    let result = ev(
+        "GROWTH(KnownY, KnownX, NewX)",
+        vec![
+            (
+                "KnownY",
+                FormulaValue::List(vec![
+                    FormulaValue::Number(3.0),
+                    FormulaValue::Number(5.0),
+                    FormulaValue::Number(7.0),
+                    FormulaValue::Number(9.0),
+                ]),
+            ),
+            (
+                "KnownX",
+                FormulaValue::List(vec![
+                    FormulaValue::Number(1.0),
+                    FormulaValue::Number(2.0),
+                    FormulaValue::Number(3.0),
+                    FormulaValue::Number(4.0),
+                ]),
+            ),
+            (
+                "NewX",
+                FormulaValue::List(vec![
+                    FormulaValue::Number(5.0),
+                    FormulaValue::Number(6.0),
+                ]),
+            ),
+        ],
+    );
+    match result {
+        FormulaValue::List(values) => {
+            assert_eq!(values, vec![FormulaValue::Number(11.0), FormulaValue::Number(13.0)]);
+        }
+        other => panic!("expected list result, got {:?}", other),
+    }
+}
+
+#[test]
+fn growth_requires_non_zero_known_x_variance() {
+    assert!(evaluate_formula(
+        "GROWTH(KnownY, KnownX, 10)",
+        ctx(vec![
+            (
+                "KnownY",
+                FormulaValue::List(vec![
+                    FormulaValue::Number(1.0),
+                    FormulaValue::Number(2.0),
+                    FormulaValue::Number(3.0),
+                ]),
+            ),
+            (
+                "KnownX",
+                FormulaValue::List(vec![
+                    FormulaValue::Number(5.0),
+                    FormulaValue::Number(5.0),
+                    FormulaValue::Number(5.0),
+                ]),
+            ),
+        ]),
+    )
+    .is_err());
+}
+
+#[test]
 fn concatenate() {
     let result = as_text(ev("CONCATENATE(\"Hello\", \" \", \"World\")", vec![]));
     assert_eq!(result, "Hello World");

@@ -126,6 +126,9 @@ def get_references(text: str) -> Set[str]:
 _BUILTIN_FUNCTIONS: Set[str] = {
     "ABS", "ROUND", "MIN", "MAX", "POWER", "SQRT", "LOG",
     "SUM", "AVERAGE", "COUNT", "ITEMCOUNT",
+    "SUMIF", "COUNTIF", "AVERAGEIF",
+    "MEDIAN", "STDEV", "VARIANCE",
+    "PERCENTILE", "LARGE", "SMALL", "GROWTH",
     "IF", "AND", "OR", "NOT", "ISBLANK",
     "CONCATENATE", "LEFT", "RIGHT", "LEN", "UPPER", "LOWER", "TRIM",
     "MID", "FIND", "SUBSTITUTE", "TEXT", "VALUE", "TEXTLIST", "MAKETEXT",

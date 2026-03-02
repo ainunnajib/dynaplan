@@ -6,7 +6,8 @@ context dict that maps variable names to their values.
 
 Built-in functions (case-insensitive, stored upper-case):
     Math        : ABS, ROUND, MIN, MAX, POWER, SQRT, LOG
-    Aggregation : SUM, AVERAGE, COUNT, ITEMCOUNT
+    Aggregation : SUM, AVERAGE, COUNT, ITEMCOUNT, SUMIF, COUNTIF, AVERAGEIF,
+                  MEDIAN, STDEV, VARIANCE, PERCENTILE, LARGE, SMALL, GROWTH
     Logical     : IF, AND, OR, NOT, ISBLANK
     Text        : CONCATENATE, LEFT, RIGHT, LEN, UPPER, LOWER, TRIM,
                   MID, FIND, SUBSTITUTE, TEXT, VALUE, TEXTLIST, MAKETEXT
@@ -298,6 +299,119 @@ class Evaluator:
             if not isinstance(args[0], list):
                 raise FormulaError("ITEMCOUNT requires a list argument")
             return float(len(args[0]))
+
+        if name == "SUMIF":
+            self._check_arity(name, args, 2)
+            values = self._range_values(args[0])
+            matched = [
+                value
+                for value in values
+                if self._criteria_matches(value, args[1], name)
+            ]
+            return sum(self._num(value, name) for value in matched)
+
+        if name == "COUNTIF":
+            self._check_arity(name, args, 2)
+            values = self._range_values(args[0])
+            return float(
+                len(
+                    [
+                        value
+                        for value in values
+                        if self._criteria_matches(value, args[1], name)
+                    ]
+                )
+            )
+
+        if name == "AVERAGEIF":
+            self._check_arity(name, args, 2)
+            values = self._range_values(args[0])
+            matched = [
+                self._num(value, name)
+                for value in values
+                if self._criteria_matches(value, args[1], name)
+            ]
+            if len(matched) == 0:
+                raise FormulaError("AVERAGEIF found no matching values")
+            return sum(matched) / len(matched)
+
+        if name == "MEDIAN":
+            self._check_arity(name, args, 1)
+            values = sorted(self._range_numbers(args[0], name))
+            if len(values) == 0:
+                raise FormulaError("MEDIAN called with empty range")
+            mid = len(values) // 2
+            if len(values) % 2 == 1:
+                return values[mid]
+            return (values[mid - 1] + values[mid]) / 2.0
+
+        if name == "STDEV":
+            self._check_arity(name, args, 1)
+            values = self._range_numbers(args[0], name)
+            variance = self._sample_variance(values, name)
+            return math.sqrt(variance)
+
+        if name == "VARIANCE":
+            self._check_arity(name, args, 1)
+            values = self._range_numbers(args[0], name)
+            return self._sample_variance(values, name)
+
+        if name == "PERCENTILE":
+            self._check_arity(name, args, 2)
+            values = self._range_numbers(args[0], name)
+            k = self._num(args[1], name)
+            return self._percentile(values, k, name)
+
+        if name == "LARGE":
+            self._check_arity(name, args, 2)
+            values = sorted(self._range_numbers(args[0], name), reverse=True)
+            k = int(self._num(args[1], name))
+            if k <= 0:
+                raise FormulaError("LARGE requires k >= 1")
+            if k > len(values):
+                raise FormulaError("LARGE k is out of bounds for range length")
+            return values[k - 1]
+
+        if name == "SMALL":
+            self._check_arity(name, args, 2)
+            values = sorted(self._range_numbers(args[0], name))
+            k = int(self._num(args[1], name))
+            if k <= 0:
+                raise FormulaError("SMALL requires k >= 1")
+            if k > len(values):
+                raise FormulaError("SMALL k is out of bounds for range length")
+            return values[k - 1]
+
+        if name == "GROWTH":
+            self._check_arity(name, args, 3)
+            known_y_values, known_x_values = self._growth_known_pairs(
+                args[0], args[1], name
+            )
+            if len(known_y_values) < 2:
+                raise FormulaError("GROWTH requires at least 2 known data points")
+
+            mean_x = sum(known_x_values) / len(known_x_values)
+            mean_y = sum(known_y_values) / len(known_y_values)
+            denominator = sum((x - mean_x) ** 2 for x in known_x_values)
+            if denominator == 0:
+                raise FormulaError("GROWTH requires known_x values with non-zero variance")
+
+            numerator = sum(
+                (known_x_values[i] - mean_x) * (known_y_values[i] - mean_y)
+                for i in range(len(known_x_values))
+            )
+            slope = numerator / denominator
+            intercept = mean_y - slope * mean_x
+
+            new_x = args[2]
+            if isinstance(new_x, dict):
+                return {
+                    key: intercept + slope * self._num(value, name)
+                    for key, value in new_x.items()
+                }
+            if isinstance(new_x, list):
+                return [intercept + slope * self._num(value, name) for value in new_x]
+            return intercept + slope * self._num(new_x, name)
 
         # --- Logical ---
         if name == "AND":
@@ -729,6 +843,159 @@ class Evaluator:
             else:
                 result.append(self._num(a, context_label))
         return result
+
+    def _range_values(self, value: Any) -> List[Any]:
+        if isinstance(value, list):
+            return list(value)
+        if isinstance(value, dict):
+            return [item for item in value.values()]
+        return [value]
+
+    def _range_numbers(self, value: Any, context_label: str) -> List[float]:
+        return [self._num(item, context_label) for item in self._range_values(value)]
+
+    def _try_num(self, value: Any) -> Optional[float]:
+        if isinstance(value, bool):
+            return float(value)
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            text = value.strip()
+            if len(text) == 0:
+                return None
+            try:
+                return float(text)
+            except ValueError:
+                return None
+        return None
+
+    def _coerce_criteria_operand(self, value: str) -> Any:
+        text = value.strip()
+        if len(text) == 0:
+            return ""
+
+        if (
+            len(text) >= 2
+            and (
+                (text.startswith('"') and text.endswith('"'))
+                or (text.startswith("'") and text.endswith("'"))
+            )
+        ):
+            return text[1:-1]
+
+        upper = text.upper()
+        if upper == "TRUE":
+            return True
+        if upper == "FALSE":
+            return False
+
+        try:
+            return float(text)
+        except ValueError:
+            return text
+
+    def _criteria_matches(self, value: Any, criteria: Any, context_label: str) -> bool:
+        operator = "="
+        operand = criteria
+
+        if isinstance(criteria, str):
+            text = criteria.strip()
+            for prefix in (">=", "<=", "<>", ">", "<", "="):
+                if text.startswith(prefix):
+                    operator = prefix
+                    operand = self._coerce_criteria_operand(text[len(prefix):])
+                    break
+            else:
+                operand = self._coerce_criteria_operand(text)
+
+        left_num = self._try_num(value)
+        right_num = self._try_num(operand)
+
+        if operator == "=":
+            if left_num is not None and right_num is not None:
+                return left_num == right_num
+            return self._coerce_text_value(value) == self._coerce_text_value(operand)
+
+        if operator == "<>":
+            if left_num is not None and right_num is not None:
+                return left_num != right_num
+            return self._coerce_text_value(value) != self._coerce_text_value(operand)
+
+        if left_num is not None and right_num is not None:
+            if operator == ">":
+                return left_num > right_num
+            if operator == "<":
+                return left_num < right_num
+            if operator == ">=":
+                return left_num >= right_num
+            if operator == "<=":
+                return left_num <= right_num
+        else:
+            left_text = self._coerce_text_value(value)
+            right_text = self._coerce_text_value(operand)
+            if operator == ">":
+                return left_text > right_text
+            if operator == "<":
+                return left_text < right_text
+            if operator == ">=":
+                return left_text >= right_text
+            if operator == "<=":
+                return left_text <= right_text
+
+        raise FormulaError(f"{context_label} received unsupported criteria: {criteria!r}")
+
+    def _sample_variance(self, values: List[float], context_label: str) -> float:
+        if len(values) < 2:
+            raise FormulaError(f"{context_label} requires at least 2 values")
+        mean = sum(values) / len(values)
+        return sum((value - mean) ** 2 for value in values) / (len(values) - 1)
+
+    def _percentile(self, values: List[float], k: float, context_label: str) -> float:
+        if len(values) == 0:
+            raise FormulaError(f"{context_label} called with empty range")
+        if k > 1.0 and k <= 100.0:
+            k = k / 100.0
+        if k < 0.0 or k > 1.0:
+            raise FormulaError(f"{context_label} requires k between 0 and 1 inclusive")
+
+        ordered = sorted(values)
+        if len(ordered) == 1:
+            return ordered[0]
+
+        rank = k * (len(ordered) - 1)
+        lower = int(math.floor(rank))
+        upper = int(math.ceil(rank))
+        if lower == upper:
+            return ordered[lower]
+        weight = rank - lower
+        return ordered[lower] + (ordered[upper] - ordered[lower]) * weight
+
+    def _growth_known_pairs(
+        self,
+        known_y: Any,
+        known_x: Any,
+        context_label: str,
+    ) -> Tuple[List[float], List[float]]:
+        if isinstance(known_y, dict) and isinstance(known_x, dict):
+            keys = [key for key in known_y.keys() if key in known_x]
+            if len(keys) == 0:
+                raise FormulaError(
+                    "GROWTH requires known_y and known_x maps to share at least one key"
+                )
+            y_values = [self._num(known_y[key], context_label) for key in keys]
+            x_values = [self._num(known_x[key], context_label) for key in keys]
+            return y_values, x_values
+
+        y_items = self._range_values(known_y)
+        x_items = self._range_values(known_x)
+        if len(y_items) != len(x_items):
+            raise FormulaError("GROWTH requires known_y and known_x with matching lengths")
+        if len(y_items) == 0:
+            raise FormulaError("GROWTH requires at least one known data point")
+
+        y_values = [self._num(value, context_label) for value in y_items]
+        x_values = [self._num(value, context_label) for value in x_items]
+        return y_values, x_values
 
     def _coerce_text_value(self, value: Any) -> str:
         if value is None:
