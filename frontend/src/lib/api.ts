@@ -255,6 +255,79 @@ export interface SavedViewUpdateInput {
   is_default?: boolean;
 }
 
+export type DataHubColumnType =
+  | "text"
+  | "integer"
+  | "number"
+  | "boolean"
+  | "date"
+  | "datetime";
+
+export interface DataHubColumnSchema {
+  name: string;
+  data_type: DataHubColumnType;
+  nullable: boolean;
+}
+
+export interface DataHubTable {
+  id: string;
+  model_id: string;
+  name: string;
+  description: string | null;
+  schema_definition: DataHubColumnSchema[];
+  row_count: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DataHubRow {
+  id: string;
+  table_id: string;
+  sort_order: number;
+  row_data: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DataHubRowsListResponse {
+  total_count: number;
+  rows: DataHubRow[];
+}
+
+export interface DataHubLineage {
+  id: string;
+  table_id: string;
+  target_model_id: string;
+  target_module_id: string | null;
+  mapping_config: Record<string, unknown>;
+  records_published: number;
+  last_published_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DataHubImportResponse {
+  table: DataHubTable;
+  rows_imported: number;
+}
+
+export interface DataHubTransformResponse {
+  table: DataHubTable;
+  rows_before: number;
+  rows_after: number;
+}
+
+export interface DataHubPublishResponse {
+  table_id: string;
+  lineage_id: string;
+  target_model_id: string;
+  target_module_id: string | null;
+  rows_processed: number;
+  cells_written: number;
+  last_published_at: string | null;
+}
+
 // ── API helpers ───────────────────────────────────────────────────────────────
 
 export async function getWorkspaces(): Promise<Workspace[]> {
@@ -361,6 +434,145 @@ export async function deleteSavedView(savedViewId: string): Promise<void> {
   return fetchApi<void>(`/api/saved-views/${savedViewId}`, {
     method: "DELETE",
   });
+}
+
+export async function getDataHubTables(modelId: string): Promise<DataHubTable[]> {
+  return fetchApi<DataHubTable[]>(`/api/models/${modelId}/data-hub/tables`);
+}
+
+export async function createDataHubTable(
+  modelId: string,
+  data: {
+    name: string;
+    description?: string;
+    schema_definition?: DataHubColumnSchema[];
+  }
+): Promise<DataHubTable> {
+  return fetchApi<DataHubTable>(`/api/models/${modelId}/data-hub/tables`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateDataHubTable(
+  tableId: string,
+  data: {
+    name?: string;
+    description?: string | null;
+    schema_definition?: DataHubColumnSchema[];
+  }
+): Promise<DataHubTable> {
+  return fetchApi<DataHubTable>(`/api/data-hub/tables/${tableId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteDataHubTable(tableId: string): Promise<void> {
+  return fetchApi<void>(`/api/data-hub/tables/${tableId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getDataHubRows(
+  tableId: string,
+  params?: { offset?: number; limit?: number }
+): Promise<DataHubRowsListResponse> {
+  const search = new URLSearchParams();
+  if (params?.offset !== undefined) {
+    search.set("offset", String(params.offset));
+  }
+  if (params?.limit !== undefined) {
+    search.set("limit", String(params.limit));
+  }
+  const query = search.toString();
+  return fetchApi<DataHubRowsListResponse>(
+    `/api/data-hub/tables/${tableId}/rows${query ? `?${query}` : ""}`
+  );
+}
+
+export async function replaceDataHubRows(
+  tableId: string,
+  rows: Array<Record<string, unknown>>,
+  inferSchema = false
+): Promise<DataHubTable> {
+  return fetchApi<DataHubTable>(`/api/data-hub/tables/${tableId}/rows`, {
+    method: "PUT",
+    body: JSON.stringify({
+      rows,
+      infer_schema: inferSchema,
+    }),
+  });
+}
+
+export async function appendDataHubRows(
+  tableId: string,
+  rows: Array<Record<string, unknown>>,
+  inferSchema = false
+): Promise<DataHubTable> {
+  return fetchApi<DataHubTable>(`/api/data-hub/tables/${tableId}/rows/append`, {
+    method: "POST",
+    body: JSON.stringify({
+      rows,
+      infer_schema: inferSchema,
+    }),
+  });
+}
+
+export async function importDataHubRows(
+  tableId: string,
+  data: {
+    connection_id?: string;
+    connector_type?: string;
+    connector_config?: Record<string, unknown>;
+    replace_existing?: boolean;
+    infer_schema?: boolean;
+  }
+): Promise<DataHubImportResponse> {
+  return fetchApi<DataHubImportResponse>(`/api/data-hub/tables/${tableId}/import`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function transformDataHubRows(
+  tableId: string,
+  data: {
+    operations: Array<{
+      operation_type: "transform" | "filter" | "map" | "aggregate";
+      config: Record<string, unknown>;
+      name?: string;
+    }>;
+    replace_existing?: boolean;
+  }
+): Promise<DataHubTransformResponse> {
+  return fetchApi<DataHubTransformResponse>(`/api/data-hub/tables/${tableId}/transform`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function publishDataHubTable(
+  tableId: string,
+  data: {
+    module_id: string;
+    line_item_map: Record<string, string>;
+    dimension_columns?: string[];
+    dimension_member_map?: Record<string, Record<string, string>>;
+    static_dimension_members?: string[];
+    version_id?: string;
+    allow_null_values?: boolean;
+    batch_size?: number;
+  }
+): Promise<DataHubPublishResponse> {
+  return fetchApi<DataHubPublishResponse>(`/api/data-hub/tables/${tableId}/publish`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getDataHubLineage(tableId: string): Promise<DataHubLineage[]> {
+  return fetchApi<DataHubLineage[]>(`/api/data-hub/tables/${tableId}/lineage`);
 }
 
 // ── Dashboard types ───────────────────────────────────────────────────────────

@@ -1,0 +1,25 @@
+Implemented F067 end-to-end with backend + frontend + tests.
+
+- Added Data Hub domain models for staging tables, rows, and lineage: [data_hub.py](/Users/ainunnajib/dynaplan/backend/app/models/data_hub.py)
+- Added Data Hub schemas (create/update/import/transform/publish + responses): [data_hub.py](/Users/ainunnajib/dynaplan/backend/app/schemas/data_hub.py)
+- Added Data Hub service layer for:
+  - schema-on-write row validation/coercion
+  - connector imports (direct connector or CloudWorks connection)
+  - transform/clean operations (transform/filter/map/aggregate)
+  - publish to module cells + lineage tracking  
+  File: [data_hub.py](/Users/ainunnajib/dynaplan/backend/app/services/data_hub.py)
+- Added FastAPI router/endpoints under `/models/{model_id}/data-hub/tables` and `/data-hub/tables/*`: [data_hub.py](/Users/ainunnajib/dynaplan/backend/app/api/data_hub.py)
+- Registered router and model imports: [main.py](/Users/ainunnajib/dynaplan/backend/app/main.py), [__init__.py](/Users/ainunnajib/dynaplan/backend/app/models/__init__.py)
+- Added backend integration tests for CRUD, schema enforcement, connector import, transforms, publish, and lineage: [test_data_hub.py](/Users/ainunnajib/dynaplan/backend/tests/test_data_hub.py)
+- Added frontend Data Hub manager UI and API client typing/helpers, and mounted it on model page:
+  - [DataHubManager.tsx](/Users/ainunnajib/dynaplan/frontend/src/components/data-hub/DataHubManager.tsx)
+  - [api.ts](/Users/ainunnajib/dynaplan/frontend/src/lib/api.ts)
+  - [page.tsx](/Users/ainunnajib/dynaplan/frontend/src/app/models/[modelId]/page.tsx)
+- Updated progress tracking: [claude-progress.txt](/Users/ainunnajib/dynaplan/claude-progress.txt)
+
+Validation run:
+
+- `cd backend && .venv/bin/python -m pytest -x --tb=short -q`  
+  Result: `1578 passed, 1 skipped, 1 xfailed, 1 xpassed`
+- `cd frontend && bun tsc --noEmit`  
+  Result: pass (no type errors)

@@ -4,6 +4,7 @@ import { getModel, getModules, getDimensions, getDimensionItems } from "@/lib/ap
 import type { PlanningModel, Module, Dimension } from "@/lib/api";
 import ModuleCard from "@/components/module/ModuleCard";
 import CreateModuleDialog from "@/components/module/CreateModuleDialog";
+import DataHubManager from "@/components/data-hub/DataHubManager";
 
 export const metadata = {
   title: "Model — Dynaplan",
@@ -178,6 +179,10 @@ export default async function ModelPage({ params }: PageProps) {
             </div>
           </div>
         )}
+
+        <div className="mt-8">
+          <DataHubManager modelId={modelId} />
+        </div>
       </main>
     </div>
   );
