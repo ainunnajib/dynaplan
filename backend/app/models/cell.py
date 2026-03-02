@@ -30,6 +30,13 @@ class CellValue(Base):
     value_number: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     value_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     value_boolean: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    value_encrypted: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    encryption_key_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid,
+        ForeignKey("model_encryption_keys.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

@@ -245,8 +245,12 @@ async def bulk_read_cells(
     paginated = all_cells[offset: offset + limit]
     has_more = (offset + limit) < total_count
 
+    read_cells = []
+    for cell in paginated:
+        read_cells.append(await _cell_to_read(db, cell))
+
     return {
-        "cells": [_cell_to_read(c) for c in paginated],
+        "cells": read_cells,
         "total_count": total_count,
         "has_more": has_more,
     }

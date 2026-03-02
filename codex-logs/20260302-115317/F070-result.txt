@@ -1,0 +1,32 @@
+Implemented F070 end-to-end with model-scoped encryption key management, encrypted cell-at-rest storage, key rotation, and KMS provider integration hooks.
+
+**What I changed**
+- Added per-model key model + lifecycle API:
+  - [`backend/app/models/model_encryption.py`](/Users/ainunnajib/dynaplan/backend/app/models/model_encryption.py)
+  - [`backend/app/api/model_encryption.py`](/Users/ainunnajib/dynaplan/backend/app/api/model_encryption.py)
+  - [`backend/app/schemas/model_encryption.py`](/Users/ainunnajib/dynaplan/backend/app/schemas/model_encryption.py)
+  - [`backend/app/services/model_encryption.py`](/Users/ainunnajib/dynaplan/backend/app/services/model_encryption.py)
+- Registered new model/router:
+  - [`backend/app/models/__init__.py`](/Users/ainunnajib/dynaplan/backend/app/models/__init__.py)
+  - [`backend/app/main.py`](/Users/ainunnajib/dynaplan/backend/app/main.py)
+- Added encrypted payload fields to cells:
+  - [`backend/app/models/cell.py`](/Users/ainunnajib/dynaplan/backend/app/models/cell.py)
+- Wired transparent encryption/decryption in cell flows (write/read/engine sync), with non-encrypted fallback:
+  - [`backend/app/services/cell.py`](/Users/ainunnajib/dynaplan/backend/app/services/cell.py)
+- Updated module and bulk read paths to return decrypted values when encryption is enabled:
+  - [`backend/app/api/module.py`](/Users/ainunnajib/dynaplan/backend/app/api/module.py)
+  - [`backend/app/services/bulk_ops.py`](/Users/ainunnajib/dynaplan/backend/app/services/bulk_ops.py)
+- Included encrypted payload size in quota storage accounting:
+  - [`backend/app/services/workspace_quota.py`](/Users/ainunnajib/dynaplan/backend/app/services/workspace_quota.py)
+- Added vault-related config knobs for external KMS integration:
+  - [`backend/app/core/config.py`](/Users/ainunnajib/dynaplan/backend/app/core/config.py)
+- Added F070 test coverage (10 tests):
+  - [`backend/tests/test_model_encryption.py`](/Users/ainunnajib/dynaplan/backend/tests/test_model_encryption.py)
+- Updated progress tracking:
+  - [`claude-progress.txt`](/Users/ainunnajib/dynaplan/claude-progress.txt)
+
+**Validation run**
+- `cd backend && .venv/bin/python -m pytest -x --tb=short -q`
+  - Result: `1600 passed, 1 skipped, 1 xfailed, 1 xpassed`
+- `cd frontend && bun tsc --noEmit`
+  - Result: clean (no errors)

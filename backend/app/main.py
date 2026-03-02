@@ -41,6 +41,7 @@ from app.api.pipeline import router as pipeline_router
 from app.api.scim import router as scim_router
 from app.api.saved_view import router as saved_view_router
 from app.api.data_hub import router as data_hub_router
+from app.api.model_encryption import router as model_encryption_router
 from app.api.time_dimension import router as time_dimension_router
 from app.api.version import router as version_router
 from app.api.workspace import router as workspace_router
@@ -109,6 +110,7 @@ app.include_router(pipeline_router)
 app.include_router(scim_router)
 app.include_router(saved_view_router)
 app.include_router(data_hub_router)
+app.include_router(model_encryption_router)
 
 
 async def _ensure_schema_compatibility(conn) -> None:
@@ -119,6 +121,16 @@ async def _ensure_schema_compatibility(conn) -> None:
         await conn.exec_driver_sql(
             "ALTER TABLE dimensions ADD COLUMN IF NOT EXISTS max_items INTEGER"
         )
+        await conn.exec_driver_sql(
+            "ALTER TABLE cell_values ADD COLUMN IF NOT EXISTS value_encrypted TEXT"
+        )
+        await conn.exec_driver_sql(
+            "ALTER TABLE cell_values ADD COLUMN IF NOT EXISTS encryption_key_id UUID"
+        )
+        await conn.exec_driver_sql(
+            "CREATE INDEX IF NOT EXISTS ix_cell_values_encryption_key_id "
+            "ON cell_values (encryption_key_id)"
+        )
         return
 
     if dialect == "sqlite":
@@ -127,6 +139,17 @@ async def _ensure_schema_compatibility(conn) -> None:
         if "max_items" not in columns:
             await conn.exec_driver_sql(
                 "ALTER TABLE dimensions ADD COLUMN max_items INTEGER"
+            )
+
+        cell_info = await conn.exec_driver_sql("PRAGMA table_info(cell_values)")
+        cell_columns = {row[1] for row in cell_info.fetchall()}
+        if "value_encrypted" not in cell_columns:
+            await conn.exec_driver_sql(
+                "ALTER TABLE cell_values ADD COLUMN value_encrypted TEXT"
+            )
+        if "encryption_key_id" not in cell_columns:
+            await conn.exec_driver_sql(
+                "ALTER TABLE cell_values ADD COLUMN encryption_key_id CHAR(32)"
             )
 
 

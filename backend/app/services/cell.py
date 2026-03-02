@@ -21,6 +21,11 @@ from app.services.composite_dimension import (
     ensure_composite_intersection_member,
     get_composite_dimensions_by_dimension_ids,
 )
+from app.services.model_encryption import (
+    encrypt_cell_components_with_key,
+    get_active_model_encryption_key,
+    get_cell_scalar_value,
+)
 from app.services.workspace_quota import enforce_cell_write_quota
 
 
@@ -46,21 +51,19 @@ def _extract_value_and_type(value: Any):
     return None, str(value), None, "text"
 
 
-def _cell_to_read(cell: CellValue) -> CellRead:
+async def _cell_to_read(
+    db: AsyncSession,
+    cell: CellValue,
+    key_record_cache: Optional[Dict[uuid.UUID, Any]] = None,
+    data_key_cache: Optional[Dict[uuid.UUID, str]] = None,
+) -> CellRead:
     """Convert a CellValue ORM object to a CellRead schema."""
-    # Determine the canonical value and its type
-    if cell.value_boolean is not None:
-        value = cell.value_boolean
-        value_type = "boolean"
-    elif cell.value_number is not None:
-        value = cell.value_number
-        value_type = "number"
-    elif cell.value_text is not None:
-        value = cell.value_text
-        value_type = "text"
-    else:
-        value = None
-        value_type = "null"
+    value, value_type = await get_cell_scalar_value(
+        db,
+        cell,
+        key_record_cache=key_record_cache,
+        data_key_cache=data_key_cache,
+    )
 
     dimension_members: List[uuid.UUID] = []
     if cell.dimension_key:
@@ -82,15 +85,20 @@ def _cell_to_read(cell: CellValue) -> CellRead:
     )
 
 
-def _cell_to_engine_value(cell: CellValue) -> Any:
+async def _cell_to_engine_value(
+    db: AsyncSession,
+    cell: CellValue,
+    key_record_cache: Optional[Dict[uuid.UUID, Any]] = None,
+    data_key_cache: Optional[Dict[uuid.UUID, str]] = None,
+) -> Any:
     """Convert CellValue row data to a Python scalar for the engine bridge."""
-    if cell.value_boolean is not None:
-        return cell.value_boolean
-    if cell.value_number is not None:
-        return cell.value_number
-    if cell.value_text is not None:
-        return cell.value_text
-    return None
+    value, _value_type = await get_cell_scalar_value(
+        db,
+        cell,
+        key_record_cache=key_record_cache,
+        data_key_cache=data_key_cache,
+    )
+    return value
 
 
 async def _get_model_ids_for_line_items(
@@ -119,17 +127,25 @@ async def _sync_engine_after_commit(
 
     unique_line_items = list(dict.fromkeys(cell.line_item_id for cell in cells))
     model_ids_by_line_item = await _get_model_ids_for_line_items(db, unique_line_items)
+    key_record_cache: Dict[uuid.UUID, Any] = {}
+    data_key_cache: Dict[uuid.UUID, str] = {}
 
     writes_by_model: Dict[uuid.UUID, List[Dict[str, Any]]] = {}
     for cell in cells:
         model_id = model_ids_by_line_item.get(cell.line_item_id)
         if model_id is None:
             continue
+        scalar_value = await _cell_to_engine_value(
+            db,
+            cell,
+            key_record_cache=key_record_cache,
+            data_key_cache=data_key_cache,
+        )
         writes_by_model.setdefault(model_id, []).append(
             {
                 "line_item_id": str(cell.line_item_id),
                 "dimension_key": cell.dimension_key,
-                "value": _cell_to_engine_value(cell),
+                "value": scalar_value,
             }
         )
 
@@ -145,7 +161,10 @@ async def _get_line_item_with_dimensions(
     result = await db.execute(
         select(LineItem)
         .where(LineItem.id == line_item_id)
-        .options(selectinload(LineItem.line_item_dimensions))
+        .options(
+            selectinload(LineItem.line_item_dimensions),
+            selectinload(LineItem.module),
+        )
     )
     return result.scalar_one_or_none()
 
@@ -332,6 +351,44 @@ async def _validate_cell_dimensions(
 
 # ── Write operations ───────────────────────────────────────────────────────────
 
+async def _assign_cell_storage_values(
+    db: AsyncSession,
+    cell: CellValue,
+    model_id: Optional[uuid.UUID],
+    value_number: Optional[float],
+    value_text: Optional[str],
+    value_boolean: Optional[bool],
+) -> None:
+    if model_id is None:
+        cell.value_number = value_number
+        cell.value_text = value_text
+        cell.value_boolean = value_boolean
+        cell.value_encrypted = None
+        cell.encryption_key_id = None
+        return
+
+    model_key = await get_active_model_encryption_key(db, model_id)
+    if model_key is None:
+        cell.value_number = value_number
+        cell.value_text = value_text
+        cell.value_boolean = value_boolean
+        cell.value_encrypted = None
+        cell.encryption_key_id = None
+        return
+
+    encrypted_payload = await encrypt_cell_components_with_key(
+        db,
+        model_key=model_key,
+        value_number=value_number,
+        value_text=value_text,
+        value_boolean=value_boolean,
+    )
+    cell.value_number = None
+    cell.value_text = None
+    cell.value_boolean = None
+    cell.value_encrypted = encrypted_payload
+    cell.encryption_key_id = model_key.id
+
 async def _upsert_cell_no_commit(
     db: AsyncSession,
     line_item_id: uuid.UUID,
@@ -341,6 +398,9 @@ async def _upsert_cell_no_commit(
 ) -> CellValue:
     """Upsert a single cell without committing the current transaction."""
     line_item = await _get_line_item_with_dimensions(db, line_item_id)
+    line_item_model_id: Optional[uuid.UUID] = None
+    if line_item is not None and line_item.module is not None:
+        line_item_model_id = line_item.module.model_id
     resolved_version_id, key_dimension_members, validation_dimension_members = await _resolve_cell_dimension_context(
         db=db,
         line_item_id=line_item_id,
@@ -378,9 +438,14 @@ async def _upsert_cell_no_commit(
     )
 
     if existing is not None:
-        existing.value_number = value_number
-        existing.value_text = value_text
-        existing.value_boolean = value_boolean
+        await _assign_cell_storage_values(
+            db=db,
+            cell=existing,
+            model_id=line_item_model_id,
+            value_number=value_number,
+            value_text=value_text,
+            value_boolean=value_boolean,
+        )
         if resolved_version_id is not None and existing.version_id is None:
             existing.version_id = resolved_version_id
         return existing
@@ -389,6 +454,11 @@ async def _upsert_cell_no_commit(
         line_item_id=line_item_id,
         version_id=resolved_version_id,
         dimension_key=dimension_key,
+    )
+    await _assign_cell_storage_values(
+        db=db,
+        cell=cell,
+        model_id=line_item_model_id,
         value_number=value_number,
         value_text=value_text,
         value_boolean=value_boolean,
@@ -406,6 +476,10 @@ async def write_cell(
 ) -> CellRead:
     """Upsert a single cell value."""
     value_number, value_text, value_boolean, _value_type = _extract_value_and_type(value)
+    line_item = await _get_line_item_with_dimensions(db, line_item_id)
+    line_item_model_id: Optional[uuid.UUID] = None
+    if line_item is not None and line_item.module is not None:
+        line_item_model_id = line_item.module.model_id
 
     cell = await _upsert_cell_no_commit(
         db=db,
@@ -432,9 +506,14 @@ async def write_cell(
             )
             existing = result.scalar_one_or_none()
             if existing is not None:
-                existing.value_number = value_number
-                existing.value_text = value_text
-                existing.value_boolean = value_boolean
+                await _assign_cell_storage_values(
+                    db=db,
+                    cell=existing,
+                    model_id=line_item_model_id,
+                    value_number=value_number,
+                    value_text=value_text,
+                    value_boolean=value_boolean,
+                )
                 if resolved_version_id is not None and existing.version_id is None:
                     existing.version_id = resolved_version_id
                 try:
@@ -447,7 +526,7 @@ async def write_cell(
                     await _sync_engine_after_commit(db, [existing])
                 except Exception:
                     pass
-                return _cell_to_read(existing)
+                return await _cell_to_read(db, existing)
             await asyncio.sleep(0)
 
         # If the winner row is still not visible, retry once from scratch.
@@ -468,7 +547,7 @@ async def write_cell(
             await _sync_engine_after_commit(db, [cell])
         except Exception:
             pass
-        return _cell_to_read(cell)
+        return await _cell_to_read(db, cell)
     except Exception:
         await db.rollback()
         raise
@@ -478,7 +557,7 @@ async def write_cell(
         await _sync_engine_after_commit(db, [cell])
     except Exception:
         pass
-    return _cell_to_read(cell)
+    return await _cell_to_read(db, cell)
 
 
 async def write_cells_bulk(
@@ -504,9 +583,18 @@ async def write_cells_bulk(
         raise
 
     results: List[CellRead] = []
+    key_record_cache: Dict[uuid.UUID, Any] = {}
+    data_key_cache: Dict[uuid.UUID, str] = {}
     for cell in upserted_cells:
         await db.refresh(cell)
-        results.append(_cell_to_read(cell))
+        results.append(
+            await _cell_to_read(
+                db,
+                cell,
+                key_record_cache=key_record_cache,
+                data_key_cache=data_key_cache,
+            )
+        )
 
     try:
         await _sync_engine_after_commit(db, upserted_cells)
@@ -544,7 +632,7 @@ async def read_cell(
     cell = result.scalar_one_or_none()
     if cell is None:
         return None
-    return _cell_to_read(cell)
+    return await _cell_to_read(db, cell)
 
 
 async def read_cells_for_line_item(
@@ -586,7 +674,19 @@ async def read_cells_for_line_item(
                 filtered.append(cell)
         cells = filtered
 
-    return [_cell_to_read(cell) for cell in cells]
+    key_record_cache: Dict[uuid.UUID, Any] = {}
+    data_key_cache: Dict[uuid.UUID, str] = {}
+    results: List[CellRead] = []
+    for cell in cells:
+        results.append(
+            await _cell_to_read(
+                db,
+                cell,
+                key_record_cache=key_record_cache,
+                data_key_cache=data_key_cache,
+            )
+        )
+    return results
 
 
 # ── Delete operations ──────────────────────────────────────────────────────────

@@ -33,6 +33,7 @@ from app.services.module import (
     update_line_item,
     update_module,
 )
+from app.services.model_encryption import get_cell_scalar_value
 from app.services.workspace_quota import WorkspaceQuotaExceededError
 
 router = APIRouter(tags=["modules"])
@@ -71,16 +72,6 @@ async def _get_line_item_or_404(
             detail="Line item not found",
         )
     return line_item
-
-
-def _cell_value(cell: CellValue):
-    if cell.value_boolean is not None:
-        return cell.value_boolean
-    if cell.value_number is not None:
-        return cell.value_number
-    if cell.value_text is not None:
-        return cell.value_text
-    return None
 
 
 def _dimension_member_ids(dimension_key: str) -> List[uuid.UUID]:
@@ -192,14 +183,18 @@ async def list_module_cells_endpoint(
         select(CellValue).where(CellValue.line_item_id.in_(line_item_ids))
     )
     cells = result.scalars().all()
-    return [
-        ModuleCellRead(
-            line_item_id=cell.line_item_id,
-            dimension_member_ids=_dimension_member_ids(cell.dimension_key),
-            value=_cell_value(cell),
+
+    rows: List[ModuleCellRead] = []
+    for cell in cells:
+        value, _value_type = await get_cell_scalar_value(db, cell)
+        rows.append(
+            ModuleCellRead(
+                line_item_id=cell.line_item_id,
+                dimension_member_ids=_dimension_member_ids(cell.dimension_key),
+                value=value,
+            )
         )
-        for cell in cells
-    ]
+    return rows
 
 
 @router.put(

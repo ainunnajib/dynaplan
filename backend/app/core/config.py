@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     database_pool_recycle: int = 1800
     redis_url: str = "redis://localhost:6379/0"
     secret_key: str = "change-me-in-production"
+    kms_default_provider: str = "local"
+    vault_addr: str = ""
+    vault_token: str = ""
+    vault_transit_mount: str = "transit"
+    vault_timeout_seconds: float = 5.0
     access_token_expire_minutes: int = 30
     frontend_url: str = "http://localhost:3000"
     auto_create_schema: bool = False

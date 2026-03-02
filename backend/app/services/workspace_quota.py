@@ -119,9 +119,12 @@ def estimate_cell_storage_bytes(
     value_number: Optional[float],
     value_text: Optional[str],
     value_boolean: Optional[bool],
+    value_encrypted: Optional[str] = None,
 ) -> int:
     size = len((dimension_key or "").encode("utf-8"))
-    if value_text is not None:
+    if value_encrypted is not None:
+        size += len(value_encrypted.encode("utf-8"))
+    elif value_text is not None:
         size += len(value_text.encode("utf-8"))
     elif value_number is not None:
         size += 8
@@ -136,12 +139,17 @@ def estimate_existing_cell_storage_bytes(cell: CellValue) -> int:
         value_number=cell.value_number,
         value_text=cell.value_text,
         value_boolean=cell.value_boolean,
+        value_encrypted=cell.value_encrypted,
     )
 
 
 def _cell_storage_expr():
     return (
         func.coalesce(func.length(CellValue.dimension_key), 0)
+        + case(
+            (CellValue.value_encrypted.is_not(None), func.length(CellValue.value_encrypted)),
+            else_=0,
+        )
         + case(
             (CellValue.value_text.is_not(None), func.length(CellValue.value_text)),
             else_=0,
