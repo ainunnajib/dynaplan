@@ -23,6 +23,10 @@ def _validate_dimension_config(
     dimension_type: DimensionType,
     max_items: Optional[int],
 ) -> None:
+    if dimension_type == DimensionType.composite:
+        raise DimensionValidationError(
+            "Composite dimensions must be created via /models/{model_id}/composite-dimensions"
+        )
     if max_items is not None and max_items <= 0:
         raise DimensionValidationError("max_items must be greater than 0")
     if max_items is not None and dimension_type != DimensionType.numbered:

@@ -3,6 +3,11 @@ from app.models.planning_model import PlanningModel
 from app.models.user import User
 from app.models.workspace import Workspace
 from app.models.dimension import Dimension, DimensionItem
+from app.models.composite_dimension import (
+    CompositeDimension,
+    CompositeDimensionMember,
+    CompositeDimensionSource,
+)
 from app.models.module import Module, LineItem, LineItemDimension
 from app.models.cell import CellValue
 from app.models.version import Version

@@ -92,10 +92,27 @@ function NumberedIcon() {
   );
 }
 
+function CompositeIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-3 w-3 shrink-0"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+    >
+      <path d="M8 1.5 2 4.8v6.4L8 14.5l6-3.3V4.8L8 1.5Z" />
+      <path d="M8 1.5v6.4M2 4.8l6 3.1 6-3.1M8 7.9v6.6" />
+    </svg>
+  );
+}
+
 function DimensionTypeIcon({ type }: { type: Dimension["type"] }) {
   if (type === "time") return <TimeIcon />;
   if (type === "version") return <VersionIcon />;
   if (type === "numbered") return <NumberedIcon />;
+  if (type === "composite") return <CompositeIcon />;
   return <CustomIcon />;
 }
 

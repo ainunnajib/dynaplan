@@ -186,8 +186,8 @@ export interface Dimension {
   id: string;
   model_id: string;
   name: string;
-  type: "custom" | "time" | "version" | "numbered";
-  dimension_type?: "custom" | "time" | "version" | "numbered";
+  type: "custom" | "time" | "version" | "numbered" | "composite";
+  dimension_type?: "custom" | "time" | "version" | "numbered" | "composite";
   created_at: string;
   updated_at: string;
 }

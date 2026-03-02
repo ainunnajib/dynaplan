@@ -81,6 +81,14 @@ function DimensionTypeIcon({ type }: { type: Dimension["type"] }) {
       </svg>
     );
   }
+  if (type === "composite") {
+    return (
+      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="m12 3-8.25 4.5v9L12 21l8.25-4.5v-9L12 3Z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="m3.75 7.5 8.25 4.5 8.25-4.5M12 12v9" />
+      </svg>
+    );
+  }
   // custom
   return (
     <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

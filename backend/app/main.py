@@ -9,6 +9,7 @@ from app.api.collaboration import router as collaboration_router
 from app.api.rbac import router as rbac_router
 from app.api.calc_cache import router as calc_cache_router
 from app.api.comment import router as comment_router
+from app.api.composite_dimension import router as composite_dimension_router
 from app.api.planning import router as planning_router
 from app.api.rolling_forecast import router as rolling_forecast_router
 from app.api.api_keys import router as api_keys_router
@@ -69,6 +70,7 @@ app.include_router(workspace_router)
 app.include_router(workspace_quota_router)
 app.include_router(planning_model_router)
 app.include_router(dimension_router)
+app.include_router(composite_dimension_router)
 app.include_router(module_router)
 app.include_router(cell_router)
 app.include_router(time_dimension_router)

@@ -14,6 +14,7 @@ class DimensionType(str, enum.Enum):
     time = "time"
     version = "version"
     numbered = "numbered"
+    composite = "composite"
 
 
 class Dimension(Base):
@@ -47,6 +48,13 @@ class Dimension(Base):
         "LineItemDimension",
         back_populates="dimension",
         cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    composite_config: Mapped[Optional["CompositeDimension"]] = relationship(
+        "CompositeDimension",
+        back_populates="dimension",
+        cascade="all, delete-orphan",
+        uselist=False,
         lazy="selectin",
     )
 

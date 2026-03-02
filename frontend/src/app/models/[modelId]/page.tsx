@@ -214,6 +214,11 @@ function DimensionRow({
       color: "text-emerald-700 bg-emerald-50",
       label: "Numbered",
     },
+    composite: {
+      icon: <CubeIcon className="h-3.5 w-3.5" />,
+      color: "text-orange-700 bg-orange-50",
+      label: "Composite",
+    },
   };
 
   const normalizedTypeRaw = (

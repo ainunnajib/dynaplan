@@ -1,0 +1,15 @@
+Implemented F057 (Composite Dimensions) end-to-end.
+
+- Added composite-dimension data model support with source-dimension mapping and sparse intersection-member mapping in [composite_dimension.py](/Users/ainunnajib/dynaplan/backend/app/models/composite_dimension.py), plus new enum value/relationship in [dimension.py](/Users/ainunnajib/dynaplan/backend/app/models/dimension.py:12) and model registration in [models/__init__.py](/Users/ainunnajib/dynaplan/backend/app/models/__init__.py:1).
+- Added F057 schemas in [composite_dimension.py](/Users/ainunnajib/dynaplan/backend/app/schemas/composite_dimension.py:10).
+- Added F057 service layer (create/list/get/delete composite dimensions + sparse intersection creation/lookup) in [composite_dimension.py](/Users/ainunnajib/dynaplan/backend/app/services/composite_dimension.py:45).
+- Added F057 API router and endpoints in [composite_dimension.py](/Users/ainunnajib/dynaplan/backend/app/api/composite_dimension.py:88), and registered it in [main.py](/Users/ainunnajib/dynaplan/backend/app/main.py:12).
+- Integrated composite-aware cell behavior in [cell.py](/Users/ainunnajib/dynaplan/backend/app/services/cell.py:153): line items applied to a composite dimension can accept source members, normalize to a composite intersection, and create intersections sparsely only when data is written.
+- Guarded direct `/dimensions` composite creation in [dimension.py](/Users/ainunnajib/dynaplan/backend/app/services/dimension.py:22) to enforce creation via composite-dimension API.
+- Added backend tests for F057 in [test_composite_dimension.py](/Users/ainunnajib/dynaplan/backend/tests/test_composite_dimension.py:110).
+- Updated frontend dimension unions/icons for `"composite"` in [api.ts](/Users/ainunnajib/dynaplan/frontend/src/lib/api.ts:185), [pivot-utils.ts](/Users/ainunnajib/dynaplan/frontend/src/lib/pivot-utils.ts:23), [page.tsx](/Users/ainunnajib/dynaplan/frontend/src/app/models/[modelId]/page.tsx:193), [DimensionChip.tsx](/Users/ainunnajib/dynaplan/frontend/src/components/pivot/DimensionChip.tsx:95), and [DimensionSelector.tsx](/Users/ainunnajib/dynaplan/frontend/src/components/module/DimensionSelector.tsx:62).
+- Updated progress tracking in [claude-progress.txt](/Users/ainunnajib/dynaplan/claude-progress.txt:3).
+
+Validation run results:
+- Backend full regression: `1549 passed, 1 skipped, 1 xfailed, 1 xpassed` (`pytest -x --tb=short -q`).
+- Frontend type check: `bun tsc --noEmit` clean.

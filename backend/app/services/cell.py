@@ -1,6 +1,6 @@
 import asyncio
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import delete, or_, select
 from sqlalchemy.exc import IntegrityError
@@ -9,10 +9,18 @@ from sqlalchemy.orm import selectinload
 
 from app.engine import rust_bridge
 from app.models.cell import CellValue
+from app.models.composite_dimension import CompositeDimensionMember
 from app.models.dimension import DimensionItem
 from app.models.module import LineItem, Module
 from app.schemas.cell import CellRead, CellWrite
-from app.services.cell_versioning import resolve_cell_version_context
+from app.services.cell_versioning import (
+    ensure_dimension_members_include_version,
+    resolve_cell_version_context,
+)
+from app.services.composite_dimension import (
+    ensure_composite_intersection_member,
+    get_composite_dimensions_by_dimension_ids,
+)
 from app.services.workspace_quota import enforce_cell_write_quota
 
 
@@ -130,18 +138,162 @@ async def _sync_engine_after_commit(
         rust_bridge.write_cells_bulk(handle, writes)
 
 
-async def _validate_cell_dimensions(
+async def _get_line_item_with_dimensions(
     db: AsyncSession,
     line_item_id: uuid.UUID,
-    dimension_members: List[uuid.UUID],
-) -> None:
-    """Validate dimension_members against the line item's applies-to dimensions."""
-    line_item_result = await db.execute(
+) -> Optional[LineItem]:
+    result = await db.execute(
         select(LineItem)
         .where(LineItem.id == line_item_id)
         .options(selectinload(LineItem.line_item_dimensions))
     )
-    line_item = line_item_result.scalar_one_or_none()
+    return result.scalar_one_or_none()
+
+
+async def _normalize_dimension_members_for_composites(
+    db: AsyncSession,
+    line_item: Optional[LineItem],
+    dimension_members: List[uuid.UUID],
+    create_missing_composites: bool = True,
+) -> List[uuid.UUID]:
+    unique_members = list(dict.fromkeys(dimension_members))
+    if line_item is None:
+        return unique_members
+    if not line_item.line_item_dimensions:
+        return unique_members
+
+    applies_to_dimension_ids = [
+        link.dimension_id for link in line_item.line_item_dimensions
+    ]
+    composites_by_dimension = await get_composite_dimensions_by_dimension_ids(
+        db,
+        applies_to_dimension_ids,
+    )
+    if not composites_by_dimension:
+        return unique_members
+
+    member_result = await db.execute(
+        select(DimensionItem).where(DimensionItem.id.in_(unique_members))
+    )
+    dimension_members_rows = list(member_result.scalars().all())
+    member_by_id = {member.id: member for member in dimension_members_rows}
+
+    consumed_ids = set()
+    normalized_members: List[uuid.UUID] = []
+
+    for link in line_item.line_item_dimensions:
+        composite = composites_by_dimension.get(link.dimension_id)
+        if composite is None:
+            continue
+
+        direct_member_id = next(
+            (
+                member_id
+                for member_id in unique_members
+                if member_id in member_by_id
+                and member_by_id[member_id].dimension_id == composite.dimension_id
+            ),
+            None,
+        )
+        if direct_member_id is not None:
+            consumed_ids.add(direct_member_id)
+            normalized_members.append(direct_member_id)
+            continue
+
+        ordered_source_dimension_ids = [
+            source.source_dimension_id
+            for source in sorted(
+                composite.source_dimensions,
+                key=lambda source: source.sort_order,
+            )
+        ]
+        source_member_ids: List[uuid.UUID] = []
+        is_complete_source_set = True
+        for source_dimension_id in ordered_source_dimension_ids:
+            matching_members = [
+                member_id
+                for member_id in unique_members
+                if member_id not in consumed_ids
+                and member_id in member_by_id
+                and member_by_id[member_id].dimension_id == source_dimension_id
+            ]
+            if len(matching_members) != 1:
+                is_complete_source_set = False
+                break
+            source_member_ids.append(matching_members[0])
+
+        if not is_complete_source_set:
+            continue
+
+        if create_missing_composites:
+            composite_member = await ensure_composite_intersection_member(
+                db,
+                composite_dimension=composite,
+                source_member_ids=source_member_ids,
+            )
+            normalized_members.append(composite_member.dimension_item_id)
+            consumed_ids.update(source_member_ids)
+            continue
+
+        source_member_key = "|".join(str(member_id) for member_id in source_member_ids)
+        existing_result = await db.execute(
+            select(CompositeDimensionMember.dimension_item_id).where(
+                CompositeDimensionMember.composite_dimension_id == composite.id,
+                CompositeDimensionMember.source_member_key == source_member_key,
+            )
+        )
+        existing_dimension_item_id = existing_result.scalar_one_or_none()
+        if existing_dimension_item_id is None:
+            continue
+
+        normalized_members.append(existing_dimension_item_id)
+        consumed_ids.update(source_member_ids)
+
+    for member_id in unique_members:
+        if member_id in consumed_ids:
+            continue
+        normalized_members.append(member_id)
+
+    return list(dict.fromkeys(normalized_members))
+
+
+async def _resolve_cell_dimension_context(
+    db: AsyncSession,
+    line_item_id: uuid.UUID,
+    dimension_members: List[uuid.UUID],
+    explicit_version_id: Optional[uuid.UUID],
+    line_item: Optional[LineItem] = None,
+    create_missing_composites: bool = True,
+) -> Tuple[Optional[uuid.UUID], List[uuid.UUID], List[uuid.UUID]]:
+    resolved_version_id, _key_members, validation_members = await resolve_cell_version_context(
+        db=db,
+        line_item_id=line_item_id,
+        dimension_members=dimension_members,
+        explicit_version_id=explicit_version_id,
+    )
+
+    normalized_validation_members = await _normalize_dimension_members_for_composites(
+        db=db,
+        line_item=line_item,
+        dimension_members=validation_members,
+        create_missing_composites=create_missing_composites,
+    )
+    key_dimension_members = ensure_dimension_members_include_version(
+        normalized_validation_members,
+        resolved_version_id,
+    )
+    return resolved_version_id, key_dimension_members, normalized_validation_members
+
+
+async def _validate_cell_dimensions(
+    db: AsyncSession,
+    line_item_id: uuid.UUID,
+    dimension_members: List[uuid.UUID],
+    line_item: Optional[LineItem] = None,
+) -> None:
+    """Validate dimension_members against the line item's applies-to dimensions."""
+    if line_item is None:
+        line_item = await _get_line_item_with_dimensions(db, line_item_id)
     if line_item is None:
         # Preserve historical behavior: writes to unknown line-item IDs are
         # still accepted by API key flows and scoped tooling.
@@ -188,14 +340,21 @@ async def _upsert_cell_no_commit(
     value: Any,
 ) -> CellValue:
     """Upsert a single cell without committing the current transaction."""
-    resolved_version_id, key_dimension_members, validation_dimension_members = await resolve_cell_version_context(
+    line_item = await _get_line_item_with_dimensions(db, line_item_id)
+    resolved_version_id, key_dimension_members, validation_dimension_members = await _resolve_cell_dimension_context(
         db=db,
         line_item_id=line_item_id,
         dimension_members=dimension_members,
         explicit_version_id=version_id,
+        line_item=line_item,
     )
 
-    await _validate_cell_dimensions(db, line_item_id, validation_dimension_members)
+    await _validate_cell_dimensions(
+        db,
+        line_item_id,
+        validation_dimension_members,
+        line_item=line_item,
+    )
 
     dimension_key = make_dimension_key(key_dimension_members)
     value_number, value_text, value_boolean, _value_type = _extract_value_and_type(value)
@@ -246,13 +405,6 @@ async def write_cell(
     value: Any,
 ) -> CellRead:
     """Upsert a single cell value."""
-    resolved_version_id, key_dimension_members, _validation_dimension_members = await resolve_cell_version_context(
-        db=db,
-        line_item_id=line_item_id,
-        dimension_members=dimension_members,
-        explicit_version_id=version_id,
-    )
-    dimension_key = make_dimension_key(key_dimension_members)
     value_number, value_text, value_boolean, _value_type = _extract_value_and_type(value)
 
     cell = await _upsert_cell_no_commit(
@@ -262,6 +414,8 @@ async def write_cell(
         version_id=version_id,
         value=value,
     )
+    dimension_key = cell.dimension_key
+    resolved_version_id = cell.version_id
 
     try:
         await db.commit()
@@ -371,11 +525,14 @@ async def read_cell(
     version_id: Optional[uuid.UUID] = None,
 ) -> Optional[CellRead]:
     """Read a single cell value."""
-    _resolved_version_id, key_dimension_members, _validation_dimension_members = await resolve_cell_version_context(
+    line_item = await _get_line_item_with_dimensions(db, line_item_id)
+    _resolved_version_id, key_dimension_members, _validation_dimension_members = await _resolve_cell_dimension_context(
         db=db,
         line_item_id=line_item_id,
         dimension_members=dimension_members,
         explicit_version_id=version_id,
+        line_item=line_item,
+        create_missing_composites=False,
     )
     dimension_key = make_dimension_key(key_dimension_members)
     result = await db.execute(

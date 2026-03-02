@@ -23,8 +23,8 @@ export interface DimensionMember {
 export interface Dimension {
   id: DimensionId;
   name: string;
-  /** "time" | "version" | "custom" | "numbered" */
-  type: "time" | "version" | "custom" | "numbered";
+  /** "time" | "version" | "custom" | "numbered" | "composite" */
+  type: "time" | "version" | "custom" | "numbered" | "composite";
 }
 
 export interface PivotConfig {
