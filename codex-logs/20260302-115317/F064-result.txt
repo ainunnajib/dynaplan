@@ -1,0 +1,20 @@
+Implemented F064 end-to-end.
+
+**What changed**
+- Added CloudWorks scheduler activation runtime with cron validation, APScheduler job registration/unregistration, and scheduled run execution (`trigger` + `execute`) in [cloudworks.py](/Users/ainunnajib/dynaplan/backend/app/services/cloudworks.py).
+- Added completion/failure webhook notifications (best-effort delivery) from schedule/connection config keys in [cloudworks.py](/Users/ainunnajib/dynaplan/backend/app/services/cloudworks.py).
+- Wired schedule lifecycle to runtime:
+  - create/update/enable -> register
+  - disable/delete -> unregister
+- Added API `400` handling for invalid cron/schedule validation errors in [cloudworks.py](/Users/ainunnajib/dynaplan/backend/app/api/cloudworks.py).
+- Started/stopped CloudWorks runtime on app startup/shutdown in [main.py](/Users/ainunnajib/dynaplan/backend/app/main.py).
+- Added F064 tests (cron validation, runtime sync on schedule lifecycle, webhook delivery on success/failure) in [test_cloudworks.py](/Users/ainunnajib/dynaplan/backend/tests/test_cloudworks.py).
+- Updated progress tracking for F064 completion in [claude-progress.txt](/Users/ainunnajib/dynaplan/claude-progress.txt).
+
+**Validation**
+- `cd backend && .venv/bin/python -m pytest -x --tb=short -q`  
+  Result: `1539 passed, 1 skipped, 1 xfailed, 1 xpassed`
+- `cd frontend && bun tsc --noEmit`  
+  Result: success (no type errors)
+
+1. If you want, I can also prepare a clean commit message and commit these F064 changes.

@@ -158,7 +158,13 @@ async def create_schedule_endpoint(
     current_user: User = Depends(get_current_user),
 ):
     _conn_or_404(await get_connection_by_id(db, conn_id))
-    schedule = await create_schedule(db, connection_id=conn_id, data=data)
+    try:
+        schedule = await create_schedule(db, connection_id=conn_id, data=data)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        )
     return schedule
 
 
@@ -199,7 +205,13 @@ async def update_schedule_endpoint(
     current_user: User = Depends(get_current_user),
 ):
     schedule = _schedule_or_404(await get_schedule_by_id(db, schedule_id))
-    return await update_schedule(db, schedule, data)
+    try:
+        return await update_schedule(db, schedule, data)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        )
 
 
 @router.delete(
@@ -226,7 +238,13 @@ async def enable_schedule_endpoint(
     current_user: User = Depends(get_current_user),
 ):
     schedule = _schedule_or_404(await get_schedule_by_id(db, schedule_id))
-    return await enable_disable_schedule(db, schedule, data.is_enabled)
+    try:
+        return await enable_disable_schedule(db, schedule, data.is_enabled)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        )
 
 
 @router.post(

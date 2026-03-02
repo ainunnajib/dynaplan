@@ -6,6 +6,7 @@ from httpx import AsyncClient
 
 # Import models so Base.metadata includes cloudworks tables
 import app.models.cloudworks  # noqa: F401
+from app.services import cloudworks as cloudworks_service
 
 
 # ---------------------------------------------------------------------------
@@ -299,6 +300,113 @@ async def test_create_schedule_with_configs(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_create_schedule_invalid_cron_returns_400(client: AsyncClient):
+    token, model_id, conn_id = await setup_connection(client, "cw_sched_bad_cron@example.com")
+    resp = await client.post(
+        f"/connections/{conn_id}/schedules",
+        json={
+            "name": "Bad Cron",
+            "schedule_type": "import",
+            "cron_expression": "not-a-valid-cron",
+        },
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 400
+    assert "cron" in resp.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_update_schedule_invalid_cron_returns_400(client: AsyncClient):
+    token, model_id, conn_id, sched_id = await setup_schedule(
+        client, "cw_sched_update_bad_cron@example.com"
+    )
+    resp = await client.put(
+        f"/schedules/{sched_id}",
+        json={"cron_expression": "totally invalid cron"},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 400
+    assert "cron" in resp.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_create_schedule_registers_runtime_when_enabled(
+    client: AsyncClient,
+    monkeypatch,
+):
+    actions = []
+
+    async def fake_register(schedule):
+        actions.append(("register", str(schedule.id)))
+
+    async def fake_unregister(schedule_id):
+        actions.append(("unregister", str(schedule_id)))
+
+    monkeypatch.setattr(cloudworks_service, "register_schedule_with_runtime", fake_register)
+    monkeypatch.setattr(cloudworks_service, "unregister_schedule_with_runtime", fake_unregister)
+
+    token, model_id, conn_id = await setup_connection(client, "cw_sched_runtime_create@example.com")
+    resp = await create_schedule(client, token, conn_id, name="Runtime Create")
+    assert resp.status_code == 201
+    schedule_id = resp.json()["id"]
+    assert actions == [("register", schedule_id)]
+
+
+@pytest.mark.asyncio
+async def test_create_schedule_skips_runtime_registration_when_disabled(
+    client: AsyncClient,
+    monkeypatch,
+):
+    actions = []
+
+    async def fake_register(schedule):
+        actions.append(("register", str(schedule.id)))
+
+    monkeypatch.setattr(cloudworks_service, "register_schedule_with_runtime", fake_register)
+
+    token, model_id, conn_id = await setup_connection(client, "cw_sched_runtime_disabled@example.com")
+    resp = await client.post(
+        f"/connections/{conn_id}/schedules",
+        json={
+            "name": "Disabled Schedule",
+            "schedule_type": "import",
+            "cron_expression": "0 0 * * *",
+            "is_enabled": False,
+        },
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 201
+    assert actions == []
+
+
+@pytest.mark.asyncio
+async def test_update_schedule_refreshes_runtime_registration(
+    client: AsyncClient,
+    monkeypatch,
+):
+    actions = []
+
+    async def fake_register(schedule):
+        actions.append(("register", str(schedule.id)))
+
+    monkeypatch.setattr(cloudworks_service, "register_schedule_with_runtime", fake_register)
+
+    token, model_id, conn_id = await setup_connection(client, "cw_sched_runtime_update@example.com")
+    create_resp = await create_schedule(client, token, conn_id, name="Runtime Update")
+    assert create_resp.status_code == 201
+    sched_id = create_resp.json()["id"]
+
+    actions.clear()
+    update_resp = await client.put(
+        f"/schedules/{sched_id}",
+        json={"cron_expression": "15 4 * * *"},
+        headers=auth_headers(token),
+    )
+    assert update_resp.status_code == 200
+    assert actions == [("register", sched_id)]
+
+
+@pytest.mark.asyncio
 async def test_list_schedules(client: AsyncClient):
     token, model_id, conn_id = await setup_connection(client, "cw_sched_list@example.com")
     await create_schedule(client, token, conn_id, name="Schedule A")
@@ -349,6 +457,33 @@ async def test_delete_schedule(client: AsyncClient):
 
     get_resp = await client.get(f"/schedules/{sched_id}", headers=auth_headers(token))
     assert get_resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_schedule_unregisters_runtime(
+    client: AsyncClient,
+    monkeypatch,
+):
+    actions = []
+
+    async def fake_register(schedule):
+        actions.append(("register", str(schedule.id)))
+
+    async def fake_unregister(schedule_id):
+        actions.append(("unregister", str(schedule_id)))
+
+    monkeypatch.setattr(cloudworks_service, "register_schedule_with_runtime", fake_register)
+    monkeypatch.setattr(cloudworks_service, "unregister_schedule_with_runtime", fake_unregister)
+
+    token, model_id, conn_id = await setup_connection(client, "cw_sched_runtime_delete@example.com")
+    sched_resp = await create_schedule(client, token, conn_id, name="Delete Runtime")
+    assert sched_resp.status_code == 201
+    sched_id = sched_resp.json()["id"]
+
+    actions.clear()
+    del_resp = await client.delete(f"/schedules/{sched_id}", headers=auth_headers(token))
+    assert del_resp.status_code == 204
+    assert actions == [("unregister", sched_id)]
 
 
 @pytest.mark.asyncio
@@ -403,6 +538,47 @@ async def test_enable_disable_schedule(client: AsyncClient):
     )
     assert resp.status_code == 200
     assert resp.json()["is_enabled"] is True
+
+
+@pytest.mark.asyncio
+async def test_enable_disable_schedule_syncs_runtime(
+    client: AsyncClient,
+    monkeypatch,
+):
+    actions = []
+
+    async def fake_register(schedule):
+        actions.append(("register", str(schedule.id)))
+
+    async def fake_unregister(schedule_id):
+        actions.append(("unregister", str(schedule_id)))
+
+    monkeypatch.setattr(cloudworks_service, "register_schedule_with_runtime", fake_register)
+    monkeypatch.setattr(cloudworks_service, "unregister_schedule_with_runtime", fake_unregister)
+
+    token, model_id, conn_id = await setup_connection(client, "cw_sched_runtime_toggle@example.com")
+    schedule_resp = await create_schedule(client, token, conn_id, name="Toggle Runtime")
+    assert schedule_resp.status_code == 201
+    sched_id = schedule_resp.json()["id"]
+
+    actions.clear()
+    disable_resp = await client.put(
+        f"/schedules/{sched_id}/enable",
+        json={"is_enabled": False},
+        headers=auth_headers(token),
+    )
+    assert disable_resp.status_code == 200
+
+    enable_resp = await client.put(
+        f"/schedules/{sched_id}/enable",
+        json={"is_enabled": True},
+        headers=auth_headers(token),
+    )
+    assert enable_resp.status_code == 200
+    assert actions == [
+        ("unregister", sched_id),
+        ("register", sched_id),
+    ]
 
 
 @pytest.mark.asyncio
@@ -819,6 +995,79 @@ async def test_execute_run_import_local_file_to_local_file(
 
 
 @pytest.mark.asyncio
+async def test_execute_run_sends_completion_webhook(
+    client: AsyncClient,
+    tmp_path,
+    monkeypatch,
+):
+    notifications = []
+
+    async def fake_post_notification_webhooks(webhook_urls, payload):
+        notifications.append((list(webhook_urls), dict(payload)))
+
+    monkeypatch.setattr(
+        cloudworks_service,
+        "_post_notification_webhooks",
+        fake_post_notification_webhooks,
+    )
+
+    token, model_id = await setup_model(client, "cw_exec_webhook_success@example.com")
+    source_path = tmp_path / "webhook_source.csv"
+    source_path.write_text("name,value\nGamma,30\n", encoding="utf-8")
+    target_path = tmp_path / "webhook_target.csv"
+
+    conn_resp = await create_connection(
+        client,
+        token,
+        model_id,
+        name="Webhook Source",
+        connector_type="local_file",
+        config={"path": str(source_path), "format": "csv"},
+    )
+    assert conn_resp.status_code == 201
+    conn_id = conn_resp.json()["id"]
+
+    schedule_resp = await client.post(
+        f"/connections/{conn_id}/schedules",
+        json={
+            "name": "Webhook Success Run",
+            "schedule_type": "import",
+            "cron_expression": "0 0 * * *",
+            "target_config": {
+                "connector_type": "local_file",
+                "path": str(target_path),
+                "format": "csv",
+                "notification_webhooks": ["https://hooks.example.com/cloudworks"],
+            },
+        },
+        headers=auth_headers(token),
+    )
+    assert schedule_resp.status_code == 201
+    schedule_id = schedule_resp.json()["id"]
+
+    trigger_resp = await client.post(
+        f"/schedules/{schedule_id}/trigger",
+        headers=auth_headers(token),
+    )
+    assert trigger_resp.status_code == 201
+    run_id = trigger_resp.json()["id"]
+
+    execute_resp = await client.post(
+        f"/runs/{run_id}/execute",
+        headers=auth_headers(token),
+    )
+    assert execute_resp.status_code == 200
+    assert execute_resp.json()["status"] == "completed"
+
+    assert len(notifications) == 1
+    webhook_urls, payload = notifications[0]
+    assert webhook_urls == ["https://hooks.example.com/cloudworks"]
+    assert payload["event"] == "completed"
+    assert payload["status"] == "completed"
+    assert payload["run_id"] == run_id
+
+
+@pytest.mark.asyncio
 async def test_execute_run_export_local_file_source_to_connection_target(
     client: AsyncClient,
     tmp_path,
@@ -932,6 +1181,78 @@ async def test_execute_run_marks_failed_for_unimplemented_connector(
     assert run_data["status"] == "failed"
     assert "not implemented" in (run_data["error_message"] or "").lower()
     assert run_data["completed_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_execute_run_sends_failure_webhook(
+    client: AsyncClient,
+    tmp_path,
+    monkeypatch,
+):
+    notifications = []
+
+    async def fake_post_notification_webhooks(webhook_urls, payload):
+        notifications.append((list(webhook_urls), dict(payload)))
+
+    monkeypatch.setattr(
+        cloudworks_service,
+        "_post_notification_webhooks",
+        fake_post_notification_webhooks,
+    )
+
+    token, model_id = await setup_model(client, "cw_exec_webhook_fail@example.com")
+    target_path = tmp_path / "webhook_failed_target.csv"
+
+    conn_resp = await create_connection(
+        client,
+        token,
+        model_id,
+        name="Webhook Failure Source",
+        connector_type="gcs",
+        config={"bucket": "unused"},
+    )
+    assert conn_resp.status_code == 201
+    conn_id = conn_resp.json()["id"]
+
+    schedule_resp = await client.post(
+        f"/connections/{conn_id}/schedules",
+        json={
+            "name": "Webhook Failure Run",
+            "schedule_type": "import",
+            "cron_expression": "0 0 * * *",
+            "target_config": {
+                "connector_type": "local_file",
+                "path": str(target_path),
+                "format": "csv",
+                "notification_webhooks": ["https://hooks.example.com/cloudworks-fail"],
+            },
+        },
+        headers=auth_headers(token),
+    )
+    assert schedule_resp.status_code == 201
+    schedule_id = schedule_resp.json()["id"]
+
+    trigger_resp = await client.post(
+        f"/schedules/{schedule_id}/trigger",
+        headers=auth_headers(token),
+    )
+    assert trigger_resp.status_code == 201
+    run_id = trigger_resp.json()["id"]
+
+    execute_resp = await client.post(
+        f"/runs/{run_id}/execute",
+        headers=auth_headers(token),
+    )
+    assert execute_resp.status_code == 200
+    assert execute_resp.json()["status"] == "failed"
+
+    assert len(notifications) == 1
+    webhook_urls, payload = notifications[0]
+    assert webhook_urls == ["https://hooks.example.com/cloudworks-fail"]
+    assert payload["event"] == "failed"
+    assert payload["status"] == "failed"
+    assert payload["run_id"] == run_id
+    assert payload["error_message"] is not None
 
 
 @pytest.mark.asyncio

@@ -1,0 +1,18 @@
+{
+  "generated_at": "2026-03-02T04:34:48.556Z",
+  "frontend_url": "https://dynaplan-frontend-7qlyqseapa-uc.a.run.app",
+  "workspace_id": "303ccbe1-8a6f-4381-880c-14c668b33b34",
+  "model_id": "561d5218-7d43-4510-92b1-88d8ca37746b",
+  "module_id": "aaa9ea0c-0d69-45b4-818c-2c15082bb58a",
+  "dashboard_id": "2f0410b5-84ac-44d6-8914-84cbf30ee74d",
+  "urls": {
+    "workspace": "https://dynaplan-frontend-7qlyqseapa-uc.a.run.app/workspaces/303ccbe1-8a6f-4381-880c-14c668b33b34",
+    "model": "https://dynaplan-frontend-7qlyqseapa-uc.a.run.app/models/561d5218-7d43-4510-92b1-88d8ca37746b",
+    "module": "https://dynaplan-frontend-7qlyqseapa-uc.a.run.app/models/561d5218-7d43-4510-92b1-88d8ca37746b/modules/aaa9ea0c-0d69-45b4-818c-2c15082bb58a",
+    "dashboard": "https://dynaplan-frontend-7qlyqseapa-uc.a.run.app/models/561d5218-7d43-4510-92b1-88d8ca37746b/dashboards/2f0410b5-84ac-44d6-8914-84cbf30ee74d"
+  },
+  "video": {
+    "webm": "/Users/ainunnajib/dynaplan/test-results/demo/dynaplan-user-journey-2026-03-02T04-33-10-239Z.webm",
+    "mp4": "/Users/ainunnajib/dynaplan/test-results/demo/dynaplan-user-journey-2026-03-02T04-33-10-239Z.mp4"
+  }
+}

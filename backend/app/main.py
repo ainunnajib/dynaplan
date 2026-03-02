@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -43,6 +45,9 @@ from app.api.workspace_quota import router as workspace_quota_router
 from app.core.config import settings
 from app.core.database import dispose_engines, engine
 from app.models import Base
+from app.services.cloudworks import shutdown_cloudworks_runtime, start_cloudworks_runtime
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Dynaplan",
@@ -121,11 +126,15 @@ async def _ensure_schema_compatibility(conn) -> None:
 
 @app.on_event("startup")
 async def startup_init_schema():
-    if not settings.auto_create_schema:
-        return
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        await _ensure_schema_compatibility(conn)
+    if settings.auto_create_schema:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+            await _ensure_schema_compatibility(conn)
+
+    try:
+        await start_cloudworks_runtime()
+    except Exception:  # noqa: BLE001
+        logger.exception("Failed to start CloudWorks scheduler runtime")
 
 
 @app.get("/health")
@@ -135,4 +144,8 @@ async def health_check():
 
 @app.on_event("shutdown")
 async def shutdown_dispose_all_engines():
+    try:
+        await shutdown_cloudworks_runtime()
+    except Exception:  # noqa: BLE001
+        logger.exception("Failed to shut down CloudWorks scheduler runtime")
     await dispose_engines()
