@@ -15,6 +15,7 @@ Covers:
 - Forbidden when scope missing
 - Only owner can revoke their key
 """
+import json
 import uuid
 
 import pytest
@@ -115,6 +116,75 @@ async def create_dimension(
     resp = await client.post(
         f"/models/{model_id}/dimensions",
         json={"name": name, "dimension_type": "custom"},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 201
+    return resp.json()["id"]
+
+
+async def create_action(
+    client: AsyncClient, token: str, model_id: str, name: str = "Load Data"
+) -> str:
+    resp = await client.post(
+        f"/models/{model_id}/actions",
+        json={
+            "name": name,
+            "action_type": "import_data",
+            "config": {"source_module_id": str(uuid.uuid4()), "file_path": "data.csv"},
+        },
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 201
+    return resp.json()["id"]
+
+
+async def create_process(
+    client: AsyncClient, token: str, model_id: str, name: str = "Nightly Process"
+) -> str:
+    resp = await client.post(
+        f"/models/{model_id}/processes",
+        json={"name": name, "description": "Process for API key tests"},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 201
+    return resp.json()["id"]
+
+
+async def add_process_step(
+    client: AsyncClient, token: str, process_id: str, action_id: str, step_order: int = 1
+) -> str:
+    resp = await client.post(
+        f"/processes/{process_id}/steps",
+        json={"action_id": action_id, "step_order": step_order},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 201
+    return resp.json()["id"]
+
+
+async def create_pipeline(
+    client: AsyncClient, token: str, model_id: str, name: str = "Pipeline"
+) -> str:
+    resp = await client.post(
+        f"/models/{model_id}/pipelines",
+        json={"name": name},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 201
+    return resp.json()["id"]
+
+
+async def add_source_step(
+    client: AsyncClient, token: str, pipeline_id: str, name: str = "Source"
+) -> str:
+    resp = await client.post(
+        f"/pipelines/{pipeline_id}/steps",
+        json={
+            "name": name,
+            "step_type": "source",
+            "sort_order": 0,
+            "config": json.dumps({"inline_data": [{"metric": 10}, {"metric": 20}]}),
+        },
         headers=auth_headers(token),
     )
     assert resp.status_code == 201
@@ -716,3 +786,205 @@ async def test_two_unique_keys_have_different_values(client: AsyncClient):
     key2 = await create_api_key(client, token, name="Key 2", scopes=["read:models"])
     assert key1["raw_key"] != key2["raw_key"]
     assert key1["id"] != key2["id"]
+
+
+# ---------------------------------------------------------------------------
+# Public API — F068 endpoints
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_public_module_import_with_api_key(client: AsyncClient):
+    token = await register_and_login(client, "pub_import_module@example.com")
+    ws_id = await create_workspace(client, token)
+    model_id = (await create_model(client, token, ws_id))["id"]
+    module_id = await create_module(client, token, model_id)
+    line_item_id = await create_line_item(client, token, module_id, name="Revenue")
+
+    write_key = await create_api_key(client, token, name="Write Models Key", scopes=["write:models"])
+    read_cells_key = await create_api_key(client, token, name="Read Cells Key", scopes=["read:cells"])
+
+    csv_bytes = b"row,Revenue\nR1,123.5\n"
+    import_resp = await client.post(
+        f"/api/v1/modules/{module_id}/import",
+        headers=api_key_headers(write_key["raw_key"]),
+        files={"file": ("import.csv", csv_bytes, "text/csv")},
+    )
+    assert import_resp.status_code == 200
+    assert import_resp.json()["rows_imported"] == 1
+
+    query_resp = await client.post(
+        "/api/v1/cells/query",
+        json={"line_item_id": line_item_id},
+        headers=api_key_headers(read_cells_key["raw_key"]),
+    )
+    assert query_resp.status_code == 200
+    rows = query_resp.json()
+    assert len(rows) == 1
+    assert rows[0]["value"] == 123.5
+
+
+@pytest.mark.asyncio
+async def test_public_module_export_with_api_key(client: AsyncClient):
+    token = await register_and_login(client, "pub_export_module@example.com")
+    ws_id = await create_workspace(client, token)
+    model_id = (await create_model(client, token, ws_id))["id"]
+    module_id = await create_module(client, token, model_id)
+    line_item_id = await create_line_item(client, token, module_id, name="Revenue")
+
+    member_id = str(uuid.uuid4())
+    write_resp = await client.post(
+        "/cells",
+        json={"line_item_id": line_item_id, "dimension_members": [member_id], "value": 99.0},
+        headers=auth_headers(token),
+    )
+    assert write_resp.status_code == 200
+
+    read_key = await create_api_key(client, token, name="Read Models Key", scopes=["read:models"])
+    export_resp = await client.get(
+        f"/api/v1/modules/{module_id}/export?format=csv",
+        headers=api_key_headers(read_key["raw_key"]),
+    )
+    assert export_resp.status_code == 200
+    text = export_resp.content.decode("utf-8")
+    assert "line_item,dimension_key,value" in text
+    assert "Revenue" in text
+    assert "99.0" in text
+
+
+@pytest.mark.asyncio
+async def test_public_run_process_with_api_key(client: AsyncClient):
+    token = await register_and_login(client, "pub_run_process@example.com")
+    ws_id = await create_workspace(client, token)
+    model_id = (await create_model(client, token, ws_id))["id"]
+    action_id = await create_action(client, token, model_id)
+    process_id = await create_process(client, token, model_id)
+    await add_process_step(client, token, process_id, action_id, step_order=1)
+
+    write_key = await create_api_key(client, token, name="Process Runner Key", scopes=["write:models"])
+    run_resp = await client.post(
+        f"/api/v1/processes/{process_id}/run",
+        headers=api_key_headers(write_key["raw_key"]),
+    )
+    assert run_resp.status_code == 201
+    data = run_resp.json()
+    assert data["process_id"] == process_id
+    assert data["status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_public_list_process_runs_with_api_key(client: AsyncClient):
+    token = await register_and_login(client, "pub_process_runs@example.com")
+    ws_id = await create_workspace(client, token)
+    model_id = (await create_model(client, token, ws_id))["id"]
+    action_id = await create_action(client, token, model_id)
+    process_id = await create_process(client, token, model_id)
+    await add_process_step(client, token, process_id, action_id, step_order=1)
+
+    write_key = await create_api_key(client, token, name="Write Key", scopes=["write:models"])
+    read_key = await create_api_key(client, token, name="Read Models Key", scopes=["read:models"])
+
+    run_resp = await client.post(
+        f"/api/v1/processes/{process_id}/run",
+        headers=api_key_headers(write_key["raw_key"]),
+    )
+    assert run_resp.status_code == 201
+
+    runs_resp = await client.get(
+        f"/api/v1/processes/{process_id}/runs",
+        headers=api_key_headers(read_key["raw_key"]),
+    )
+    assert runs_resp.status_code == 200
+    runs = runs_resp.json()
+    assert len(runs) == 1
+    assert runs[0]["status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_public_run_pipeline_with_api_key(client: AsyncClient):
+    token = await register_and_login(client, "pub_run_pipeline@example.com")
+    ws_id = await create_workspace(client, token)
+    model_id = (await create_model(client, token, ws_id))["id"]
+    pipeline_id = await create_pipeline(client, token, model_id, name="API Pipeline")
+    await add_source_step(client, token, pipeline_id)
+
+    write_key = await create_api_key(client, token, name="Pipeline Key", scopes=["write:models"])
+    run_resp = await client.post(
+        f"/api/v1/pipelines/{pipeline_id}/run",
+        headers=api_key_headers(write_key["raw_key"]),
+    )
+    assert run_resp.status_code == 201
+    data = run_resp.json()
+    assert data["pipeline_id"] == pipeline_id
+    assert data["status"] == "completed"
+    assert data["completed_steps"] == 1
+    assert data["total_steps"] == 1
+
+
+@pytest.mark.asyncio
+async def test_public_pipeline_trigger_execute_and_get_run(client: AsyncClient):
+    token = await register_and_login(client, "pub_pipeline_lifecycle@example.com")
+    ws_id = await create_workspace(client, token)
+    model_id = (await create_model(client, token, ws_id))["id"]
+    pipeline_id = await create_pipeline(client, token, model_id, name="Lifecycle Pipeline")
+    await add_source_step(client, token, pipeline_id)
+
+    write_key = await create_api_key(client, token, name="Pipeline Write Key", scopes=["write:models"])
+    read_key = await create_api_key(client, token, name="Pipeline Read Key", scopes=["read:models"])
+
+    trigger_resp = await client.post(
+        f"/api/v1/pipelines/{pipeline_id}/trigger",
+        headers=api_key_headers(write_key["raw_key"]),
+    )
+    assert trigger_resp.status_code == 201
+    run_id = trigger_resp.json()["id"]
+
+    execute_resp = await client.post(
+        f"/api/v1/pipeline-runs/{run_id}/execute",
+        headers=api_key_headers(write_key["raw_key"]),
+    )
+    assert execute_resp.status_code == 200
+    assert execute_resp.json()["status"] == "completed"
+
+    run_resp = await client.get(
+        f"/api/v1/pipeline-runs/{run_id}",
+        headers=api_key_headers(read_key["raw_key"]),
+    )
+    assert run_resp.status_code == 200
+    run_data = run_resp.json()
+    assert run_data["id"] == run_id
+    assert run_data["status"] == "completed"
+    assert len(run_data["step_logs"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_public_import_requires_write_models_scope(client: AsyncClient):
+    token = await register_and_login(client, "pub_import_scope@example.com")
+    ws_id = await create_workspace(client, token)
+    model_id = (await create_model(client, token, ws_id))["id"]
+    module_id = await create_module(client, token, model_id)
+    await create_line_item(client, token, module_id, name="Revenue")
+
+    read_key = await create_api_key(client, token, name="Read Only Key", scopes=["read:models"])
+
+    resp = await client.post(
+        f"/api/v1/modules/{module_id}/import",
+        headers=api_key_headers(read_key["raw_key"]),
+        files={"file": ("import.csv", b"row,Revenue\nR1,100\n", "text/csv")},
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_public_export_requires_read_models_scope(client: AsyncClient):
+    token = await register_and_login(client, "pub_export_scope@example.com")
+    ws_id = await create_workspace(client, token)
+    model_id = (await create_model(client, token, ws_id))["id"]
+    module_id = await create_module(client, token, model_id)
+    await create_line_item(client, token, module_id, name="Revenue")
+
+    write_key = await create_api_key(client, token, name="Write Only Key", scopes=["write:models"])
+    resp = await client.get(
+        f"/api/v1/modules/{module_id}/export?format=csv",
+        headers=api_key_headers(write_key["raw_key"]),
+    )
+    assert resp.status_code == 403

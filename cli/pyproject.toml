@@ -1,0 +1,18 @@
+[project]
+name = "dynaplan-cli"
+version = "0.1.0"
+description = "Dynaplan bulk operations CLI"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "click>=8.1.0",
+  "httpx>=0.28.0",
+  "PyYAML>=6.0.0",
+]
+
+[project.scripts]
+dynaplan-cli = "dynaplan_cli.cli:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
