@@ -1,0 +1,38 @@
+Implemented F077 end-to-end.
+
+- Added horizontal-scaling runtime service with Redis-first + memory-fallback state for:
+  - sticky model-to-engine assignment
+  - distributed cache keys
+  - event publish/list
+  - runtime status + Kubernetes manifest discovery  
+  File: [horizontal_scaling.py](/Users/ainunnajib/dynaplan/backend/app/services/horizontal_scaling.py)
+
+- Added authenticated scaling API endpoints under `/observability/scaling/*`:
+  - `GET /observability/scaling/status`
+  - `GET/PUT /observability/scaling/models/{model_id}/assignment`
+  - `GET/PUT /observability/scaling/cache/{namespace}/{cache_key}`
+  - `GET/POST /observability/scaling/events/{channel}`
+  - `GET /observability/scaling/kubernetes/manifests`  
+  File: [horizontal_scaling.py](/Users/ainunnajib/dynaplan/backend/app/api/horizontal_scaling.py)
+
+- Added Pydantic schemas for the new API.  
+  File: [horizontal_scaling.py](/Users/ainunnajib/dynaplan/backend/app/schemas/horizontal_scaling.py)
+
+- Registered the new router in app startup wiring and added runtime shutdown hook.  
+  File: [main.py](/Users/ainunnajib/dynaplan/backend/app/main.py)
+
+- Added Kubernetes manifests for API + Redis + HPA + ingress sticky routing.  
+  Directory: [kubernetes](/Users/ainunnajib/dynaplan/backend/deploy/kubernetes)
+
+- Added F077 backend tests (`9` new tests).  
+  File: [test_horizontal_scaling.py](/Users/ainunnajib/dynaplan/backend/tests/test_horizontal_scaling.py)
+
+- Updated progress tracking for F077 completion.  
+  File: [claude-progress.txt](/Users/ainunnajib/dynaplan/claude-progress.txt)
+
+Validation run on final code state:
+
+- `cd backend && .venv/bin/python -m pytest -x --tb=short -q`  
+  Result: `1645 passed, 1 skipped, 1 xfailed, 1 xpassed`
+- `cd frontend && bun tsc --noEmit`  
+  Result: clean (no type errors)

@@ -42,6 +42,7 @@ from app.api.pipeline import router as pipeline_router
 from app.api.scim import router as scim_router
 from app.api.saved_view import router as saved_view_router
 from app.api.data_hub import router as data_hub_router
+from app.api.horizontal_scaling import router as horizontal_scaling_router
 from app.api.model_encryption import router as model_encryption_router
 from app.api.time_dimension import router as time_dimension_router
 from app.api.version import router as version_router
@@ -53,6 +54,7 @@ from app.core.config import settings
 from app.core.database import dispose_engines, engine
 from app.models import Base
 from app.services.cloudworks import shutdown_cloudworks_runtime, start_cloudworks_runtime
+from app.services.horizontal_scaling import shutdown_horizontal_scaling_runtime
 from app.services.observability import api_metrics_collector
 
 logger = logging.getLogger(__name__)
@@ -139,6 +141,7 @@ app.include_router(saved_view_router)
 app.include_router(data_hub_router)
 app.include_router(model_encryption_router)
 app.include_router(observability_router)
+app.include_router(horizontal_scaling_router)
 
 
 async def _ensure_schema_compatibility(conn) -> None:
@@ -259,4 +262,8 @@ async def shutdown_dispose_all_engines():
         await shutdown_cloudworks_runtime()
     except Exception:  # noqa: BLE001
         logger.exception("Failed to shut down CloudWorks scheduler runtime")
+    try:
+        await shutdown_horizontal_scaling_runtime()
+    except Exception:  # noqa: BLE001
+        logger.exception("Failed to shut down horizontal scaling runtime")
     await dispose_engines()

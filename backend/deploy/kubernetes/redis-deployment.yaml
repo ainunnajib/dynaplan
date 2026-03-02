@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dynaplan-redis
+  labels:
+    app: dynaplan-redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dynaplan-redis
+  template:
+    metadata:
+      labels:
+        app: dynaplan-redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        imagePullPolicy: IfNotPresent
+        args:
+        - "--appendonly"
+        - "yes"
+        ports:
+        - containerPort: 6379
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "256Mi"
+          limits:
+            cpu: "500m"
+            memory: "1Gi"
+

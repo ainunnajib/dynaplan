@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dynaplan-api
+  labels:
+    app: dynaplan-api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: dynaplan-api
+  template:
+    metadata:
+      labels:
+        app: dynaplan-api
+    spec:
+      containers:
+      - name: api
+        image: ghcr.io/dynaplan/dynaplan-backend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+        env:
+        - name: DYNAPLAN_DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: dynaplan-secrets
+              key: database_url
+        - name: DYNAPLAN_REDIS_URL
+          value: redis://dynaplan-redis:6379/0
+        - name: DYNAPLAN_NODE_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: DYNAPLAN_AUTO_CREATE_SCHEMA
+          value: "false"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 20
+          periodSeconds: 20
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "512Mi"
+          limits:
+            cpu: "2"
+            memory: "2Gi"
+
