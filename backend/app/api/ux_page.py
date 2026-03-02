@@ -1,5 +1,5 @@
 import uuid
-from typing import List
+from typing import List, Optional, Set
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -103,6 +103,55 @@ async def _get_owned_selector(
     return selector
 
 
+async def _validate_parent_page(
+    db: AsyncSession,
+    parent_page_id: Optional[uuid.UUID],
+    model_id: uuid.UUID,
+    owner_id: uuid.UUID,
+    current_page_id: Optional[uuid.UUID] = None,
+) -> Optional[uuid.UUID]:
+    if parent_page_id is None:
+        return None
+
+    parent_page = await get_ux_page_by_id(db, parent_page_id)
+    if parent_page is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Parent page not found",
+        )
+
+    if parent_page.model_id != model_id or parent_page.owner_id != owner_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Parent page must belong to the same model",
+        )
+
+    if current_page_id is not None and parent_page.id == current_page_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A page cannot be its own parent",
+        )
+
+    if current_page_id is not None:
+        seen: Set[uuid.UUID] = {parent_page.id}
+        ancestor = parent_page
+        while ancestor.parent_page_id is not None:
+            if ancestor.parent_page_id == current_page_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Parent relationship would create a cycle",
+                )
+            if ancestor.parent_page_id in seen:
+                break
+            seen.add(ancestor.parent_page_id)
+            next_parent = await get_ux_page_by_id(db, ancestor.parent_page_id)
+            if next_parent is None:
+                break
+            ancestor = next_parent
+
+    return parent_page_id
+
+
 # -- Page routes ---------------------------------------------------------------
 
 @router.post(
@@ -116,7 +165,19 @@ async def create_page_route(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    page = await create_ux_page(db, data, model_id=model_id, owner_id=current_user.id)
+    parent_page_id = await _validate_parent_page(
+        db,
+        data.parent_page_id,
+        model_id=model_id,
+        owner_id=current_user.id,
+    )
+    page_data = data.model_copy(update={"parent_page_id": parent_page_id})
+    page = await create_ux_page(
+        db,
+        page_data,
+        model_id=model_id,
+        owner_id=current_user.id,
+    )
     return page
 
 
@@ -151,6 +212,14 @@ async def update_page_route(
     page=Depends(_get_owned_page),
     db: AsyncSession = Depends(get_db),
 ):
+    if "parent_page_id" in data.model_fields_set:
+        await _validate_parent_page(
+            db,
+            data.parent_page_id,
+            model_id=page.model_id,
+            owner_id=page.owner_id,
+            current_page_id=page.id,
+        )
     return await update_ux_page(db, page, data)
 
 

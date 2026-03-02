@@ -26,6 +26,7 @@ async def create_ux_page(
     page = UXPage(
         name=data.name,
         page_type=data.page_type,
+        parent_page_id=data.parent_page_id,
         description=data.description,
         layout_config=data.layout_config or {},
         sort_order=data.sort_order,
@@ -66,13 +67,17 @@ async def list_ux_pages_for_model(
 async def update_ux_page(
     db: AsyncSession, page: UXPage, data: UXPageUpdate
 ) -> UXPage:
-    if data.name is not None:
+    fields = data.model_fields_set
+
+    if "name" in fields and data.name is not None:
         page.name = data.name
-    if data.description is not None:
+    if "parent_page_id" in fields:
+        page.parent_page_id = data.parent_page_id
+    if "description" in fields:
         page.description = data.description
-    if data.layout_config is not None:
+    if "layout_config" in fields:
         page.layout_config = data.layout_config
-    if data.sort_order is not None:
+    if "sort_order" in fields and data.sort_order is not None:
         page.sort_order = data.sort_order
     await db.commit()
     await db.refresh(page)

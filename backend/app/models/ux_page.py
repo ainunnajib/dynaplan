@@ -18,6 +18,7 @@ class PageType(str, enum.Enum):
 class CardType(str, enum.Enum):
     grid = "grid"
     chart = "chart"
+    button = "button"
     kpi = "kpi"
     text = "text"
     image = "image"
@@ -32,6 +33,9 @@ class UXPage(Base):
     )
     model_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("planning_models.id", ondelete="CASCADE"), nullable=False
+    )
+    parent_page_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid, ForeignKey("ux_pages.id", ondelete="SET NULL"), nullable=True
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     page_type: Mapped[PageType] = mapped_column(Enum(PageType), nullable=False)
@@ -62,6 +66,18 @@ class UXPage(Base):
         cascade="all, delete-orphan",
         lazy="selectin",
         order_by="UXContextSelector.sort_order",
+    )
+    parent_page: Mapped[Optional["UXPage"]] = relationship(
+        "UXPage",
+        remote_side="UXPage.id",
+        back_populates="child_pages",
+        lazy="selectin",
+    )
+    child_pages: Mapped[List["UXPage"]] = relationship(
+        "UXPage",
+        back_populates="parent_page",
+        lazy="selectin",
+        order_by="UXPage.sort_order",
     )
 
 

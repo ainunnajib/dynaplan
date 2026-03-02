@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import PageCard from "./PageCard";
 import ContextSelectorBar from "./ContextSelectorBar";
 import type { UXCardData } from "./PageCard";
@@ -26,9 +25,17 @@ export interface UXPageData {
 interface BoardPageProps {
   page: UXPageData;
   isEditMode?: boolean;
+  contextValues?: Record<string, string[]>;
+  cardFilters?: Record<string, string | null>;
   onDeleteCard?: (cardId: string) => void;
   onUpdateCard?: (cardId: string, patch: Partial<UXCardData>) => void;
   onContextChange?: (selectors: SelectorState[]) => void;
+  onCardEmitLink?: (
+    sourceCardId: string,
+    value: string | null,
+    targetCardIds: string[]
+  ) => void;
+  onNavigatePage?: (targetPageId: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -44,11 +51,16 @@ const GRID_COLS = 12;
 export default function BoardPage({
   page,
   isEditMode = false,
+  contextValues = {},
+  cardFilters = {},
   onDeleteCard,
   onUpdateCard,
   onContextChange,
+  onCardEmitLink,
+  onNavigatePage,
 }: BoardPageProps) {
-  const cards = page.cards;
+  const cards = [...page.cards];
+  const mobileCards = [...page.cards].sort((a, b) => a.sort_order - b.sort_order);
 
   const getCardStyle = (card: UXCardData) => ({
     gridColumn: `${card.position_x + 1} / span ${card.width}`,
@@ -73,7 +85,6 @@ export default function BoardPage({
       {/* Context selectors */}
       {page.context_selectors.length > 0 && (
         <ContextSelectorBar
-          pageId={page.id}
           selectors={page.context_selectors}
           onChange={onContextChange}
         />
@@ -87,24 +98,47 @@ export default function BoardPage({
             : "This board has no cards yet"}
         </div>
       ) : (
-        <div
-          className="grid gap-2"
-          style={{
-            gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`,
-            gridAutoRows: "80px",
-          }}
-        >
-          {cards.map((card) => (
-            <div key={card.id} style={getCardStyle(card)}>
-              <PageCard
-                card={card}
-                isEditMode={isEditMode}
-                onDelete={onDeleteCard}
-                onUpdate={onUpdateCard}
-              />
-            </div>
-          ))}
-        </div>
+        <>
+          <div className="flex flex-col gap-2 md:hidden">
+            {mobileCards.map((card) => (
+              <div key={card.id} className="min-h-[220px]">
+                <PageCard
+                  card={card}
+                  isEditMode={isEditMode}
+                  contextValues={contextValues}
+                  linkedFilter={cardFilters[card.id] ?? null}
+                  onDelete={onDeleteCard}
+                  onUpdate={onUpdateCard}
+                  onEmitLink={onCardEmitLink}
+                  onNavigatePage={onNavigatePage}
+                />
+              </div>
+            ))}
+          </div>
+
+          <div
+            className="hidden gap-2 md:grid"
+            style={{
+              gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`,
+              gridAutoRows: "80px",
+            }}
+          >
+            {cards.map((card) => (
+              <div key={card.id} style={getCardStyle(card)}>
+                <PageCard
+                  card={card}
+                  isEditMode={isEditMode}
+                  contextValues={contextValues}
+                  linkedFilter={cardFilters[card.id] ?? null}
+                  onDelete={onDeleteCard}
+                  onUpdate={onUpdateCard}
+                  onEmitLink={onCardEmitLink}
+                  onNavigatePage={onNavigatePage}
+                />
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

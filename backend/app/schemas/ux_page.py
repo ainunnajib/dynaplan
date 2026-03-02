@@ -74,6 +74,7 @@ class UXPageCardResponse(BaseModel):
 class UXPageCreate(BaseModel):
     name: str
     page_type: PageType
+    parent_page_id: Optional[uuid.UUID] = None
     description: Optional[str] = None
     layout_config: Optional[Dict[str, Any]] = None
     sort_order: int = 0
@@ -81,6 +82,7 @@ class UXPageCreate(BaseModel):
 
 class UXPageUpdate(BaseModel):
     name: Optional[str] = None
+    parent_page_id: Optional[uuid.UUID] = None
     description: Optional[str] = None
     layout_config: Optional[Dict[str, Any]] = None
     sort_order: Optional[int] = None
@@ -90,6 +92,7 @@ class UXPageResponse(BaseModel):
     id: uuid.UUID
     model_id: uuid.UUID
     owner_id: uuid.UUID
+    parent_page_id: Optional[uuid.UUID]
     name: str
     page_type: PageType
     description: Optional[str]

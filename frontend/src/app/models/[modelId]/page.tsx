@@ -102,6 +102,18 @@ export default async function ModelPage({ params }: PageProps) {
               >
                 Blueprint View
               </Link>
+              <Link
+                href={`/models/${modelId}/dashboards`}
+                className="w-full rounded-md border border-zinc-300 bg-white px-4 py-2 text-center text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 sm:w-auto"
+              >
+                Dashboards
+              </Link>
+              <Link
+                href={`/models/${modelId}/apps`}
+                className="w-full rounded-md bg-violet-600 px-4 py-2 text-center text-sm font-medium text-white transition-colors hover:bg-violet-700 sm:w-auto"
+              >
+                New UX Apps
+              </Link>
               <CreateModuleDialog modelId={modelId} />
             </div>
           </div>

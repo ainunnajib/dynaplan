@@ -1,0 +1,35 @@
+Implemented F073 end-to-end.
+
+**Implemented**
+- Added UX page hierarchy support with `parent_page_id` and cycle/same-model validation:
+  - [backend/app/models/ux_page.py](/Users/ainunnajib/dynaplan/backend/app/models/ux_page.py)
+  - [backend/app/schemas/ux_page.py](/Users/ainunnajib/dynaplan/backend/app/schemas/ux_page.py)
+  - [backend/app/services/ux_page.py](/Users/ainunnajib/dynaplan/backend/app/services/ux_page.py)
+  - [backend/app/api/ux_page.py](/Users/ainunnajib/dynaplan/backend/app/api/ux_page.py)
+- Added `button` as a supported UX card type (backend + frontend API/types).
+- Extended backend tests for hierarchy and new card type:
+  - [backend/tests/test_ux_page.py](/Users/ainunnajib/dynaplan/backend/tests/test_ux_page.py)
+- Added New UX App Builder frontend routes:
+  - [frontend/src/app/models/[modelId]/apps/page.tsx](/Users/ainunnajib/dynaplan/frontend/src/app/models/[modelId]/apps/page.tsx)
+  - [frontend/src/app/models/[modelId]/apps/[pageId]/page.tsx](/Users/ainunnajib/dynaplan/frontend/src/app/models/[modelId]/apps/[pageId]/page.tsx)
+- Added app list + builder clients with navigation tree, context selectors, and linked card interactions:
+  - [frontend/src/components/ux-pages/UXAppListClient.tsx](/Users/ainunnajib/dynaplan/frontend/src/components/ux-pages/UXAppListClient.tsx)
+  - [frontend/src/components/ux-pages/UXAppBuilderClient.tsx](/Users/ainunnajib/dynaplan/frontend/src/components/ux-pages/UXAppBuilderClient.tsx)
+- Updated UX page components for context propagation, card linking behavior, and responsive mobile layout:
+  - [frontend/src/components/ux-pages/BoardPage.tsx](/Users/ainunnajib/dynaplan/frontend/src/components/ux-pages/BoardPage.tsx)
+  - [frontend/src/components/ux-pages/WorksheetPage.tsx](/Users/ainunnajib/dynaplan/frontend/src/components/ux-pages/WorksheetPage.tsx)
+  - [frontend/src/components/ux-pages/ReportPage.tsx](/Users/ainunnajib/dynaplan/frontend/src/components/ux-pages/ReportPage.tsx)
+  - [frontend/src/components/ux-pages/PageCard.tsx](/Users/ainunnajib/dynaplan/frontend/src/components/ux-pages/PageCard.tsx)
+  - [frontend/src/components/ux-pages/ContextSelectorBar.tsx](/Users/ainunnajib/dynaplan/frontend/src/components/ux-pages/ContextSelectorBar.tsx)
+- Added frontend API client types/helpers for UX pages/cards/selectors:
+  - [frontend/src/lib/api.ts](/Users/ainunnajib/dynaplan/frontend/src/lib/api.ts)
+- Added model-page navigation entry for New UX Apps:
+  - [frontend/src/app/models/[modelId]/page.tsx](/Users/ainunnajib/dynaplan/frontend/src/app/models/[modelId]/page.tsx)
+- Updated progress tracker:
+  - [claude-progress.txt](/Users/ainunnajib/dynaplan/claude-progress.txt)
+
+**Validation**
+- `cd backend && .venv/bin/python -m pytest -x --tb=short -q`  
+  Result: `1619 passed, 1 skipped, 1 xfailed, 1 xpassed`
+- `cd frontend && bun tsc --noEmit`  
+  Result: pass

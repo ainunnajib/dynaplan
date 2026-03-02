@@ -689,3 +689,217 @@ export async function updateWidget(
 export async function deleteWidget(widgetId: string): Promise<void> {
   return fetchApi<void>(`/api/widgets/${widgetId}`, { method: "DELETE" });
 }
+
+// ── UX App Builder types ─────────────────────────────────────────────────────
+
+export type UXPageType = "board" | "worksheet" | "report";
+export type UXCardType =
+  | "grid"
+  | "chart"
+  | "button"
+  | "filter"
+  | "text"
+  | "kpi"
+  | "image";
+
+export interface UXContextSelector {
+  id: string;
+  page_id: string;
+  dimension_id: string;
+  label: string;
+  allow_multi_select: boolean;
+  default_member_id: string | null;
+  sort_order: number;
+}
+
+export interface UXPageCard {
+  id: string;
+  page_id: string;
+  card_type: UXCardType;
+  title: string | null;
+  config: Record<string, unknown> | null;
+  position_x: number;
+  position_y: number;
+  width: number;
+  height: number;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UXPage {
+  id: string;
+  model_id: string;
+  owner_id: string;
+  parent_page_id: string | null;
+  name: string;
+  page_type: UXPageType;
+  description: string | null;
+  layout_config: Record<string, unknown> | null;
+  is_published: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UXPageDetail extends UXPage {
+  cards: UXPageCard[];
+  context_selectors: UXContextSelector[];
+}
+
+export interface UXPageCreateInput {
+  name: string;
+  page_type: UXPageType;
+  parent_page_id?: string | null;
+  description?: string;
+  layout_config?: Record<string, unknown>;
+  sort_order?: number;
+}
+
+export interface UXPageUpdateInput {
+  name?: string;
+  parent_page_id?: string | null;
+  description?: string | null;
+  layout_config?: Record<string, unknown> | null;
+  sort_order?: number;
+}
+
+export interface UXPageCardCreateInput {
+  card_type: UXCardType;
+  title?: string;
+  config?: Record<string, unknown>;
+  position_x?: number;
+  position_y?: number;
+  width?: number;
+  height?: number;
+  sort_order?: number;
+}
+
+export interface UXPageCardUpdateInput {
+  title?: string | null;
+  config?: Record<string, unknown>;
+  position_x?: number;
+  position_y?: number;
+  width?: number;
+  height?: number;
+  sort_order?: number;
+}
+
+export interface UXContextSelectorCreateInput {
+  dimension_id: string;
+  label: string;
+  allow_multi_select?: boolean;
+  default_member_id?: string | null;
+  sort_order?: number;
+}
+
+// ── UX App Builder API helpers ───────────────────────────────────────────────
+
+export async function getUXPages(modelId: string): Promise<UXPage[]> {
+  return fetchApi<UXPage[]>(`/api/models/${modelId}/pages`);
+}
+
+export async function getUXPage(pageId: string): Promise<UXPageDetail> {
+  return fetchApi<UXPageDetail>(`/api/pages/${pageId}`);
+}
+
+export async function createUXPage(
+  modelId: string,
+  data: UXPageCreateInput
+): Promise<UXPage> {
+  return fetchApi<UXPage>(`/api/models/${modelId}/pages`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateUXPage(
+  pageId: string,
+  data: UXPageUpdateInput
+): Promise<UXPage> {
+  return fetchApi<UXPage>(`/api/pages/${pageId}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteUXPage(pageId: string): Promise<void> {
+  return fetchApi<void>(`/api/pages/${pageId}`, { method: "DELETE" });
+}
+
+export async function publishUXPage(
+  pageId: string,
+  isPublished: boolean
+): Promise<UXPage> {
+  return fetchApi<UXPage>(`/api/pages/${pageId}/publish`, {
+    method: "PUT",
+    body: JSON.stringify({ is_published: isPublished }),
+  });
+}
+
+export async function reorderUXPages(
+  modelId: string,
+  pageIds: string[]
+): Promise<UXPage[]> {
+  return fetchApi<UXPage[]>(`/api/models/${modelId}/pages/reorder`, {
+    method: "PUT",
+    body: JSON.stringify({ page_ids: pageIds }),
+  });
+}
+
+export async function addUXCard(
+  pageId: string,
+  data: UXPageCardCreateInput
+): Promise<UXPageCard> {
+  return fetchApi<UXPageCard>(`/api/pages/${pageId}/cards`, {
+    method: "POST",
+    body: JSON.stringify({
+      position_x: 0,
+      position_y: 0,
+      width: 6,
+      height: 4,
+      sort_order: 0,
+      ...data,
+    }),
+  });
+}
+
+export async function updateUXCard(
+  cardId: string,
+  data: UXPageCardUpdateInput
+): Promise<UXPageCard> {
+  return fetchApi<UXPageCard>(`/api/cards/${cardId}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteUXCard(cardId: string): Promise<void> {
+  return fetchApi<void>(`/api/cards/${cardId}`, { method: "DELETE" });
+}
+
+export async function reorderUXCards(
+  pageId: string,
+  cardIds: string[]
+): Promise<UXPageCard[]> {
+  return fetchApi<UXPageCard[]>(`/api/pages/${pageId}/cards/reorder`, {
+    method: "PUT",
+    body: JSON.stringify({ card_ids: cardIds }),
+  });
+}
+
+export async function addUXContextSelector(
+  pageId: string,
+  data: UXContextSelectorCreateInput
+): Promise<UXContextSelector> {
+  return fetchApi<UXContextSelector>(`/api/pages/${pageId}/context-selectors`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteUXContextSelector(selectorId: string): Promise<void> {
+  return fetchApi<void>(`/api/context-selectors/${selectorId}`, {
+    method: "DELETE",
+  });
+}

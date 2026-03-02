@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export type CardType = "grid" | "chart" | "kpi" | "text" | "image" | "filter";
+export type CardType = "grid" | "chart" | "button" | "kpi" | "text" | "image" | "filter";
 
 export interface UXCardData {
   id: string;
@@ -24,8 +24,16 @@ export interface UXCardData {
 interface PageCardProps {
   card: UXCardData;
   isEditMode: boolean;
+  contextValues?: Record<string, string[]>;
+  linkedFilter?: string | null;
   onDelete?: (cardId: string) => void;
   onUpdate?: (cardId: string, patch: Partial<UXCardData>) => void;
+  onEmitLink?: (
+    sourceCardId: string,
+    value: string | null,
+    targetCardIds: string[]
+  ) => void;
+  onNavigatePage?: (targetPageId: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -35,6 +43,7 @@ interface PageCardProps {
 const CARD_TYPE_LABELS: Record<CardType, string> = {
   grid: "Grid",
   chart: "Chart",
+  button: "Button",
   kpi: "KPI",
   text: "Text",
   image: "Image",
@@ -44,6 +53,7 @@ const CARD_TYPE_LABELS: Record<CardType, string> = {
 const CARD_TYPE_COLORS: Record<CardType, string> = {
   grid: "bg-blue-50 text-blue-600",
   chart: "bg-purple-50 text-purple-600",
+  button: "bg-indigo-50 text-indigo-600",
   kpi: "bg-emerald-50 text-emerald-600",
   text: "bg-amber-50 text-amber-600",
   image: "bg-pink-50 text-pink-600",
@@ -57,8 +67,12 @@ const CARD_TYPE_COLORS: Record<CardType, string> = {
 export default function PageCard({
   card,
   isEditMode,
+  contextValues = {},
+  linkedFilter = null,
   onDelete,
   onUpdate,
+  onEmitLink,
+  onNavigatePage,
 }: PageCardProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -107,7 +121,13 @@ export default function PageCard({
 
       {/* Body */}
       <div className="flex-1 overflow-auto p-3">
-        <CardBody card={card} />
+        <CardBody
+          card={card}
+          contextValues={contextValues}
+          linkedFilter={linkedFilter}
+          onEmitLink={onEmitLink}
+          onNavigatePage={onNavigatePage}
+        />
       </div>
 
       {/* Delete confirmation */}
@@ -143,8 +163,40 @@ export default function PageCard({
 // Card body renderer
 // ---------------------------------------------------------------------------
 
-function CardBody({ card }: { card: UXCardData }) {
+interface CardBodyProps {
+  card: UXCardData;
+  contextValues: Record<string, string[]>;
+  linkedFilter: string | null;
+  onEmitLink?: (
+    sourceCardId: string,
+    value: string | null,
+    targetCardIds: string[]
+  ) => void;
+  onNavigatePage?: (targetPageId: string) => void;
+}
+
+interface DataPoint {
+  label: string;
+  value: number;
+}
+
+function CardBody({
+  card,
+  contextValues,
+  linkedFilter,
+  onEmitLink,
+  onNavigatePage,
+}: CardBodyProps) {
   const config = card.config ?? {};
+  const linkTargets = asStringArray(config.link_targets);
+  const contextTokens = useMemo(
+    () =>
+      Object.values(contextValues)
+        .flat()
+        .map((token) => token.trim().toLowerCase())
+        .filter((token) => token.length > 0),
+    [contextValues]
+  );
 
   if (card.card_type === "kpi") {
     const value = config.value as string | number | undefined;
@@ -161,19 +213,112 @@ function CardBody({ card }: { card: UXCardData }) {
 
   if (card.card_type === "chart") {
     const chartType = (config.chart_type as string) ?? "bar";
+    const series = toSeries(
+      config.series,
+      [
+        { label: "North", value: 124 },
+        { label: "South", value: 98 },
+        { label: "West", value: 76 },
+      ]
+    );
+    const filtered = series.filter((point) =>
+      shouldKeepPoint(point.label, linkedFilter, contextTokens)
+    );
+    const maxValue = Math.max(...filtered.map((point) => point.value), 1);
+
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+      <div className="flex h-full flex-col gap-3">
         <div className="text-xs font-medium text-zinc-500 capitalize">{chartType} Chart</div>
-        <div className="text-xs text-zinc-400">Connect a module to display data</div>
+        {filtered.length === 0 ? (
+          <div className="flex flex-1 items-center justify-center text-xs text-zinc-400">
+            No chart data for current context
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {filtered.map((point) => (
+              <div key={point.label}>
+                <div className="mb-1 flex items-center justify-between text-[11px] text-zinc-500">
+                  <span>{point.label}</span>
+                  <span>{point.value}</span>
+                </div>
+                <div className="h-2 rounded-full bg-zinc-100">
+                  <div
+                    className="h-2 rounded-full bg-violet-500 transition-all"
+                    style={{ width: `${(point.value / maxValue) * 100}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <ContextChipRow contextValues={contextValues} linkedFilter={linkedFilter} />
       </div>
     );
   }
 
   if (card.card_type === "grid") {
+    const rows = toSeries(
+      config.rows,
+      [
+        { label: "Product Alpha", value: 42 },
+        { label: "Product Beta", value: 31 },
+        { label: "Product Gamma", value: 18 },
+      ]
+    );
+    const filteredRows = rows.filter((row) =>
+      shouldKeepPoint(row.label, linkedFilter, contextTokens)
+    );
+
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+      <div className="flex h-full flex-col gap-2">
         <div className="text-xs font-medium text-zinc-500">Grid View</div>
-        <div className="text-xs text-zinc-400">Select a module to display</div>
+        <div className="space-y-1">
+          {filteredRows.map((row) => (
+            <button
+              key={row.label}
+              type="button"
+              onClick={() => onEmitLink?.(card.id, row.label, linkTargets)}
+              className="flex w-full items-center justify-between rounded border border-zinc-200 px-2 py-1 text-left text-xs text-zinc-700 transition-colors hover:border-violet-200 hover:bg-violet-50"
+            >
+              <span>{row.label}</span>
+              <span className="text-zinc-500">{row.value}</span>
+            </button>
+          ))}
+        </div>
+        <ContextChipRow contextValues={contextValues} linkedFilter={linkedFilter} />
+      </div>
+    );
+  }
+
+  if (card.card_type === "button") {
+    const buttonText = asString(config.label) ?? card.title ?? "Run Action";
+    const action = asString(config.action) ?? "set_filter";
+    const targetPageId = asString(config.target_page_id);
+    const value = asString(config.value) ?? buttonText;
+
+    return (
+      <div className="flex h-full flex-col items-start justify-center gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            if (action === "navigate_page" && targetPageId) {
+              onNavigatePage?.(targetPageId);
+              return;
+            }
+            if (action === "clear_links") {
+              onEmitLink?.(card.id, null, linkTargets);
+              return;
+            }
+            onEmitLink?.(card.id, value, linkTargets);
+          }}
+          className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-indigo-700"
+        >
+          {buttonText}
+        </button>
+        <div className="text-[11px] text-zinc-500">
+          Action: {action.replace("_", " ")}
+        </div>
+        <ContextChipRow contextValues={contextValues} linkedFilter={linkedFilter} />
       </div>
     );
   }
@@ -181,12 +326,13 @@ function CardBody({ card }: { card: UXCardData }) {
   if (card.card_type === "text") {
     const content = config.content as string | undefined;
     return (
-      <div className="h-full overflow-auto">
+      <div className="h-full overflow-auto space-y-2">
         {content ? (
           <p className="whitespace-pre-wrap text-sm text-zinc-700">{content}</p>
         ) : (
           <p className="text-xs text-zinc-400 italic">No text content</p>
         )}
+        <ContextChipRow contextValues={contextValues} linkedFilter={linkedFilter} />
       </div>
     );
   }
@@ -207,14 +353,126 @@ function CardBody({ card }: { card: UXCardData }) {
   }
 
   if (card.card_type === "filter") {
+    const options = asStringArray(config.options);
+    const values = options.length > 0 ? options : ["North", "South", "West"];
     return (
-      <div className="flex h-full items-center justify-center">
-        <span className="text-xs text-zinc-400">Filter control</span>
+      <div className="flex h-full flex-col gap-2">
+        <span className="text-xs font-medium text-zinc-500">Filter control</span>
+        <div className="flex flex-wrap gap-1">
+          {values.map((value) => {
+            const selected = linkedFilter === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                onClick={() =>
+                  onEmitLink?.(card.id, selected ? null : value, linkTargets)
+                }
+                className={`rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                  selected
+                    ? "bg-cyan-100 text-cyan-700 ring-1 ring-cyan-300"
+                    : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                }`}
+              >
+                {value}
+              </button>
+            );
+          })}
+        </div>
+        <ContextChipRow contextValues={contextValues} linkedFilter={linkedFilter} />
       </div>
     );
   }
 
   return <div className="text-xs text-zinc-400">Unknown card type</div>;
+}
+
+function ContextChipRow({
+  contextValues,
+  linkedFilter,
+}: {
+  contextValues: Record<string, string[]>;
+  linkedFilter: string | null;
+}) {
+  const activeContext = Object.entries(contextValues).filter(([, values]) => values.length > 0);
+  if (activeContext.length === 0 && !linkedFilter) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1 pt-1">
+      {activeContext.map(([label, values]) => (
+        <span
+          key={label}
+          className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600"
+        >
+          {label}: {values.join(", ")}
+        </span>
+      ))}
+      {linkedFilter && (
+        <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-700">
+          Linked: {linkedFilter}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function asString(value: unknown): string | null {
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
+function toSeries(value: unknown, fallback: DataPoint[]): DataPoint[] {
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const series = value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+
+      const maybeLabel = (entry as { label?: unknown }).label;
+      const maybeValue = (entry as { value?: unknown }).value;
+      if (typeof maybeLabel !== "string" || typeof maybeValue !== "number") {
+        return null;
+      }
+
+      return {
+        label: maybeLabel,
+        value: maybeValue,
+      };
+    })
+    .filter((entry): entry is DataPoint => entry !== null);
+
+  return series.length > 0 ? series : fallback;
+}
+
+function shouldKeepPoint(
+  label: string,
+  linkedFilter: string | null,
+  contextTokens: string[]
+): boolean {
+  const normalized = label.toLowerCase();
+  const matchesLinkedFilter = linkedFilter
+    ? normalized.includes(linkedFilter.toLowerCase())
+    : true;
+  const matchesContext =
+    contextTokens.length === 0
+      ? true
+      : contextTokens.some((token) => normalized.includes(token));
+  return matchesLinkedFilter && matchesContext;
 }
 
 // ---------------------------------------------------------------------------

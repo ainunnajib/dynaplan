@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { fetchApi } from "@/lib/api";
+import { useCallback } from "react";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -29,7 +28,6 @@ export interface SelectorState {
 }
 
 interface ContextSelectorBarProps {
-  pageId: string;
   selectors: SelectorState[];
   onChange?: (updated: SelectorState[]) => void;
 }
@@ -39,39 +37,34 @@ interface ContextSelectorBarProps {
 // ---------------------------------------------------------------------------
 
 export default function ContextSelectorBar({
-  pageId,
-  selectors: initialSelectors,
+  selectors,
   onChange,
 }: ContextSelectorBarProps) {
-  const [selectors, setSelectors] = useState<SelectorState[]>(initialSelectors);
-
   const handleSelect = useCallback(
     (selectorIndex: number, memberId: string) => {
-      setSelectors((prev) => {
-        const next = prev.map((s, i) => {
-          if (i !== selectorIndex) return s;
+      const next = selectors.map((s, i) => {
+        if (i !== selectorIndex) return s;
 
-          const isMulti = s.selector.allow_multi_select;
-
-          let newSelected: string[];
-          if (isMulti) {
-            if (s.selectedIds.includes(memberId)) {
-              newSelected = s.selectedIds.filter((id) => id !== memberId);
-            } else {
-              newSelected = [...s.selectedIds, memberId];
-            }
+        const isMulti = s.selector.allow_multi_select;
+        let newSelected: string[];
+        if (memberId === "") {
+          newSelected = [];
+        } else if (isMulti) {
+          if (s.selectedIds.includes(memberId)) {
+            newSelected = s.selectedIds.filter((id) => id !== memberId);
           } else {
-            newSelected = [memberId];
+            newSelected = [...s.selectedIds, memberId];
           }
+        } else {
+          newSelected = [memberId];
+        }
 
-          return { ...s, selectedIds: newSelected };
-        });
-
-        onChange?.(next);
-        return next;
+        return { ...s, selectedIds: newSelected };
       });
+
+      onChange?.(next);
     },
-    [onChange]
+    [selectors, onChange]
   );
 
   if (selectors.length === 0) return null;

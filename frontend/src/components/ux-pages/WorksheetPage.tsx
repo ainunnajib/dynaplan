@@ -1,5 +1,6 @@
 "use client";
 
+import PageCard from "./PageCard";
 import ContextSelectorBar from "./ContextSelectorBar";
 import type { UXCardData } from "./PageCard";
 import type { SelectorState } from "./ContextSelectorBar";
@@ -17,7 +18,18 @@ interface WorksheetPageProps {
     cards: UXCardData[];
     context_selectors: SelectorState[];
   };
+  isEditMode?: boolean;
+  contextValues?: Record<string, string[]>;
+  cardFilters?: Record<string, string | null>;
   onContextChange?: (selectors: SelectorState[]) => void;
+  onDeleteCard?: (cardId: string) => void;
+  onUpdateCard?: (cardId: string, patch: Partial<UXCardData>) => void;
+  onCardEmitLink?: (
+    sourceCardId: string,
+    value: string | null,
+    targetCardIds: string[]
+  ) => void;
+  onNavigatePage?: (targetPageId: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -34,7 +46,14 @@ interface WorksheetPageProps {
  */
 export default function WorksheetPage({
   page,
+  isEditMode = false,
+  contextValues = {},
+  cardFilters = {},
   onContextChange,
+  onDeleteCard,
+  onUpdateCard,
+  onCardEmitLink,
+  onNavigatePage,
 }: WorksheetPageProps) {
   // The primary card is the first grid-type card; fallback to the first card.
   const primaryCard = page.cards.find((c) => c.card_type === "grid") ?? page.cards[0] ?? null;
@@ -58,7 +77,6 @@ export default function WorksheetPage({
       {/* Context selectors */}
       {page.context_selectors.length > 0 && (
         <ContextSelectorBar
-          pageId={page.id}
           selectors={page.context_selectors}
           onChange={onContextChange}
         />
@@ -66,18 +84,17 @@ export default function WorksheetPage({
 
       {/* Primary grid area */}
       {primaryCard ? (
-        <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
-          <div className="border-b border-zinc-100 bg-zinc-50 px-4 py-2">
-            <span className="text-xs font-medium text-zinc-600">
-              {primaryCard.title ?? "Data Grid"}
-            </span>
-          </div>
-          <div className="min-h-[400px] p-0">
-            {/* Placeholder for actual grid rendering (driven by module_id in config) */}
-            <div className="flex h-full min-h-[400px] items-center justify-center text-sm text-zinc-400">
-              Grid content will render here based on module configuration
-            </div>
-          </div>
+        <div className="min-h-[360px]">
+          <PageCard
+            card={primaryCard}
+            isEditMode={isEditMode}
+            contextValues={contextValues}
+            linkedFilter={cardFilters[primaryCard.id] ?? null}
+            onDelete={onDeleteCard}
+            onUpdate={onUpdateCard}
+            onEmitLink={onCardEmitLink}
+            onNavigatePage={onNavigatePage}
+          />
         </div>
       ) : (
         <div className="flex h-64 items-center justify-center rounded-lg border-2 border-dashed border-zinc-200 text-sm text-zinc-400">
@@ -89,18 +106,17 @@ export default function WorksheetPage({
       {secondaryCards.length > 0 && (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
           {secondaryCards.map((card) => (
-            <div
-              key={card.id}
-              className="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm"
-            >
-              <div className="border-b border-zinc-100 bg-zinc-50 px-3 py-2">
-                <span className="text-xs font-medium text-zinc-600">
-                  {card.title ?? card.card_type}
-                </span>
-              </div>
-              <div className="flex h-32 items-center justify-center p-3 text-xs text-zinc-400">
-                {card.card_type} card content
-              </div>
+            <div key={card.id} className="min-h-[220px]">
+              <PageCard
+                card={card}
+                isEditMode={isEditMode}
+                contextValues={contextValues}
+                linkedFilter={cardFilters[card.id] ?? null}
+                onDelete={onDeleteCard}
+                onUpdate={onUpdateCard}
+                onEmitLink={onCardEmitLink}
+                onNavigatePage={onNavigatePage}
+              />
             </div>
           ))}
         </div>

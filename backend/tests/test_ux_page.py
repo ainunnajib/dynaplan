@@ -5,6 +5,7 @@ Covers page CRUD, card CRUD, context selectors, publish/unpublish,
 reorder, auth guards, and 404 handling.
 """
 import uuid
+from typing import Optional
 
 import pytest
 from httpx import AsyncClient
@@ -80,10 +81,15 @@ async def create_page(
     model_id: str,
     name: str = "My Page",
     page_type: str = "board",
+    parent_page_id: Optional[str] = None,
 ) -> dict:
+    payload = {"name": name, "page_type": page_type}
+    if parent_page_id is not None:
+        payload["parent_page_id"] = parent_page_id
+
     resp = await client.post(
         f"/models/{model_id}/pages",
-        json={"name": name, "page_type": page_type},
+        json=payload,
         headers=auth_headers(token),
     )
     assert resp.status_code == 201
@@ -172,6 +178,48 @@ async def test_create_page_report(client: AsyncClient):
     )
     assert resp.status_code == 201
     assert resp.json()["page_type"] == "report"
+
+
+@pytest.mark.asyncio
+async def test_create_page_with_parent(client: AsyncClient):
+    token, model_id = await _setup(client, "ux_create_parent@example.com")
+
+    parent = await create_page(client, token, model_id, name="Parent Page")
+
+    resp = await client.post(
+        f"/models/{model_id}/pages",
+        json={
+            "name": "Child Page",
+            "page_type": "worksheet",
+            "parent_page_id": parent["id"],
+        },
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["name"] == "Child Page"
+    assert data["parent_page_id"] == parent["id"]
+
+
+@pytest.mark.asyncio
+async def test_create_page_parent_must_be_same_model(client: AsyncClient):
+    token = await register_and_login(client, "ux_parent_model@example.com")
+    ws_id = await create_workspace(client, token)
+    model_a = await create_model(client, token, ws_id, name="Model A")
+    model_b = await create_model(client, token, ws_id, name="Model B")
+
+    foreign_parent = await create_page(client, token, model_b, name="Foreign Parent")
+    resp = await client.post(
+        f"/models/{model_a}/pages",
+        json={
+            "name": "Invalid Child",
+            "page_type": "board",
+            "parent_page_id": foreign_parent["id"],
+        },
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 400
+    assert "same model" in resp.json()["detail"].lower()
 
 
 @pytest.mark.asyncio
@@ -266,6 +314,50 @@ async def test_update_page(client: AsyncClient):
     assert resp.status_code == 200
     assert resp.json()["name"] == "New Name"
     assert resp.json()["description"] == "Updated"
+
+
+@pytest.mark.asyncio
+async def test_update_page_parent(client: AsyncClient):
+    token, model_id = await _setup(client, "ux_update_parent@example.com")
+    parent = await create_page(client, token, model_id, "Parent")
+    child = await create_page(client, token, model_id, "Child")
+
+    set_parent_resp = await client.put(
+        f"/pages/{child['id']}",
+        json={"parent_page_id": parent["id"]},
+        headers=auth_headers(token),
+    )
+    assert set_parent_resp.status_code == 200
+    assert set_parent_resp.json()["parent_page_id"] == parent["id"]
+
+    clear_parent_resp = await client.put(
+        f"/pages/{child['id']}",
+        json={"parent_page_id": None},
+        headers=auth_headers(token),
+    )
+    assert clear_parent_resp.status_code == 200
+    assert clear_parent_resp.json()["parent_page_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_update_page_parent_cycle_rejected(client: AsyncClient):
+    token, model_id = await _setup(client, "ux_update_parent_cycle@example.com")
+    root = await create_page(client, token, model_id, "Root")
+    child = await create_page(
+        client,
+        token,
+        model_id,
+        name="Child",
+        parent_page_id=root["id"],
+    )
+
+    resp = await client.put(
+        f"/pages/{root['id']}",
+        json={"parent_page_id": child["id"]},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 400
+    assert "cycle" in resp.json()["detail"].lower()
 
 
 @pytest.mark.asyncio
@@ -388,7 +480,7 @@ async def test_add_card_all_types(client: AsyncClient):
     token, model_id = await _setup(client, "ux_card_types@example.com")
     page = await create_page(client, token, model_id)
 
-    card_types = ["grid", "chart", "kpi", "text", "image", "filter"]
+    card_types = ["grid", "chart", "button", "kpi", "text", "image", "filter"]
     for i, ct in enumerate(card_types):
         resp = await client.post(
             f"/pages/{page['id']}/cards",
