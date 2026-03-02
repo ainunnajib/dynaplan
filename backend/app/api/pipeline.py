@@ -27,6 +27,7 @@ from app.services.pipeline import (
     create_step as svc_create_step,
     delete_pipeline as svc_delete_pipeline,
     delete_step as svc_delete_step,
+    execute_run as svc_execute_run,
     get_pipeline_by_id,
     get_run_by_id,
     get_step_by_id,
@@ -268,6 +269,25 @@ async def get_run(
     detail = PipelineRunDetail.model_validate(run)
     detail.step_logs = [PipelineStepLogResponse.model_validate(sl) for sl in run.step_logs]
     return detail
+
+
+@router.post(
+    "/pipeline-runs/{run_id}/execute",
+    response_model=PipelineRunResponse,
+)
+async def execute_run(
+    run_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> PipelineRunResponse:
+    run = await get_run_by_id(db, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    try:
+        updated = await svc_execute_run(db, run)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return PipelineRunResponse.model_validate(updated)
 
 
 @router.post(

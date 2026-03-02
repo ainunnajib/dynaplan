@@ -1,0 +1,34 @@
+Implemented F065 end-to-end.
+
+**What changed**
+1. Added pipeline runtime engine package:
+- [config_parser.py](/Users/ainunnajib/dynaplan/backend/app/engine/pipeline_runtime/config_parser.py#L1)
+- [dataframe_utils.py](/Users/ainunnajib/dynaplan/backend/app/engine/pipeline_runtime/dataframe_utils.py)
+- [transforms.py](/Users/ainunnajib/dynaplan/backend/app/engine/pipeline_runtime/transforms.py#L1)
+- [executor.py](/Users/ainunnajib/dynaplan/backend/app/engine/pipeline_runtime/executor.py#L1)
+- [__init__.py](/Users/ainunnajib/dynaplan/backend/app/engine/pipeline_runtime/__init__.py)
+
+2. Wired pipeline run execution lifecycle in service:
+- `get_run_by_id` now loads run context with `selectinload`.
+- Added `execute_run(...)` with real step chaining, step log updates (`records_in`/`records_out`/`log_output`), progress increments, failure capture, and pending-step skip-on-fail.
+- File: [pipeline.py](/Users/ainunnajib/dynaplan/backend/app/services/pipeline.py#L234)
+
+3. Added API endpoint to execute pipeline runs:
+- `POST /pipeline-runs/{run_id}/execute`
+- File: [pipeline.py](/Users/ainunnajib/dynaplan/backend/app/api/pipeline.py#L274)
+
+4. Added F065 runtime tests:
+- Full chain test: source → transform (rename/cast/expression/join) → filter → map → aggregate → publish (cell write verification).
+- Failure path test with step-log/status assertions.
+- Execute guard + auth tests.
+- File: [test_pipeline.py](/Users/ainunnajib/dynaplan/backend/tests/test_pipeline.py#L726)
+
+5. Updated progress tracking:
+- Marked F065 complete and updated latest test baseline.
+- File: [claude-progress.txt](/Users/ainunnajib/dynaplan/claude-progress.txt#L3)
+
+**Validation run**
+1. `cd backend && .venv/bin/python -m pytest -x --tb=short -q`  
+   Result: `1543 passed, 1 skipped, 1 xfailed, 1 xpassed`
+2. `cd frontend && bun tsc --noEmit`  
+   Result: clean (no errors)

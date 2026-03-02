@@ -4,6 +4,9 @@ from typing import List, Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.engine.pipeline_runtime import PipelineRuntimeExecutor
 
 from app.models.pipeline import (
     Pipeline,
@@ -52,7 +55,9 @@ async def get_pipeline_by_id(
     db: AsyncSession, pipeline_id: uuid.UUID
 ) -> Optional[Pipeline]:
     result = await db.execute(
-        select(Pipeline).where(Pipeline.id == pipeline_id)
+        select(Pipeline)
+        .where(Pipeline.id == pipeline_id)
+        .options(selectinload(Pipeline.steps))
     )
     return result.scalar_one_or_none()
 
@@ -230,7 +235,12 @@ async def get_run_by_id(
     db: AsyncSession, run_id: uuid.UUID
 ) -> Optional[PipelineRun]:
     result = await db.execute(
-        select(PipelineRun).where(PipelineRun.id == run_id)
+        select(PipelineRun)
+        .where(PipelineRun.id == run_id)
+        .options(
+            selectinload(PipelineRun.pipeline).selectinload(Pipeline.steps),
+            selectinload(PipelineRun.step_logs),
+        )
     )
     return result.scalar_one_or_none()
 
@@ -302,6 +312,114 @@ async def cancel_run(db: AsyncSession, run: PipelineRun) -> PipelineRun:
     await db.commit()
     await db.refresh(run)
     return run
+
+
+async def _mark_remaining_logs_skipped(
+    db: AsyncSession,
+    run: PipelineRun,
+) -> None:
+    for log in run.step_logs:
+        if log.status == StepLogStatus.pending:
+            await update_step_log_status(db, log, StepLogStatus.skipped)
+
+
+async def execute_run(db: AsyncSession, run: PipelineRun) -> PipelineRun:
+    hydrated_run = await get_run_by_id(db, run.id)
+    if hydrated_run is None:
+        raise ValueError("Run not found")
+
+    if hydrated_run.status not in (PipelineRunStatus.pending, PipelineRunStatus.running):
+        raise ValueError("Only pending/running runs can be executed")
+
+    if hydrated_run.pipeline is None:
+        raise ValueError("Pipeline was not found for run")
+
+    if hydrated_run.status == PipelineRunStatus.pending:
+        hydrated_run = await start_run(db, hydrated_run)
+
+    run_context = await get_run_by_id(db, hydrated_run.id)
+    if run_context is None or run_context.pipeline is None:
+        raise ValueError("Run context could not be loaded")
+
+    ordered_steps = sorted(run_context.pipeline.steps, key=lambda step: step.sort_order)
+    if len(ordered_steps) == 0:
+        raise ValueError("Pipeline has no steps")
+
+    step_logs_by_step_id = {
+        log.step_id: log for log in run_context.step_logs
+    }
+    runtime_executor = PipelineRuntimeExecutor(db=db, model_id=run_context.pipeline.model_id)
+
+    current_frame = None
+    completed_steps = run_context.completed_steps
+    for step in ordered_steps:
+        step_log = step_logs_by_step_id.get(step.id)
+        if step_log is None:
+            step_log = PipelineStepLog(
+                run_id=run_context.id,
+                step_id=step.id,
+                status=StepLogStatus.pending,
+            )
+            db.add(step_log)
+            await db.commit()
+            await db.refresh(step_log)
+
+        try:
+            await update_step_log_status(
+                db,
+                step_log,
+                StepLogStatus.running,
+                records_in=0 if current_frame is None else int(len(current_frame.index)),
+                log_output="Executing %s step '%s'" % (step.step_type.value, step.name),
+            )
+            result = await runtime_executor.execute_step(step=step, input_frame=current_frame)
+            current_frame = result.output_frame
+            await update_step_log_status(
+                db,
+                step_log,
+                StepLogStatus.completed,
+                records_in=result.records_in,
+                records_out=result.records_out,
+                log_output=result.log_output,
+            )
+            completed_steps += 1
+            latest_run = await get_run_by_id(db, run_context.id)
+            if latest_run is None:
+                raise ValueError("Run not found while updating progress")
+            latest_run.completed_steps = completed_steps
+            db.add(latest_run)
+            await db.commit()
+        except Exception as exc:  # noqa: BLE001
+            await update_step_log_status(
+                db,
+                step_log,
+                StepLogStatus.failed,
+                log_output=str(exc),
+            )
+            latest_run = await get_run_by_id(db, run_context.id)
+            if latest_run is None:
+                raise ValueError("Run not found while handling failure")
+            await _mark_remaining_logs_skipped(db, latest_run)
+            failed_run = await get_run_by_id(db, run_context.id)
+            if failed_run is None:
+                raise ValueError("Run not found while failing execution")
+            return await fail_run(
+                db,
+                failed_run,
+                error_step_id=step.id,
+                error_message=str(exc),
+            )
+
+    latest_run = await get_run_by_id(db, run_context.id)
+    if latest_run is None:
+        raise ValueError("Run not found while completing execution")
+    latest_run.completed_steps = latest_run.total_steps
+    db.add(latest_run)
+    await db.commit()
+    refreshed_latest = await get_run_by_id(db, latest_run.id)
+    if refreshed_latest is None:
+        raise ValueError("Run not found while finalizing execution")
+    return await complete_run(db, refreshed_latest)
 
 
 # ---------------------------------------------------------------------------

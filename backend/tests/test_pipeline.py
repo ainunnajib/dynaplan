@@ -11,6 +11,7 @@ Covers:
   - Pipeline validation
   - Auth required for all endpoints
 """
+import json
 import uuid
 
 import pytest
@@ -67,6 +68,65 @@ async def create_model(
     resp = await client.post(
         "/models",
         json={"name": name, "workspace_id": workspace_id},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 201
+    return resp.json()["id"]
+
+
+async def create_dimension_api(
+    client: AsyncClient, token: str, model_id: str, name: str = "Product"
+) -> str:
+    resp = await client.post(
+        f"/models/{model_id}/dimensions",
+        json={"name": name},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 201
+    return resp.json()["id"]
+
+
+async def create_dimension_item_api(
+    client: AsyncClient,
+    token: str,
+    dimension_id: str,
+    name: str,
+    code: str,
+) -> str:
+    resp = await client.post(
+        f"/dimensions/{dimension_id}/items",
+        json={"name": name, "code": code},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 201
+    return resp.json()["id"]
+
+
+async def create_module_api(
+    client: AsyncClient, token: str, model_id: str, name: str = "Pipeline Module"
+) -> str:
+    resp = await client.post(
+        f"/models/{model_id}/modules",
+        json={"name": name},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 201
+    return resp.json()["id"]
+
+
+async def create_line_item_api(
+    client: AsyncClient,
+    token: str,
+    module_id: str,
+    name: str,
+    applies_to_dimensions=None,
+) -> str:
+    payload = {"name": name, "format": "number"}
+    if applies_to_dimensions is not None:
+        payload["applies_to_dimensions"] = applies_to_dimensions
+    resp = await client.post(
+        f"/modules/{module_id}/line-items",
+        json=payload,
         headers=auth_headers(token),
     )
     assert resp.status_code == 201
@@ -664,6 +724,321 @@ async def test_step_log_update(client: AsyncClient):
 
 
 # ---------------------------------------------------------------------------
+# Runtime execution (F065)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_execute_run_full_runtime_chain(client: AsyncClient, tmp_path):
+    token, model_id = await setup_env(client, "pl_runtime_chain@example.com")
+    module_id = await create_module_api(client, token, model_id, "Runtime Module")
+
+    product_dimension_id = await create_dimension_api(client, token, model_id, "Product")
+    product_p1_id = await create_dimension_item_api(
+        client, token, product_dimension_id, "Product P1", "P1"
+    )
+    product_p2_id = await create_dimension_item_api(
+        client, token, product_dimension_id, "Product P2", "P2"
+    )
+
+    revenue_line_item_id = await create_line_item_api(
+        client,
+        token,
+        module_id,
+        "Revenue",
+        applies_to_dimensions=[product_dimension_id],
+    )
+    units_line_item_id = await create_line_item_api(
+        client,
+        token,
+        module_id,
+        "Units",
+        applies_to_dimensions=[product_dimension_id],
+    )
+
+    source_path = tmp_path / "pipeline_source.csv"
+    source_path.write_text(
+        (
+            "product,revenue,units,status\n"
+            "P1,10,2,active\n"
+            "P1,5,1,active\n"
+            "P2,7,1,inactive\n"
+            "P2,3,1,active\n"
+        ),
+        encoding="utf-8",
+    )
+
+    pipeline = await create_pipeline_api(client, token, model_id, "Runtime Pipeline")
+    pipeline_id = pipeline["id"]
+
+    source_step = await add_step_api(
+        client,
+        token,
+        pipeline_id,
+        name="Source",
+        step_type="source",
+        sort_order=0,
+        config=json.dumps({
+            "connector_type": "local_file",
+            "path": str(source_path),
+            "format": "csv",
+        }),
+    )
+    transform_step = await add_step_api(
+        client,
+        token,
+        pipeline_id,
+        name="Transform",
+        step_type="transform",
+        sort_order=1,
+        config=json.dumps({
+            "rename": {"product": "product_code"},
+            "casts": {"revenue": "float", "units": "int"},
+            "expressions": {"unit_price": "revenue / units"},
+            "join": {
+                "right_data": [
+                    {"product_code": "P1", "segment": "A"},
+                    {"product_code": "P2", "segment": "B"},
+                ],
+                "on": ["product_code"],
+                "how": "left",
+            },
+        }),
+    )
+    filter_step = await add_step_api(
+        client,
+        token,
+        pipeline_id,
+        name="Filter",
+        step_type="filter",
+        sort_order=2,
+        config=json.dumps({"expression": "status == 'active'"}),
+    )
+    map_step = await add_step_api(
+        client,
+        token,
+        pipeline_id,
+        name="Map",
+        step_type="map",
+        sort_order=3,
+        config=json.dumps({
+            "column": "status",
+            "mapping": {"active": "A", "inactive": "I"},
+            "target_column": "status_code",
+        }),
+    )
+    aggregate_step = await add_step_api(
+        client,
+        token,
+        pipeline_id,
+        name="Aggregate",
+        step_type="aggregate",
+        sort_order=4,
+        config=json.dumps({
+            "group_by": ["product_code"],
+            "aggregations": {"revenue": "sum", "units": "sum"},
+        }),
+    )
+    publish_step = await add_step_api(
+        client,
+        token,
+        pipeline_id,
+        name="Publish",
+        step_type="publish",
+        sort_order=5,
+        config=json.dumps({
+            "line_item_map": {
+                "revenue": revenue_line_item_id,
+                "units": units_line_item_id,
+            },
+            "dimension_columns": ["product_code"],
+            "dimension_member_map": {
+                "product_code": {
+                    "P1": product_p1_id,
+                    "P2": product_p2_id,
+                }
+            },
+        }),
+    )
+
+    trigger_resp = await client.post(
+        f"/pipelines/{pipeline_id}/trigger",
+        headers=auth_headers(token),
+    )
+    assert trigger_resp.status_code == 201
+    run_id = trigger_resp.json()["id"]
+
+    execute_resp = await client.post(
+        f"/pipeline-runs/{run_id}/execute",
+        headers=auth_headers(token),
+    )
+    assert execute_resp.status_code == 200
+    run_data = execute_resp.json()
+    assert run_data["status"] == "completed"
+    assert run_data["completed_steps"] == 6
+    assert run_data["total_steps"] == 6
+
+    run_detail_resp = await client.get(
+        f"/pipeline-runs/{run_id}",
+        headers=auth_headers(token),
+    )
+    assert run_detail_resp.status_code == 200
+    run_detail = run_detail_resp.json()
+    assert run_detail["status"] == "completed"
+
+    logs_by_step_id = {
+        log["step_id"]: log for log in run_detail["step_logs"]
+    }
+    assert logs_by_step_id[source_step["id"]]["status"] == "completed"
+    assert logs_by_step_id[source_step["id"]]["records_in"] == 0
+    assert logs_by_step_id[source_step["id"]]["records_out"] == 4
+    assert logs_by_step_id[transform_step["id"]]["records_in"] == 4
+    assert logs_by_step_id[transform_step["id"]]["records_out"] == 4
+    assert logs_by_step_id[filter_step["id"]]["records_in"] == 4
+    assert logs_by_step_id[filter_step["id"]]["records_out"] == 3
+    assert logs_by_step_id[map_step["id"]]["records_in"] == 3
+    assert logs_by_step_id[map_step["id"]]["records_out"] == 3
+    assert logs_by_step_id[aggregate_step["id"]]["records_in"] == 3
+    assert logs_by_step_id[aggregate_step["id"]]["records_out"] == 2
+    assert logs_by_step_id[publish_step["id"]]["records_in"] == 2
+    assert logs_by_step_id[publish_step["id"]]["records_out"] == 4
+
+    revenue_cells_resp = await client.post(
+        "/cells/query",
+        json={"line_item_id": revenue_line_item_id},
+        headers=auth_headers(token),
+    )
+    assert revenue_cells_resp.status_code == 200
+    revenue_rows = revenue_cells_resp.json()
+    assert len(revenue_rows) == 2
+    revenue_by_product = {
+        row["dimension_members"][0]: row["value"] for row in revenue_rows
+    }
+    assert revenue_by_product[product_p1_id] == 15.0
+    assert revenue_by_product[product_p2_id] == 3.0
+
+    units_cells_resp = await client.post(
+        "/cells/query",
+        json={"line_item_id": units_line_item_id},
+        headers=auth_headers(token),
+    )
+    assert units_cells_resp.status_code == 200
+    units_rows = units_cells_resp.json()
+    assert len(units_rows) == 2
+    units_by_product = {
+        row["dimension_members"][0]: row["value"] for row in units_rows
+    }
+    assert units_by_product[product_p1_id] == 3.0
+    assert units_by_product[product_p2_id] == 1.0
+
+
+@pytest.mark.asyncio
+async def test_execute_run_marks_failed_and_skips_remaining_steps(client: AsyncClient):
+    token, model_id = await setup_env(client, "pl_runtime_fail@example.com")
+    pipeline = await create_pipeline_api(client, token, model_id, "Runtime Fail Pipeline")
+    source_step = await add_step_api(
+        client,
+        token,
+        pipeline["id"],
+        name="Broken Source",
+        step_type="source",
+        sort_order=0,
+        config="{ invalid_json",
+    )
+    publish_step = await add_step_api(
+        client,
+        token,
+        pipeline["id"],
+        name="Publish",
+        step_type="publish",
+        sort_order=1,
+        config=json.dumps({
+            "line_item_id": str(uuid.uuid4()),
+            "value_column": "value",
+        }),
+    )
+
+    trigger_resp = await client.post(
+        f"/pipelines/{pipeline['id']}/trigger",
+        headers=auth_headers(token),
+    )
+    assert trigger_resp.status_code == 201
+    run_id = trigger_resp.json()["id"]
+
+    execute_resp = await client.post(
+        f"/pipeline-runs/{run_id}/execute",
+        headers=auth_headers(token),
+    )
+    assert execute_resp.status_code == 200
+    failed_run = execute_resp.json()
+    assert failed_run["status"] == "failed"
+    assert failed_run["error_step_id"] == source_step["id"]
+    assert failed_run["error_message"] is not None
+
+    detail_resp = await client.get(
+        f"/pipeline-runs/{run_id}",
+        headers=auth_headers(token),
+    )
+    assert detail_resp.status_code == 200
+    detail = detail_resp.json()
+    logs_by_step_id = {
+        log["step_id"]: log for log in detail["step_logs"]
+    }
+    assert logs_by_step_id[source_step["id"]]["status"] == "failed"
+    assert logs_by_step_id[publish_step["id"]]["status"] == "skipped"
+
+
+@pytest.mark.asyncio
+async def test_execute_run_rejects_completed_run(client: AsyncClient):
+    token, model_id = await setup_env(client, "pl_runtime_guard@example.com")
+    module_id = await create_module_api(client, token, model_id, "Guard Module")
+    line_item_id = await create_line_item_api(client, token, module_id, "Value")
+
+    pipeline = await create_pipeline_api(client, token, model_id, "Guard Pipeline")
+    await add_step_api(
+        client,
+        token,
+        pipeline["id"],
+        name="Source",
+        step_type="source",
+        sort_order=0,
+        config=json.dumps({"inline_data": [{"value": 10.0}]}),
+    )
+    await add_step_api(
+        client,
+        token,
+        pipeline["id"],
+        name="Publish",
+        step_type="publish",
+        sort_order=1,
+        config=json.dumps({
+            "line_item_id": line_item_id,
+            "value_column": "value",
+        }),
+    )
+
+    trigger_resp = await client.post(
+        f"/pipelines/{pipeline['id']}/trigger",
+        headers=auth_headers(token),
+    )
+    run_id = trigger_resp.json()["id"]
+
+    first_execute_resp = await client.post(
+        f"/pipeline-runs/{run_id}/execute",
+        headers=auth_headers(token),
+    )
+    assert first_execute_resp.status_code == 200
+    assert first_execute_resp.json()["status"] == "completed"
+
+    second_execute_resp = await client.post(
+        f"/pipeline-runs/{run_id}/execute",
+        headers=auth_headers(token),
+    )
+    assert second_execute_resp.status_code == 400
+    assert "pending/running" in second_execute_resp.json()["detail"].lower()
+
+
+# ---------------------------------------------------------------------------
 # Validation
 # ---------------------------------------------------------------------------
 
@@ -812,6 +1187,12 @@ async def test_get_run_requires_auth(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_cancel_run_requires_auth(client: AsyncClient):
     resp = await client.post(f"/pipeline-runs/{uuid.uuid4()}/cancel")
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_execute_run_requires_auth(client: AsyncClient):
+    resp = await client.post(f"/pipeline-runs/{uuid.uuid4()}/execute")
     assert resp.status_code == 401
 
 
