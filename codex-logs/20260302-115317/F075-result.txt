@@ -1,0 +1,33 @@
+Implemented F075 end-to-end with backend + frontend + tests.
+
+- Added server-side grid pagination endpoint: [`/modules/{module_id}/cells/page`]( /Users/ainunnajib/dynaplan/backend/app/api/module.py#L200 ) with `offset`, `limit`, `total_count`, `has_more`.
+  - Schemas: [backend/app/schemas/cell.py](/Users/ainunnajib/dynaplan/backend/app/schemas/cell.py#L55)
+
+- Added lazy dimension-member pagination endpoint: [`/dimensions/{dimension_id}/items/page`]( /Users/ainunnajib/dynaplan/backend/app/api/dimension.py#L231 ) with optional `search`.
+  - Service query logic: [backend/app/services/dimension.py](/Users/ainunnajib/dynaplan/backend/app/services/dimension.py#L194)
+  - Schema: [backend/app/schemas/dimension.py](/Users/ainunnajib/dynaplan/backend/app/schemas/dimension.py#L84)
+
+- Added backend tests for both new paginated endpoints:
+  - [backend/tests/test_module_cells_compat.py](/Users/ainunnajib/dynaplan/backend/tests/test_module_cells_compat.py#L229)
+  - [backend/tests/test_dimension.py](/Users/ainunnajib/dynaplan/backend/tests/test_dimension.py#L810)
+
+- Updated frontend API client with paged helpers:
+  - [frontend/src/lib/api.ts](/Users/ainunnajib/dynaplan/frontend/src/lib/api.ts#L215)
+  - `getCellsPage`, `getDimensionItemsPage`, and `getDimensionItems` now page-aware.
+
+- Updated grid runtime for F075:
+  - Incremental cell-page loading + lazy dimension-member loading + WebSocket cell push handling + client cache invalidation/apply:
+  - [frontend/src/components/grid/DataGrid.tsx](/Users/ainunnajib/dynaplan/frontend/src/components/grid/DataGrid.tsx#L169)
+  - Cache invalidation/apply helpers:
+  - [frontend/src/hooks/useCellData.ts](/Users/ainunnajib/dynaplan/frontend/src/hooks/useCellData.ts#L329)
+  - Module page no longer eagerly SSR-loads all dimension items:
+  - [frontend/src/app/models/[modelId]/modules/[moduleId]/page.tsx](/Users/ainunnajib/dynaplan/frontend/src/app/models/[modelId]/modules/[moduleId]/page.tsx#L30)
+  - Prop wiring for model-aware collaboration:
+  - [frontend/src/app/models/[modelId]/modules/[moduleId]/ModuleGridClient.tsx](/Users/ainunnajib/dynaplan/frontend/src/app/models/[modelId]/modules/[moduleId]/ModuleGridClient.tsx#L17)
+
+- Updated progress tracker:
+  - [claude-progress.txt](/Users/ainunnajib/dynaplan/claude-progress.txt#L3)
+
+Validation run:
+- `cd backend && .venv/bin/python -m pytest -x --tb=short -q` -> `1626 passed, 1 skipped, 1 xfailed, 1 xpassed`
+- `cd frontend && bun tsc --noEmit` -> passed

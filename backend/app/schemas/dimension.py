@@ -79,3 +79,11 @@ class DimensionItemNode(BaseModel):
 
 # Allow forward reference resolution
 DimensionItemNode.model_rebuild()
+
+
+class DimensionItemPageResponse(BaseModel):
+    items: List[DimensionItemResponse]
+    total_count: int
+    offset: int
+    limit: int
+    has_more: bool

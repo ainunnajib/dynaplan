@@ -11,6 +11,7 @@ from app.schemas.dimension import (
     DimensionCreate,
     DimensionItemCreate,
     DimensionItemNode,
+    DimensionItemPageResponse,
     DimensionItemResponse,
     DimensionItemUpdate,
     DimensionResponse,
@@ -27,6 +28,7 @@ from app.services.dimension import (
     get_items_as_tree,
     list_dimensions_for_model,
     list_items_flat,
+    list_items_flat_paginated,
     update_dimension,
     update_dimension_item,
 )
@@ -224,6 +226,43 @@ async def list_items_endpoint(
     if format == "tree":
         return await get_items_as_tree(db, dimension_id)
     return await list_items_flat(db, dimension_id)
+
+
+@router.get(
+    "/dimensions/{dimension_id}/items/page",
+    response_model=DimensionItemPageResponse,
+)
+async def list_items_page_endpoint(
+    dimension_id: uuid.UUID,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=200, ge=1, le=2000),
+    search: str = Query(default=""),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    dimension = await get_dimension_by_id(db, dimension_id)
+    if dimension is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Dimension not found",
+        )
+
+    normalized_search = search.strip()
+    total_count, items = await list_items_flat_paginated(
+        db=db,
+        dimension_id=dimension_id,
+        offset=offset,
+        limit=limit,
+        search=normalized_search if normalized_search else None,
+    )
+    has_more = (offset + limit) < total_count
+    return DimensionItemPageResponse(
+        items=items,
+        total_count=total_count,
+        offset=offset,
+        limit=limit,
+        has_more=has_more,
+    )
 
 
 @router.patch(

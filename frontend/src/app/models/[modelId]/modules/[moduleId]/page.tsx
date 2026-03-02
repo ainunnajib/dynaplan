@@ -3,8 +3,6 @@ import {
   getModule,
   getLineItems,
   getDimensions,
-  getDimensionItems,
-  type DimensionItem,
 } from "@/lib/api";
 import ModuleGridClient from "./ModuleGridClient";
 
@@ -34,12 +32,6 @@ export default async function ModulePage({ params }: ModulePageProps) {
     getLineItems(moduleId),
     getDimensions(modelId),
   ]);
-
-  // Fetch dimension items for all dimensions
-  const dimensionItemsNested = await Promise.all(
-    dimensions.map((d) => getDimensionItems(d.id))
-  );
-  const dimensionItems: DimensionItem[] = dimensionItemsNested.flat();
 
   return (
     <div className="flex flex-col gap-4 p-3 sm:p-4 md:p-6">
@@ -73,10 +65,11 @@ export default async function ModulePage({ params }: ModulePageProps) {
 
       {/* Grid */}
       <ModuleGridClient
+        modelId={modelId}
         moduleId={moduleId}
         lineItems={lineItems}
         dimensions={dimensions}
-        dimensionItems={dimensionItems}
+        dimensionItems={[]}
         initialCells={[]}
         moduleConditionalFormatRules={mod.conditional_format_rules ?? []}
       />

@@ -224,3 +224,89 @@ async def test_put_module_cells_rejects_line_item_from_other_module(client: Asyn
     )
     assert put_resp.status_code == 400
     assert "does not belong to module" in put_resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_get_module_cells_page_supports_pagination(client: AsyncClient):
+    token = await register_and_login(client, f"module_cells_page_{uuid.uuid4()}@example.com")
+    workspace_id = await create_workspace(client, token, "Cells Page Workspace")
+    model_id = await create_model(client, token, workspace_id, "Cells Page Model")
+    module_id = await create_module(client, token, model_id, "Cells Page Module")
+
+    dimension_resp = await client.post(
+        f"/models/{model_id}/dimensions",
+        json={"name": "Product", "dimension_type": "custom"},
+        headers=auth_headers(token),
+    )
+    assert dimension_resp.status_code == 201
+    dimension_id = dimension_resp.json()["id"]
+
+    member_ids: List[str] = []
+    for idx in range(5):
+        item_resp = await client.post(
+            f"/dimensions/{dimension_id}/items",
+            json={"name": f"P{idx}", "code": f"P{idx}"},
+            headers=auth_headers(token),
+        )
+        assert item_resp.status_code == 201
+        member_ids.append(item_resp.json()["id"])
+
+    line_item_id = await create_line_item(
+        client,
+        token,
+        module_id,
+        "Revenue",
+        applies_to_dimensions=[dimension_id],
+    )
+
+    seed_resp = await client.post(
+        "/cells/bulk",
+        json={
+            "cells": [
+                {
+                    "line_item_id": line_item_id,
+                    "dimension_members": [member_id],
+                    "value": float(index),
+                }
+                for index, member_id in enumerate(member_ids)
+            ]
+        },
+        headers=auth_headers(token),
+    )
+    assert seed_resp.status_code == 200
+
+    page_one_resp = await client.get(
+        f"/modules/{module_id}/cells/page?offset=0&limit=2",
+        headers=auth_headers(token),
+    )
+    assert page_one_resp.status_code == 200
+    page_one = page_one_resp.json()
+    assert page_one["total_count"] == 5
+    assert page_one["offset"] == 0
+    assert page_one["limit"] == 2
+    assert page_one["has_more"] is True
+    assert len(page_one["cells"]) == 2
+
+    page_two_resp = await client.get(
+        f"/modules/{module_id}/cells/page?offset=2&limit=2",
+        headers=auth_headers(token),
+    )
+    assert page_two_resp.status_code == 200
+    page_two = page_two_resp.json()
+    assert page_two["total_count"] == 5
+    assert page_two["offset"] == 2
+    assert page_two["limit"] == 2
+    assert page_two["has_more"] is True
+    assert len(page_two["cells"]) == 2
+
+    page_three_resp = await client.get(
+        f"/modules/{module_id}/cells/page?offset=4&limit=2",
+        headers=auth_headers(token),
+    )
+    assert page_three_resp.status_code == 200
+    page_three = page_three_resp.json()
+    assert page_three["total_count"] == 5
+    assert page_three["offset"] == 4
+    assert page_three["limit"] == 2
+    assert page_three["has_more"] is False
+    assert len(page_three["cells"]) == 1

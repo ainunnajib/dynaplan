@@ -15,6 +15,7 @@ import type {
 import { DEFAULT_SAVED_VIEW_CONFIG as defaultSavedViewConfig } from "@/lib/api";
 
 interface ModuleGridClientProps {
+  modelId: string;
   moduleId: string;
   lineItems: LineItem[];
   dimensions: Dimension[];
@@ -28,6 +29,7 @@ interface ModuleGridClientProps {
  * Hands off to DataGrid which manages its own cell cache via useCellData.
  */
 export default function ModuleGridClient({
+  modelId,
   moduleId,
   lineItems,
   dimensions,
@@ -85,6 +87,7 @@ export default function ModuleGridClient({
         onApplyViewConfig={handleViewConfigChange}
       />
       <DataGrid
+        modelId={modelId}
         moduleId={moduleId}
         lineItems={lineItemsState}
         moduleConditionalFormatRules={moduleRules}

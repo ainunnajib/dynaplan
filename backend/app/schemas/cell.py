@@ -50,3 +50,11 @@ class ModuleCellWrite(BaseModel):
     line_item_id: uuid.UUID
     dimension_member_ids: List[uuid.UUID]
     value: Any
+
+
+class ModuleCellPageResponse(BaseModel):
+    cells: List[ModuleCellRead]
+    total_count: int
+    offset: int
+    limit: int
+    has_more: bool

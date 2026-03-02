@@ -212,6 +212,22 @@ export interface CellValue {
   value: number | string | boolean | null;
 }
 
+export interface ModuleCellsPageResponse {
+  cells: CellValue[];
+  total_count: number;
+  offset: number;
+  limit: number;
+  has_more: boolean;
+}
+
+export interface DimensionItemsPageResponse {
+  items: DimensionItem[];
+  total_count: number;
+  offset: number;
+  limit: number;
+  has_more: boolean;
+}
+
 export type ConditionalFormatOperator =
   | "gt"
   | "gte"
@@ -407,17 +423,68 @@ export async function getDimensions(modelId: string): Promise<Dimension[]> {
 export async function getDimensionItems(
   dimensionId: string
 ): Promise<DimensionItem[]> {
-  const rows = await fetchApi<Array<DimensionItem & { sort_order?: number }>>(
-    `/api/dimensions/${dimensionId}/items`
-  );
-  return rows.map((row) => ({
-    ...row,
-    order: row.order ?? row.sort_order ?? 0,
-  }));
+  const allItems: DimensionItem[] = [];
+  let offset = 0;
+  const limit = 500;
+
+  while (true) {
+    const page = await getDimensionItemsPage(dimensionId, { offset, limit });
+    allItems.push(...page.items);
+    if (!page.has_more) break;
+    offset += page.limit;
+  }
+
+  return allItems;
+}
+
+export async function getDimensionItemsPage(
+  dimensionId: string,
+  params?: { offset?: number; limit?: number; search?: string }
+): Promise<DimensionItemsPageResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.offset !== undefined) {
+    searchParams.set("offset", String(params.offset));
+  }
+  if (params?.limit !== undefined) {
+    searchParams.set("limit", String(params.limit));
+  }
+  if (params?.search) {
+    searchParams.set("search", params.search);
+  }
+  const query = searchParams.toString();
+  const payload = await fetchApi<
+    Omit<DimensionItemsPageResponse, "items"> & {
+      items: Array<DimensionItem & { sort_order?: number }>;
+    }
+  >(`/api/dimensions/${dimensionId}/items/page${query ? `?${query}` : ""}`);
+  return {
+    ...payload,
+    items: payload.items.map((row) => ({
+      ...row,
+      order: row.order ?? row.sort_order ?? 0,
+    })),
+  };
 }
 
 export async function getCells(moduleId: string): Promise<CellValue[]> {
   return fetchApi<CellValue[]>(`/api/modules/${moduleId}/cells`);
+}
+
+export async function getCellsPage(
+  moduleId: string,
+  params?: { offset?: number; limit?: number }
+): Promise<ModuleCellsPageResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.offset !== undefined) {
+    searchParams.set("offset", String(params.offset));
+  }
+  if (params?.limit !== undefined) {
+    searchParams.set("limit", String(params.limit));
+  }
+  const query = searchParams.toString();
+  return fetchApi<ModuleCellsPageResponse>(
+    `/api/modules/${moduleId}/cells/page${query ? `?${query}` : ""}`
+  );
 }
 
 export async function updateCell(

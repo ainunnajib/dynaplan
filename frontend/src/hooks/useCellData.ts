@@ -65,7 +65,6 @@ function cellKey(lineItemId: string, dimensionMembers: DimensionMember[]): strin
 // ------------------------------------------------------------------
 
 export function useCellData(_moduleId: string) {
-  void _moduleId;
   const { token } = useAuth();
 
   // Local cache: cellKey → value
@@ -78,6 +77,17 @@ export function useCellData(_moduleId: string) {
   // Pending debounced writes queue
   const pendingWritesRef = useRef<Map<string, PendingWrite>>(new Map());
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Invalidate local cache whenever the module context changes.
+  useEffect(() => {
+    setCellCache(new Map());
+    setError(null);
+    pendingWritesRef.current = new Map();
+    if (debounceTimerRef.current !== null) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+  }, [_moduleId]);
 
   const authHeaders = useCallback(
     (): Record<string, string> => ({
@@ -316,6 +326,46 @@ export function useCellData(_moduleId: string) {
     []
   );
 
+  const invalidateCache = useCallback((lineItemIds?: string[]) => {
+    if (!lineItemIds || lineItemIds.length === 0) {
+      setCellCache(new Map());
+      pendingWritesRef.current = new Map();
+      return;
+    }
+
+    const prefixes = lineItemIds.map((id) => `${id}::`);
+    setCellCache((prev) => {
+      const next = new Map(prev);
+      for (const key of next.keys()) {
+        if (prefixes.some((prefix) => key.startsWith(prefix))) {
+          next.delete(key);
+        }
+      }
+      return next;
+    });
+
+    for (const key of Array.from(pendingWritesRef.current.keys())) {
+      if (prefixes.some((prefix) => key.startsWith(prefix))) {
+        pendingWritesRef.current.delete(key);
+      }
+    }
+  }, []);
+
+  const applyRemoteCellChange = useCallback(
+    (
+      lineItemId: string,
+      dimensionMembers: DimensionMember[],
+      value: number | string | boolean | null
+    ) => {
+      setCellCache((prev) => {
+        const next = new Map(prev);
+        next.set(cellKey(lineItemId, dimensionMembers), value);
+        return next;
+      });
+    },
+    []
+  );
+
   return {
     cellCache,
     isLoading,
@@ -325,5 +375,7 @@ export function useCellData(_moduleId: string) {
     queryCells,
     getCachedValue,
     initCache,
+    invalidateCache,
+    applyRemoteCellChange,
   };
 }

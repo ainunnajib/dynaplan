@@ -1,15 +1,15 @@
 import uuid
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.auth import get_current_user
 from app.core.database import get_db
 from app.models.cell import CellValue
 from app.models.user import User
-from app.schemas.cell import ModuleCellRead, ModuleCellWrite
+from app.schemas.cell import ModuleCellPageResponse, ModuleCellRead, ModuleCellWrite
 from app.schemas.module import (
     LineItemCreate,
     LineItemResponse,
@@ -195,6 +195,62 @@ async def list_module_cells_endpoint(
             )
         )
     return rows
+
+
+@router.get(
+    "/modules/{module_id}/cells/page",
+    response_model=ModuleCellPageResponse,
+)
+async def list_module_cells_page_endpoint(
+    module=Depends(_get_module_or_404),
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=2000, ge=1, le=10000),
+    db: AsyncSession = Depends(get_db),
+):
+    line_item_ids = [line_item.id for line_item in module.line_items]
+    if not line_item_ids:
+        return ModuleCellPageResponse(
+            cells=[],
+            total_count=0,
+            offset=offset,
+            limit=limit,
+            has_more=False,
+        )
+
+    total_result = await db.execute(
+        select(func.count())
+        .select_from(CellValue)
+        .where(CellValue.line_item_id.in_(line_item_ids))
+    )
+    total_count = int(total_result.scalar_one() or 0)
+
+    result = await db.execute(
+        select(CellValue)
+        .where(CellValue.line_item_id.in_(line_item_ids))
+        .order_by(CellValue.id)
+        .offset(offset)
+        .limit(limit)
+    )
+    cells = result.scalars().all()
+
+    rows: List[ModuleCellRead] = []
+    for cell in cells:
+        value, _value_type = await get_cell_scalar_value(db, cell)
+        rows.append(
+            ModuleCellRead(
+                line_item_id=cell.line_item_id,
+                dimension_member_ids=_dimension_member_ids(cell.dimension_key),
+                value=value,
+            )
+        )
+
+    return ModuleCellPageResponse(
+        cells=rows,
+        total_count=total_count,
+        offset=offset,
+        limit=limit,
+        has_more=(offset + limit) < total_count,
+    )
 
 
 @router.put(

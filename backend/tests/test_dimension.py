@@ -805,3 +805,62 @@ async def test_items_sorted_by_sort_order(client: AsyncClient):
     items = resp.json()
     names = [i["name"] for i in items]
     assert names == ["First", "Second", "Third"]
+
+
+@pytest.mark.asyncio
+async def test_list_items_page_supports_offset_limit(client: AsyncClient):
+    token = await register_and_login(client, "di_page@example.com")
+    ws_id = await create_workspace(client, token)
+    model_id = await create_model(client, token, ws_id)
+    dim = await create_dimension(client, token, model_id, name="Paged Items")
+    dim_id = dim["id"]
+
+    for idx in range(5):
+        await create_item(
+            client,
+            token,
+            dim_id,
+            name=f"Item {idx}",
+            code=f"I{idx}",
+            sort_order=idx,
+        )
+
+    page_resp = await client.get(
+        f"/dimensions/{dim_id}/items/page?offset=1&limit=2",
+        headers=auth_headers(token),
+    )
+    assert page_resp.status_code == 200
+    payload = page_resp.json()
+
+    assert payload["total_count"] == 5
+    assert payload["offset"] == 1
+    assert payload["limit"] == 2
+    assert payload["has_more"] is True
+    assert [item["name"] for item in payload["items"]] == ["Item 1", "Item 2"]
+
+
+@pytest.mark.asyncio
+async def test_list_items_page_supports_search(client: AsyncClient):
+    token = await register_and_login(client, "di_page_search@example.com")
+    ws_id = await create_workspace(client, token)
+    model_id = await create_model(client, token, ws_id)
+    dim = await create_dimension(client, token, model_id, name="Search Items")
+    dim_id = dim["id"]
+
+    await create_item(client, token, dim_id, name="North America", code="NA")
+    await create_item(client, token, dim_id, name="Europe", code="EU")
+    await create_item(client, token, dim_id, name="South America", code="SA")
+
+    search_resp = await client.get(
+        f"/dimensions/{dim_id}/items/page?offset=0&limit=10&search=america",
+        headers=auth_headers(token),
+    )
+    assert search_resp.status_code == 200
+    payload = search_resp.json()
+
+    assert payload["total_count"] == 2
+    assert payload["has_more"] is False
+    assert [item["name"] for item in payload["items"]] == [
+        "North America",
+        "South America",
+    ]

@@ -10,15 +10,18 @@ import {
   type CellValue,
   type SavedViewConfig,
   getLineItemDimensionIds,
-  getCells,
+  getCellsPage,
+  getDimensionItemsPage,
 } from "@/lib/api";
 import { useCellData, type DimensionMember } from "@/hooks/useCellData";
+import { useCollaboration } from "@/hooks/useCollaboration";
 import EditableCell from "./EditableCell";
 import type { CellFormat } from "./CellFormatting";
 import GridHeader, { type ColumnDef } from "./GridHeader";
 import { resolveConditionalFormatting } from "./conditionalFormatting";
 
 export interface DataGridProps {
+  modelId: string;
   moduleId: string;
   lineItems: LineItem[];
   moduleConditionalFormatRules?: ConditionalFormatRule[];
@@ -37,6 +40,8 @@ const ROW_HEADER_WIDTH = 220;
 const COL_WIDTH = 130;
 const MAX_COLUMNS = 250;
 const MAX_ITEMS_PER_DIMENSION = 40;
+const CELL_PAGE_SIZE = 2000;
+const DIMENSION_ITEMS_PAGE_SIZE = 200;
 
 // ── Cartesian product ─────────────────────────────────────────────────────────
 
@@ -162,6 +167,7 @@ function toDimensionMembers(
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function DataGrid({
+  modelId,
   moduleId,
   lineItems,
   moduleConditionalFormatRules = [],
@@ -171,49 +177,214 @@ export default function DataGrid({
   appliedViewConfig,
   onViewConfigChange,
 }: DataGridProps) {
-  const { writeCell, getCachedValue, isLoading, error, initCache } = useCellData(moduleId);
+  const {
+    writeCell,
+    getCachedValue,
+    isLoading,
+    error,
+    initCache,
+    invalidateCache,
+    applyRemoteCellChange,
+  } = useCellData(moduleId);
+  const [loadedDimensionItems, setLoadedDimensionItems] = useState<DimensionItem[]>(
+    dimensionItems
+  );
+  const [loadedCellCount, setLoadedCellCount] = useState(0);
+  const [totalCellCount, setTotalCellCount] = useState<number | null>(null);
+
+  const usedDimensionIds = useMemo(
+    () => collectUsedDimensionIds(lineItems),
+    [lineItems]
+  );
+
+  useEffect(() => {
+    setLoadedDimensionItems(dimensionItems);
+  }, [dimensionItems]);
+
+  const loadedDimensionIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (dimensionItems.length === 0) return;
+    for (const item of dimensionItems) {
+      loadedDimensionIdsRef.current.add(item.dimension_id);
+    }
+  }, [dimensionItems]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      for (const dimensionId of usedDimensionIds) {
+        if (loadedDimensionIdsRef.current.has(dimensionId)) continue;
+        loadedDimensionIdsRef.current.add(dimensionId);
+        try {
+          const page = await getDimensionItemsPage(dimensionId, {
+            offset: 0,
+            limit: DIMENSION_ITEMS_PAGE_SIZE,
+          });
+          if (cancelled) return;
+          setLoadedDimensionItems((prev) => {
+            const byId = new Map(prev.map((item) => [item.id, item]));
+            for (const item of page.items) {
+              byId.set(item.id, item);
+            }
+            return Array.from(byId.values());
+          });
+        } catch {
+          // Keep rendering with currently loaded members if lazy load fails.
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [usedDimensionIds]);
+
+  const mapMemberIdsToDimensionMembers = useCallback(
+    (dimensionMemberIds: string[]): DimensionMember[] => {
+      const itemById = new Map(loadedDimensionItems.map((item) => [item.id, item]));
+      return dimensionMemberIds.map((memberId) => {
+        const item = itemById.get(memberId);
+        return {
+          dimension_id: item?.dimension_id ?? "",
+          member_id: memberId,
+        };
+      });
+    },
+    [loadedDimensionItems]
+  );
 
   const hydrateCache = useCallback(
     (cells: CellValue[]) => {
       if (!cells || cells.length === 0) return;
       const converted = cells.map((cell) => ({
         line_item_id: cell.line_item_id,
-        dimension_members: cell.dimension_member_ids.map((memberId) => {
-          const item = dimensionItems.find((i) => i.id === memberId);
-          return { dimension_id: item?.dimension_id ?? "", member_id: memberId };
-        }),
+        dimension_members: mapMemberIdsToDimensionMembers(cell.dimension_member_ids),
         value: cell.value,
       }));
       initCache(converted);
     },
-    [dimensionItems, initCache]
+    [initCache, mapMemberIdsToDimensionMembers]
   );
 
-  // Hydrate cache with server-side pre-fetched cells (no API writes triggered)
-  const hydratedRef = useRef(false);
+  const paginationOffsetRef = useRef(0);
+  const hasMorePagesRef = useRef(true);
+  const loadingPageRef = useRef(false);
+
+  const loadNextCellPage = useCallback(async () => {
+    if (loadingPageRef.current || !hasMorePagesRef.current) return;
+
+    loadingPageRef.current = true;
+    try {
+      const page = await getCellsPage(moduleId, {
+        offset: paginationOffsetRef.current,
+        limit: CELL_PAGE_SIZE,
+      });
+      hydrateCache(page.cells);
+      paginationOffsetRef.current += page.cells.length;
+      hasMorePagesRef.current = page.has_more;
+      setLoadedCellCount((prev) => prev + page.cells.length);
+      setTotalCellCount(page.total_count);
+    } catch {
+      // Grid remains editable even if a page fetch fails.
+    } finally {
+      loadingPageRef.current = false;
+    }
+  }, [hydrateCache, moduleId]);
+
   useEffect(() => {
-    if (hydratedRef.current) return;
-    hydratedRef.current = true;
+    let cancelled = false;
+
+    invalidateCache();
+    paginationOffsetRef.current = 0;
+    hasMorePagesRef.current = true;
+    loadingPageRef.current = false;
+    setLoadedCellCount(0);
+    setTotalCellCount(null);
+
     if (initialCells && initialCells.length > 0) {
       hydrateCache(initialCells);
-      return;
+      paginationOffsetRef.current = initialCells.length;
+      setLoadedCellCount(initialCells.length);
+      return undefined;
     }
 
-    // Large modules skip SSR cell hydration. Load values client-side instead.
-    let cancelled = false;
     void (async () => {
-      try {
-        const cells = await getCells(moduleId);
-        if (cancelled) return;
-        hydrateCache(cells);
-      } catch {
-        // Grid remains editable even if initial cell prefetch fails.
-      }
+      if (cancelled) return;
+      await loadNextCellPage();
     })();
+
     return () => {
       cancelled = true;
     };
-  }, [hydrateCache, initialCells, moduleId]);
+  }, [hydrateCache, initialCells, invalidateCache, loadNextCellPage]);
+
+  const handleRemoteCellChange = useCallback(
+    (payload: Record<string, unknown>) => {
+      const lineItemId =
+        typeof payload.line_item_id === "string" ? payload.line_item_id : null;
+      if (!lineItemId) return;
+
+      const invalidateLineItemIds = Array.isArray(payload.invalidate_line_item_ids)
+        ? payload.invalidate_line_item_ids.filter(
+            (entry): entry is string => typeof entry === "string"
+          )
+        : [];
+      if (invalidateLineItemIds.length > 0) {
+        invalidateCache(invalidateLineItemIds);
+      }
+
+      let dimensionMembers: DimensionMember[] = [];
+      if (Array.isArray(payload.dimension_members)) {
+        dimensionMembers = payload.dimension_members
+          .map((member) => {
+            if (typeof member !== "object" || member === null) return null;
+            const record = member as {
+              dimension_id?: unknown;
+              member_id?: unknown;
+            };
+            if (
+              typeof record.dimension_id !== "string" ||
+              typeof record.member_id !== "string"
+            ) {
+              return null;
+            }
+            return {
+              dimension_id: record.dimension_id,
+              member_id: record.member_id,
+            };
+          })
+          .filter((member): member is DimensionMember => member !== null);
+      }
+
+      if (
+        dimensionMembers.length === 0 &&
+        Array.isArray(payload.dimension_member_ids)
+      ) {
+        const memberIds = payload.dimension_member_ids.filter(
+          (entry): entry is string => typeof entry === "string"
+        );
+        dimensionMembers = mapMemberIdsToDimensionMembers(memberIds);
+      }
+
+      const rawValue = payload.value;
+      const value =
+        typeof rawValue === "number" ||
+        typeof rawValue === "string" ||
+        typeof rawValue === "boolean" ||
+        rawValue === null
+          ? rawValue
+          : null;
+
+      applyRemoteCellChange(lineItemId, dimensionMembers, value);
+    },
+    [applyRemoteCellChange, invalidateCache, mapMemberIdsToDimensionMembers]
+  );
+
+  const { isConnected, sendCellChange } = useCollaboration({
+    modelId,
+    onCellChange: (payload) => {
+      handleRemoteCellChange(payload);
+    },
+  });
 
   const [sortColumn, setSortColumn] = useState<string | null>(
     appliedViewConfig?.sort.column_key ?? null
@@ -223,12 +394,8 @@ export default function DataGrid({
   );
 
   const columns = useMemo(
-    () => buildColumns(lineItems, dimensions, dimensionItems),
-    [lineItems, dimensions, dimensionItems]
-  );
-  const usedDimensionIds = useMemo(
-    () => collectUsedDimensionIds(lineItems),
-    [lineItems]
+    () => buildColumns(lineItems, dimensions, loadedDimensionItems),
+    [lineItems, dimensions, loadedDimensionItems]
   );
 
   useEffect(() => {
@@ -263,7 +430,7 @@ export default function DataGrid({
     return [...lineItems].sort((a, b) => {
       const col = columns.find((c) => c.key === sortColumn);
       if (!col) return 0;
-      const members = toDimensionMembers(col, dimensions, dimensionItems);
+      const members = toDimensionMembers(col, dimensions, loadedDimensionItems);
       const aVal = getCachedValue(a.id, members) ?? null;
       const bVal = getCachedValue(b.id, members) ?? null;
       if (aVal === null && bVal === null) return 0;
@@ -275,7 +442,7 @@ export default function DataGrid({
           : String(aVal).localeCompare(String(bVal));
       return sortDirection === "asc" ? cmp : -cmp;
     });
-  }, [lineItems, sortColumn, sortDirection, columns, dimensions, dimensionItems, getCachedValue]);
+  }, [lineItems, sortColumn, sortDirection, columns, dimensions, loadedDimensionItems, getCachedValue]);
 
   const handleSort = useCallback(
     (columnKey: string) => {
@@ -297,6 +464,36 @@ export default function DataGrid({
     estimateSize: () => ROW_HEIGHT,
     overscan: 10,
   });
+
+  useEffect(() => {
+    const element = parentRef.current;
+    if (!element) return;
+
+    const handleScroll = () => {
+      const nearBottom =
+        element.scrollTop + element.clientHeight >= element.scrollHeight - 600;
+      if (nearBottom) {
+        void loadNextCellPage();
+      }
+    };
+
+    element.addEventListener("scroll", handleScroll);
+    handleScroll();
+
+    return () => {
+      element.removeEventListener("scroll", handleScroll);
+    };
+  }, [loadNextCellPage]);
+
+  useEffect(() => {
+    const element = parentRef.current;
+    if (!element || !hasMorePagesRef.current) return;
+    const isViewportUnderfilled =
+      element.scrollHeight <= element.clientHeight + 100;
+    if (isViewportUnderfilled) {
+      void loadNextCellPage();
+    }
+  }, [columns.length, loadedCellCount, loadNextCellPage, sortedLineItems.length]);
 
   const totalHeight = rowVirtualizer.getTotalSize();
   const virtualItems = rowVirtualizer.getVirtualItems();
@@ -348,7 +545,7 @@ export default function DataGrid({
         >
           <GridHeader
             dimensions={dimensions}
-            dimensionItems={dimensionItems}
+            dimensionItems={loadedDimensionItems}
             columns={columns}
             sortColumn={sortColumn}
             sortDirection={sortDirection}
@@ -387,7 +584,7 @@ export default function DataGrid({
 
                   {/* Data cells */}
                   {columns.map((col) => {
-                    const members = toDimensionMembers(col, dimensions, dimensionItems);
+                    const members = toDimensionMembers(col, dimensions, loadedDimensionItems);
                     const cachedVal = getCachedValue(lineItem.id, members);
                     const isCalculated = Boolean(lineItem.formula);
                     const resolvedFormatting = resolveConditionalFormatting(
@@ -419,6 +616,13 @@ export default function DataGrid({
                           formula={lineItem.formula ?? undefined}
                           onChange={async (newValue) => {
                             await writeCell(lineItem.id, members, newValue);
+                            sendCellChange({
+                              line_item_id: lineItem.id,
+                              dimension_member_ids: members.map((member) => member.member_id),
+                              dimension_members: members,
+                              value: newValue,
+                              invalidate_line_item_ids: [lineItem.id],
+                            });
                           }}
                         />
                       </td>
@@ -438,6 +642,12 @@ export default function DataGrid({
           {lineItems.length} line item{lineItems.length !== 1 ? "s" : ""}
           &nbsp;·&nbsp;
           {columns.length} column{columns.length !== 1 ? "s" : ""}
+          &nbsp;·&nbsp;
+          {loadedCellCount}
+          {totalCellCount !== null ? `/${totalCellCount}` : ""} cell
+          {loadedCellCount !== 1 ? "s" : ""} cached
+          &nbsp;·&nbsp;
+          realtime {isConnected ? "on" : "offline"}
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 import uuid
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.dimension import Dimension, DimensionItem, DimensionType
@@ -189,6 +189,40 @@ async def list_items_flat(
         .order_by(DimensionItem.sort_order, DimensionItem.name)
     )
     return list(result.scalars().all())
+
+
+async def list_items_flat_paginated(
+    db: AsyncSession,
+    dimension_id: uuid.UUID,
+    offset: int,
+    limit: int,
+    search: Optional[str] = None,
+) -> Tuple[int, List[DimensionItem]]:
+    filters = [DimensionItem.dimension_id == dimension_id]
+    if search:
+        search_term = f"%{search.lower()}%"
+        filters.append(
+            or_(
+                func.lower(DimensionItem.name).like(search_term),
+                func.lower(DimensionItem.code).like(search_term),
+            )
+        )
+
+    count_result = await db.execute(
+        select(func.count())
+        .select_from(DimensionItem)
+        .where(*filters)
+    )
+    total_count = int(count_result.scalar_one() or 0)
+
+    items_result = await db.execute(
+        select(DimensionItem)
+        .where(*filters)
+        .order_by(DimensionItem.sort_order, DimensionItem.name)
+        .offset(offset)
+        .limit(limit)
+    )
+    return total_count, list(items_result.scalars().all())
 
 
 async def update_dimension_item(
