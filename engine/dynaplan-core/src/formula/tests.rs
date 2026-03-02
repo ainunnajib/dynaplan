@@ -9,6 +9,13 @@ fn ctx(entries: Vec<(&str, FormulaValue)>) -> HashMap<String, FormulaValue> {
         .collect()
 }
 
+fn map(entries: Vec<(&str, FormulaValue)>) -> HashMap<String, FormulaValue> {
+    entries
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), v))
+        .collect()
+}
+
 fn ev(expr: &str, entries: Vec<(&str, FormulaValue)>) -> FormulaValue {
     evaluate_formula(expr, ctx(entries)).expect("formula should evaluate")
 }
@@ -985,4 +992,180 @@ fn inperiod_true() {
         "INPERIOD(\"2024-03-15\", \"FY2024-Q1\")",
         vec![],
     )));
+}
+
+#[test]
+fn finditem_from_member_list() {
+    let result = ev(
+        "FINDITEM(Products, \"Gadget\")",
+        vec![(
+            "Products",
+            FormulaValue::List(vec![
+                FormulaValue::Map(map(vec![("id", "p1".into()), ("name", "Widget".into())])),
+                FormulaValue::Map(map(vec![("id", "p2".into()), ("name", "Gadget".into())])),
+            ]),
+        )],
+    );
+    match result {
+        FormulaValue::Map(member) => {
+            assert_eq!(member.get("id"), Some(&FormulaValue::Text("p2".to_string())));
+        }
+        other => panic!("expected map result, got {:?}", other),
+    }
+}
+
+#[test]
+fn item_uses_current_items_context() {
+    let result = ev(
+        "ITEM(Products)",
+        vec![
+            (
+                "Products",
+                FormulaValue::List(vec![
+                    FormulaValue::Map(map(vec![("id", "p1".into())])),
+                    FormulaValue::Map(map(vec![("id", "p2".into())])),
+                ]),
+            ),
+            (
+                "CURRENT_ITEMS",
+                FormulaValue::Map(map(vec![(
+                    "Products",
+                    FormulaValue::Map(map(vec![("id", "p2".into()), ("name", "Gadget".into())])),
+                )])),
+            ),
+        ],
+    );
+    match result {
+        FormulaValue::Map(member) => {
+            assert_eq!(member.get("id"), Some(&FormulaValue::Text("p2".to_string())));
+        }
+        other => panic!("expected map result, got {:?}", other),
+    }
+}
+
+#[test]
+fn isancestor_true_from_parent_map() {
+    let result = as_bool(ev(
+        "ISANCESTOR(\"root\", \"leaf\")",
+        vec![(
+            "PARENT_MAP",
+            FormulaValue::Map(map(vec![
+                ("leaf", "mid".into()),
+                ("mid", "root".into()),
+            ])),
+        )],
+    ));
+    assert!(result);
+}
+
+#[test]
+fn lookup_legacy_key_mapping() {
+    let result = as_text(ev(
+        "LOOKUP(Product, ProductToCode)",
+        vec![
+            ("Product", "Widget".into()),
+            (
+                "ProductToCode",
+                FormulaValue::Map(map(vec![
+                    ("Widget", "W01".into()),
+                    ("Gadget", "G02".into()),
+                ])),
+            ),
+        ],
+    ));
+    assert_eq!(result, "W01");
+}
+
+#[test]
+fn lookup_source_map_with_dimension_mapping() {
+    let result = as_number(ev(
+        "LOOKUP(SalesByIntersection, Mapping)",
+        vec![
+            (
+                "SalesByIntersection",
+                FormulaValue::Map(map(vec![
+                    ("North|Widget", 100.0.into()),
+                    ("South|Widget", 50.0.into()),
+                ])),
+            ),
+            (
+                "Mapping",
+                FormulaValue::Map(map(vec![
+                    ("Region", "North".into()),
+                    ("Product", "Widget".into()),
+                ])),
+            ),
+        ],
+    ));
+    assert_eq!(result, 100.0);
+}
+
+#[test]
+fn sum_source_map_with_partial_mapping() {
+    let result = as_number(ev(
+        "SUM(SalesByIntersection, Mapping)",
+        vec![
+            (
+                "SalesByIntersection",
+                FormulaValue::Map(map(vec![
+                    ("North|Widget", 100.0.into()),
+                    ("South|Widget", 50.0.into()),
+                    ("North|Gadget", 20.0.into()),
+                ])),
+            ),
+            (
+                "Mapping",
+                FormulaValue::Map(map(vec![("Region", "North".into())])),
+            ),
+        ],
+    ));
+    assert_eq!(result, 120.0);
+}
+
+#[test]
+fn ranklist_with_dimension_labels() {
+    let result = ev(
+        "RANKLIST(Scores, Teams, 2)",
+        vec![
+            (
+                "Scores",
+                FormulaValue::List(vec![15.0.into(), 25.0.into(), 20.0.into()]),
+            ),
+            (
+                "Teams",
+                FormulaValue::List(vec!["A".into(), "B".into(), "C".into()]),
+            ),
+        ],
+    );
+    assert_eq!(
+        result,
+        FormulaValue::List(vec!["B".into(), "C".into()])
+    );
+}
+
+#[test]
+fn collect_values_by_dimension_order() {
+    let result = ev(
+        "COLLECT(SalesByProduct, Products)",
+        vec![
+            (
+                "SalesByProduct",
+                FormulaValue::Map(map(vec![("p1", 100.0.into()), ("p2", 200.0.into())])),
+            ),
+            (
+                "Products",
+                FormulaValue::List(vec!["p2".into(), "p1".into()]),
+            ),
+        ],
+    );
+    assert_eq!(
+        result,
+        FormulaValue::List(vec![200.0.into(), 100.0.into()])
+    );
+}
+
+#[test]
+fn post_returns_value() {
+    let result = as_number(ev("POST(\"TargetLineItem\", 42)", vec![]));
+    assert_eq!(result, 42.0);
 }

@@ -9,7 +9,8 @@ Built-in functions (case-insensitive, stored upper-case):
     Aggregation : SUM, AVERAGE, COUNT, ITEMCOUNT
     Logical     : IF, AND, OR, NOT, ISBLANK
     Text        : CONCATENATE, LEFT, RIGHT, LEN, UPPER, LOWER, TRIM
-    Lookup      : LOOKUP
+    Lookup      : FINDITEM, ITEM, PARENT, CHILDREN, ISLEAF, ISANCESTOR,
+                  LOOKUP, SELECT, NAME, CODE, RANK, RANKLIST, COLLECT, POST
     Time        : YEARVALUE, MONTHVALUE, QUARTERVALUE, WEEKVALUE, HALFYEARVALUE,
                   CURRENTPERIODSTART, CURRENTPERIODEND, PERIODSTART, PERIODEND,
                   TIMESUM, TIMEAVERAGE, TIMECOUNT, LAG, LEAD, OFFSET,
@@ -259,6 +260,12 @@ class Evaluator:
 
         # --- Aggregation ---
         if name == "SUM":
+            if (
+                len(args) == 2
+                and isinstance(args[1], dict)
+                and isinstance(args[0], (dict, list))
+            ):
+                return self._fn_sum_mapped(args[0], args[1], name)
             if len(args) == 0:
                 raise FormulaError("SUM requires at least one argument")
             flat = self._flatten_numbers(args, name)
@@ -337,19 +344,64 @@ class Evaluator:
             self._check_arity(name, args, 1)
             return self._str(args[0], name).strip()
 
-        # --- Lookup ---
+        # --- Lookup & cross-module ---
+        if name == "FINDITEM":
+            self._check_arity(name, args, 2)
+            return self._fn_finditem(args[0], args[1])
+
+        if name == "ITEM":
+            self._check_arity(name, args, 1)
+            return self._fn_item(args[0])
+
+        if name == "PARENT":
+            self._check_arity(name, args, 1)
+            return self._resolve_parent(args[0])
+
+        if name == "CHILDREN":
+            self._check_arity(name, args, 1)
+            return self._resolve_children(args[0])
+
+        if name == "ISLEAF":
+            self._check_arity(name, args, 1)
+            return len(self._resolve_children(args[0])) == 0
+
+        if name == "ISANCESTOR":
+            self._check_arity(name, args, 2)
+            return self._fn_isancestor(args[0], args[1])
+
         if name == "LOOKUP":
-            # LOOKUP(key, list_name) — simplified: look up key in context
-            if len(args) < 1:
-                raise FormulaError("LOOKUP requires at least one argument")
-            key = args[0]
-            if len(args) == 2 and isinstance(args[1], dict):
-                mapping = args[1]
-                if key not in mapping:
-                    raise FormulaError(f"LOOKUP: key {key!r} not found")
-                return mapping[key]
-            # If key itself is the result, just return it
-            return key
+            self._check_arity_range(name, args, 1, 2)
+            if len(args) == 1:
+                return args[0]
+            return self._fn_lookup(args[0], args[1], name)
+
+        if name == "SELECT":
+            self._check_arity(name, args, 2)
+            return self._fn_select(args[0], args[1], name)
+
+        if name == "NAME":
+            self._check_arity(name, args, 1)
+            return self._fn_name(args[0])
+
+        if name == "CODE":
+            self._check_arity(name, args, 1)
+            return self._fn_code(args[0])
+
+        if name == "RANK":
+            self._check_arity(name, args, 2)
+            return self._fn_rank(args[0], args[1], name)
+
+        if name == "RANKLIST":
+            self._check_arity(name, args, 3)
+            return self._fn_ranklist(args[0], args[1], args[2], name)
+
+        if name == "COLLECT":
+            self._check_arity(name, args, 2)
+            return self._fn_collect(args[0], args[1], name)
+
+        if name == "POST":
+            self._check_arity(name, args, 2)
+            return self._fn_post(args[0], args[1])
 
         # --- Time ---
         if name in {
@@ -573,6 +625,664 @@ class Evaluator:
             else:
                 result.append(self._num(a, context_label))
         return result
+
+    # ------------------------------------------------------------------
+    # Lookup & cross-module helpers
+    # ------------------------------------------------------------------
+
+    def _list_members(self, value: Any, context_label: str) -> List[Any]:
+        if isinstance(value, list):
+            return list(value)
+
+        if isinstance(value, dict):
+            for key in ("members", "items", "list"):
+                raw = value.get(key)
+                if isinstance(raw, list):
+                    return list(raw)
+            return list(value.values())
+
+        raise FormulaError(f"{context_label} requires a list-like argument")
+
+    def _member_key_candidates(self, value: Any) -> List[Any]:
+        candidates: List[Any] = []
+
+        def _append(candidate: Any) -> None:
+            if candidate is None:
+                return
+            for existing in candidates:
+                if existing == candidate or str(existing) == str(candidate):
+                    return
+            candidates.append(candidate)
+
+        if isinstance(value, dict):
+            for key in ("id", "code", "name", "key", "item", "member"):
+                if key in value:
+                    _append(value.get(key))
+        else:
+            _append(value)
+
+        # Also add string forms to support mixed key types.
+        for candidate in list(candidates):
+            _append(str(candidate))
+        return candidates
+
+    def _coerce_key_token(self, value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        if isinstance(value, dict):
+            for key in ("id", "code", "name", "key", "item", "member"):
+                if key in value and value.get(key) is not None:
+                    return str(value.get(key))
+            return None
+        if isinstance(value, (list, tuple, set)):
+            return None
+        return str(value)
+
+    def _source_key_tokens(self, source_key: Any) -> List[str]:
+        if isinstance(source_key, str):
+            return [token for token in source_key.split("|") if token]
+        if isinstance(source_key, (list, tuple, set)):
+            return [str(token) for token in source_key]
+        token = self._coerce_key_token(source_key)
+        if token is not None:
+            return [token]
+        return [str(source_key)]
+
+    def _find_in_mapping_by_candidates(
+        self, mapping: Dict[Any, Any], candidates: List[Any]
+    ) -> Any:
+        for candidate in candidates:
+            if candidate in mapping:
+                return mapping[candidate]
+            candidate_str = str(candidate)
+            if candidate_str in mapping:
+                return mapping[candidate_str]
+        return None
+
+    def _match_member(self, left: Any, right: Any) -> bool:
+        left_candidates = self._member_key_candidates(left)
+        right_candidates = self._member_key_candidates(right)
+        for left_candidate in left_candidates:
+            for right_candidate in right_candidates:
+                if (
+                    left_candidate == right_candidate
+                    or str(left_candidate) == str(right_candidate)
+                ):
+                    return True
+        return left == right
+
+    def _find_member_record(self, item: Any) -> Optional[Dict[str, Any]]:
+        if isinstance(item, dict):
+            return item
+
+        candidates = self._member_key_candidates(item)
+
+        for key in (
+            "MEMBERS_BY_ID",
+            "members_by_id",
+            "MEMBER_MAP",
+            "member_map",
+            "MEMBERS_BY_CODE",
+            "members_by_code",
+            "MEMBERS_BY_NAME",
+            "members_by_name",
+        ):
+            value = self._ctx.get(key)
+            if isinstance(value, dict):
+                found = self._find_in_mapping_by_candidates(value, candidates)
+                if isinstance(found, dict):
+                    return found
+
+        for key in ("DIMENSION_MEMBERS", "dimension_members", "_dimension_members"):
+            value = self._ctx.get(key)
+            if isinstance(value, list):
+                for member in value:
+                    if isinstance(member, dict) and self._match_member(member, item):
+                        return member
+        return None
+
+    def _resolve_parent(self, item: Any) -> Any:
+        if isinstance(item, dict):
+            if "parent" in item:
+                return item.get("parent")
+            if "parent_id" in item:
+                return item.get("parent_id")
+
+        record = self._find_member_record(item)
+        if isinstance(record, dict):
+            if "parent" in record:
+                return record.get("parent")
+            if "parent_id" in record:
+                return record.get("parent_id")
+
+        candidates = self._member_key_candidates(item)
+        for key in ("PARENT_MAP", "parent_map", "_parent_map", "PARENTS", "parents"):
+            value = self._ctx.get(key)
+            if isinstance(value, dict):
+                found = self._find_in_mapping_by_candidates(value, candidates)
+                if found is not None:
+                    return found
+        return None
+
+    def _resolve_children(self, item: Any) -> List[Any]:
+        if isinstance(item, dict) and "children" in item:
+            raw = item.get("children")
+            if isinstance(raw, list):
+                return list(raw)
+            if raw is None:
+                return []
+            return [raw]
+
+        record = self._find_member_record(item)
+        if isinstance(record, dict) and "children" in record:
+            raw = record.get("children")
+            if isinstance(raw, list):
+                return list(raw)
+            if raw is None:
+                return []
+            return [raw]
+
+        candidates = self._member_key_candidates(item)
+        for key in ("CHILDREN_MAP", "children_map", "_children_map", "CHILDREN", "children"):
+            value = self._ctx.get(key)
+            if isinstance(value, dict):
+                found = self._find_in_mapping_by_candidates(value, candidates)
+                if isinstance(found, list):
+                    return list(found)
+                if found is None:
+                    continue
+                return [found]
+
+        members = self._resolve_context_value(
+            ["DIMENSION_MEMBERS", "dimension_members", "_dimension_members"]
+        )
+        if isinstance(members, list):
+            children: List[Any] = []
+            for member in members:
+                if not isinstance(member, dict):
+                    continue
+                parent = member.get("parent")
+                if parent is None:
+                    parent = member.get("parent_id")
+                if self._match_member(parent, item):
+                    children.append(member)
+            if len(children) > 0:
+                return children
+
+        return []
+
+    def _fn_finditem(self, list_value: Any, name: Any) -> Any:
+        if isinstance(list_value, dict):
+            direct = self._find_in_mapping_by_candidates(
+                list_value, self._member_key_candidates(name)
+            )
+            if direct is not None:
+                return direct
+
+        members = self._list_members(list_value, "FINDITEM")
+        for member in members:
+            if self._match_member(member, name):
+                return member
+        return None
+
+    def _list_name_candidates(self, list_value: Any) -> List[str]:
+        names: List[str] = []
+
+        def _append(value: Any) -> None:
+            if value is None:
+                return
+            text = str(value)
+            if len(text) == 0:
+                return
+            if text not in names:
+                names.append(text)
+
+        if isinstance(list_value, str):
+            _append(list_value)
+        elif isinstance(list_value, dict):
+            for key in ("name", "id", "code", "list", "dimension"):
+                if key in list_value:
+                    _append(list_value.get(key))
+        elif not isinstance(list_value, list):
+            _append(list_value)
+
+        return names
+
+    def _sanitize_context_name(self, name: str) -> str:
+        return re.sub(r"[^A-Za-z0-9]+", "_", name).strip("_").upper()
+
+    def _lookup_current_item_by_name(self, list_name: str) -> Any:
+        name_candidates = [list_name, list_name.upper(), list_name.lower()]
+        sanitized = self._sanitize_context_name(list_name)
+        if sanitized:
+            name_candidates.append(sanitized)
+
+        for key in ("CURRENT_ITEMS", "current_items", "_current_items", "ITEMS", "items"):
+            mapping = self._ctx.get(key)
+            if isinstance(mapping, dict):
+                found = self._find_in_mapping_by_candidates(mapping, name_candidates)
+                if found is not None:
+                    return found
+
+        direct_keys = [
+            f"CURRENT_ITEM_{sanitized}",
+            f"ITEM_{sanitized}",
+            f"CURRENT_ITEM.{list_name}",
+            f"CURRENT_ITEM:{list_name}",
+        ]
+        for key in direct_keys:
+            if key in self._ctx:
+                return self._ctx[key]
+        return None
+
+    def _fn_item(self, list_value: Any) -> Any:
+        list_names = self._list_name_candidates(list_value)
+
+        for list_name in list_names:
+            current = self._lookup_current_item_by_name(list_name)
+            if current is not None:
+                return current
+
+        # If the list argument is already a value list (rather than a named list
+        # token), fall back to a single-entry CURRENT_ITEMS map when available.
+        if len(list_names) == 0 and isinstance(list_value, list):
+            for key in ("CURRENT_ITEMS", "current_items", "_current_items"):
+                mapping = self._ctx.get(key)
+                if isinstance(mapping, dict) and len(mapping) == 1:
+                    return list(mapping.values())[0]
+
+        generic = self._resolve_context_value(["CURRENT_ITEM", "current_item", "_current_item"])
+        if generic is not None:
+            if isinstance(generic, dict) and len(list_names) > 0:
+                found = self._find_in_mapping_by_candidates(generic, list_names)
+                if found is not None:
+                    return found
+            return generic
+
+        # If the argument itself is already a scalar member token, use it directly.
+        if not isinstance(list_value, (list, dict)):
+            return list_value
+
+        raise FormulaError("ITEM requires current item context")
+
+    def _fn_isancestor(self, ancestor: Any, descendant: Any) -> bool:
+        if self._match_member(ancestor, descendant):
+            return False
+
+        seen_tokens: List[str] = []
+        current = descendant
+        for _ in range(0, 256):
+            parent = self._resolve_parent(current)
+            if parent is None:
+                return False
+            if self._match_member(parent, ancestor):
+                return True
+            token = self._coerce_key_token(parent)
+            if token is not None:
+                if token in seen_tokens:
+                    return False
+                seen_tokens.append(token)
+            current = parent
+        return False
+
+    def _lookup_values_from_source_map(self, source: Dict[Any, Any], mapping: Any) -> List[Any]:
+        if not isinstance(mapping, dict):
+            found = self._find_in_mapping_by_candidates(
+                source, self._member_key_candidates(mapping)
+            )
+            return [] if found is None else [found]
+
+        for selector in ("key", "item", "member", "id", "name", "code", "select", "target"):
+            if selector not in mapping:
+                continue
+            found = self._find_in_mapping_by_candidates(
+                source, self._member_key_candidates(mapping.get(selector))
+            )
+            if found is not None:
+                return [found]
+
+        keys_value = mapping.get("keys")
+        if isinstance(keys_value, list):
+            selected: List[Any] = []
+            for key_value in keys_value:
+                found = self._find_in_mapping_by_candidates(
+                    source, self._member_key_candidates(key_value)
+                )
+                if found is not None:
+                    selected.append(found)
+            if len(selected) > 0:
+                return selected
+
+        if len(mapping) == 1:
+            value = list(mapping.values())[0]
+            found = self._find_in_mapping_by_candidates(
+                source, self._member_key_candidates(value)
+            )
+            if found is not None:
+                return [found]
+
+        reserved = {
+            "key",
+            "item",
+            "member",
+            "id",
+            "name",
+            "code",
+            "select",
+            "target",
+            "keys",
+            "index",
+            "indexes",
+            "default",
+            "weights",
+        }
+        required_tokens: List[str] = []
+        for map_key, map_value in mapping.items():
+            if map_key in reserved:
+                continue
+            token = self._coerce_key_token(map_value)
+            if token is not None and token not in required_tokens:
+                required_tokens.append(token)
+
+        if len(required_tokens) == 0:
+            for map_value in mapping.values():
+                token = self._coerce_key_token(map_value)
+                if token is not None and token not in required_tokens:
+                    required_tokens.append(token)
+
+        if len(required_tokens) == 0:
+            return []
+
+        matches: List[Tuple[str, Any]] = []
+        for source_key, source_value in source.items():
+            tokens = self._source_key_tokens(source_key)
+            if all(token in tokens for token in required_tokens):
+                matches.append((str(source_key), source_value))
+
+        matches.sort(key=lambda row: row[0])
+        return [value for _, value in matches]
+
+    def _lookup_values_from_source_list(
+        self, source: List[Any], mapping: Any, context_label: str
+    ) -> List[Any]:
+        def _at_index(index: int) -> List[Any]:
+            if index < 0 or index >= len(source):
+                return []
+            return [source[index]]
+
+        if isinstance(mapping, dict):
+            if "index" in mapping:
+                index = int(self._num(mapping.get("index"), context_label))
+                return _at_index(index)
+
+            indexes = mapping.get("indexes")
+            if isinstance(indexes, list):
+                selected: List[Any] = []
+                for raw_index in indexes:
+                    index = int(self._num(raw_index, context_label))
+                    if 0 <= index < len(source):
+                        selected.append(source[index])
+                return selected
+
+            for selector in ("item", "member", "id", "name", "code", "select", "target"):
+                if selector in mapping:
+                    target = mapping.get(selector)
+                    return [
+                        item
+                        for item in source
+                        if self._match_member(item, target)
+                    ]
+            return []
+
+        if isinstance(mapping, (int, float)) and not isinstance(mapping, bool):
+            return _at_index(int(self._num(mapping, context_label)))
+
+        return [
+            item for item in source if self._match_member(item, mapping)
+        ]
+
+    def _fn_lookup(self, source_or_key: Any, mapping: Any, context_label: str) -> Any:
+        if isinstance(source_or_key, dict):
+            selected = self._lookup_values_from_source_map(source_or_key, mapping)
+            if len(selected) == 0:
+                return None
+            return selected[0]
+
+        if isinstance(source_or_key, list):
+            selected = self._lookup_values_from_source_list(
+                source_or_key, mapping, context_label
+            )
+            if len(selected) == 0:
+                return None
+            return selected[0]
+
+        if isinstance(mapping, dict):
+            found = self._find_in_mapping_by_candidates(
+                mapping, self._member_key_candidates(source_or_key)
+            )
+            if found is None:
+                raise FormulaError(f"{context_label}: key {source_or_key!r} not found")
+            return found
+
+        return source_or_key
+
+    def _fn_select(self, source: Any, mapping: Any, context_label: str) -> Any:
+        if isinstance(source, dict):
+            selected = self._lookup_values_from_source_map(source, mapping)
+            if len(selected) == 0:
+                return None
+            return selected[0]
+
+        if isinstance(source, list):
+            selected = self._lookup_values_from_source_list(source, mapping, context_label)
+            if len(selected) == 0:
+                return None
+            return selected[0]
+
+        return self._fn_lookup(source, mapping, context_label)
+
+    def _fn_sum_mapped(self, source: Any, mapping: Dict[Any, Any], context_label: str) -> float:
+        values: List[Any]
+
+        if isinstance(source, dict):
+            values = self._lookup_values_from_source_map(source, mapping)
+        elif isinstance(source, list):
+            selected = self._lookup_values_from_source_list(source, mapping, context_label)
+            values = selected if len(selected) > 0 else list(source)
+        else:
+            return self._num(source, context_label)
+
+        if len(values) == 0:
+            return 0.0
+        return sum(self._num(value, context_label) for value in values)
+
+    def _fn_name(self, item: Any) -> str:
+        if isinstance(item, dict):
+            if item.get("name") is not None:
+                return str(item.get("name"))
+            if item.get("id") is not None:
+                return str(item.get("id"))
+
+        record = self._find_member_record(item)
+        if isinstance(record, dict):
+            if record.get("name") is not None:
+                return str(record.get("name"))
+            if record.get("id") is not None:
+                return str(record.get("id"))
+
+        return str(item)
+
+    def _fn_code(self, item: Any) -> str:
+        if isinstance(item, dict):
+            if item.get("code") is not None:
+                return str(item.get("code"))
+            if item.get("id") is not None:
+                return str(item.get("id"))
+
+        record = self._find_member_record(item)
+        if isinstance(record, dict):
+            if record.get("code") is not None:
+                return str(record.get("code"))
+            if record.get("id") is not None:
+                return str(record.get("id"))
+
+        return str(item)
+
+    def _rank_series_and_target(
+        self,
+        expr: Any,
+        dimension: Any,
+        context_label: str,
+    ) -> Tuple[List[float], float]:
+        if isinstance(expr, list):
+            if len(expr) == 0:
+                raise FormulaError(f"{context_label} requires a non-empty expression list")
+            series = [self._num(value, context_label) for value in expr]
+            index = self._resolve_current_index(len(series))
+            return series, series[index]
+
+        if isinstance(expr, dict):
+            if len(expr) == 0:
+                raise FormulaError(f"{context_label} requires a non-empty expression map")
+            series = [self._num(value, context_label) for value in expr.values()]
+            for candidate in self._member_key_candidates(dimension):
+                if candidate in expr:
+                    return series, self._num(expr[candidate], context_label)
+                candidate_str = str(candidate)
+                if candidate_str in expr:
+                    return series, self._num(expr[candidate_str], context_label)
+            return series, series[-1]
+
+        target = self._num(expr, context_label)
+        if isinstance(dimension, list):
+            series = [self._num(value, context_label) for value in dimension]
+        elif isinstance(dimension, dict):
+            series = [self._num(value, context_label) for value in dimension.values()]
+        else:
+            series = [target]
+
+        if len(series) == 0:
+            raise FormulaError(f"{context_label} requires a non-empty dimension")
+        return series, target
+
+    def _fn_rank(self, expr: Any, dimension: Any, context_label: str) -> float:
+        series, target = self._rank_series_and_target(expr, dimension, context_label)
+        higher_count = len([value for value in series if value > target])
+        return float(higher_count + 1)
+
+    def _fn_ranklist(self, expr: Any, dimension: Any, n: Any, context_label: str) -> List[Any]:
+        limit = int(self._num(n, context_label))
+        if limit < 0:
+            raise FormulaError(f"{context_label} requires n >= 0")
+        if limit == 0:
+            return []
+
+        if isinstance(expr, dict):
+            ranked = [
+                (str(key), self._num(value, context_label))
+                for key, value in expr.items()
+            ]
+            ranked.sort(key=lambda row: (-row[1], row[0]))
+            return [key for key, _ in ranked[:limit]]
+
+        if isinstance(expr, list):
+            if len(expr) == 0:
+                return []
+            scores = [self._num(value, context_label) for value in expr]
+            labels: List[Any]
+            if isinstance(dimension, list) and len(dimension) == len(expr):
+                labels = list(dimension)
+            else:
+                labels = list(expr)
+            order = sorted(
+                range(len(scores)),
+                key=lambda index: (-scores[index], index),
+            )
+            return [labels[index] for index in order[:limit]]
+
+        if isinstance(dimension, dict):
+            ranked = [
+                (str(key), self._num(value, context_label))
+                for key, value in dimension.items()
+            ]
+            ranked.sort(key=lambda row: (-row[1], row[0]))
+            return [key for key, _ in ranked[:limit]]
+
+        if isinstance(dimension, list):
+            scores = [self._num(value, context_label) for value in dimension]
+            scores.sort(reverse=True)
+            return scores[:limit]
+
+        return [expr] if limit > 0 else []
+
+    def _fn_collect(self, expr: Any, dimension: Any, context_label: str) -> List[Any]:
+        if isinstance(expr, dict):
+            if isinstance(dimension, list):
+                selected: List[Any] = []
+                for item in dimension:
+                    found = self._find_in_mapping_by_candidates(
+                        expr, self._member_key_candidates(item)
+                    )
+                    if found is not None:
+                        selected.append(found)
+                if len(selected) > 0:
+                    return selected
+
+            if isinstance(dimension, dict):
+                selected = self._lookup_values_from_source_map(expr, dimension)
+                if len(selected) > 0:
+                    return selected
+
+            return [
+                expr[key]
+                for key in sorted(expr.keys(), key=lambda map_key: str(map_key))
+            ]
+
+        if isinstance(expr, list):
+            return list(expr)
+
+        if isinstance(dimension, list):
+            return [expr for _ in dimension]
+
+        if isinstance(dimension, dict) and "count" in dimension:
+            count = int(self._num(dimension.get("count"), context_label))
+            if count < 0:
+                raise FormulaError(f"{context_label} requires count >= 0")
+            return [expr for _ in range(count)]
+
+        return [expr]
+
+    def _post_target_key(self, target: Any) -> str:
+        if isinstance(target, dict):
+            for key in ("target", "line_item", "line_item_id", "id", "name", "code"):
+                if key in target and target.get(key) is not None:
+                    return str(target.get(key))
+            normalized = sorted(
+                [(str(key), str(value)) for key, value in target.items()],
+                key=lambda row: row[0],
+            )
+            return str(normalized)
+
+        if isinstance(target, (list, tuple)):
+            return "|".join(str(item) for item in target)
+
+        return str(target)
+
+    def _fn_post(self, target: Any, value: Any) -> Any:
+        for key in ("_POST_WRITES", "POST_WRITES", "post_writes"):
+            writes = self._ctx.get(key)
+            if isinstance(writes, dict):
+                writes[self._post_target_key(target)] = value
+                break
+
+        sink = self._ctx.get("_post_sink")
+        if callable(sink):
+            try:
+                sink(target, value)
+            except Exception as exc:
+                raise FormulaError(f"POST sink failed: {exc}")
+
+        return value
 
     # ------------------------------------------------------------------
     # Time helpers

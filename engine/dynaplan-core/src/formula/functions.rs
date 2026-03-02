@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use chrono::{Datelike, Duration, NaiveDate, Weekday};
 
 use super::evaluator::{Evaluator, FormulaError, FormulaValue};
@@ -26,7 +28,20 @@ pub const BUILTIN_FUNCTIONS: &[&str] = &[
     "UPPER",
     "LOWER",
     "TRIM",
+    "FINDITEM",
+    "ITEM",
+    "PARENT",
+    "CHILDREN",
+    "ISLEAF",
+    "ISANCESTOR",
     "LOOKUP",
+    "SELECT",
+    "NAME",
+    "CODE",
+    "RANK",
+    "RANKLIST",
+    "COLLECT",
+    "POST",
     "YEARVALUE",
     "MONTHVALUE",
     "QUARTERVALUE",
@@ -137,6 +152,12 @@ pub(crate) fn evaluate_function(
             }
         }
         "SUM" => {
+            if args.len() == 2
+                && matches!(args[0], FormulaValue::Map(_) | FormulaValue::List(_))
+                && matches!(args[1], FormulaValue::Map(_))
+            {
+                return fn_sum_mapped(evaluator, name, &args);
+            }
             if args.is_empty() {
                 return Err(FormulaError::new("SUM requires at least one argument"));
             }
@@ -228,28 +249,20 @@ pub(crate) fn evaluate_function(
                     .to_string(),
             ))
         }
-        "LOOKUP" => {
-            if args.is_empty() {
-                return Err(FormulaError::new("LOOKUP requires at least one argument"));
-            }
-            let key = args[0].clone();
-            if args.len() == 2 {
-                if let FormulaValue::Map(mapping) = &args[1] {
-                    let lookup_key = match &key {
-                        FormulaValue::Text(v) => v.clone(),
-                        _ => evaluator.coerce_string(&key),
-                    };
-                    if let Some(value) = mapping.get(&lookup_key) {
-                        return Ok(value.clone());
-                    }
-                    return Err(FormulaError::new(format!(
-                        "LOOKUP: key {:?} not found",
-                        lookup_key
-                    )));
-                }
-            }
-            Ok(key)
-        }
+        "FINDITEM" => fn_finditem(evaluator, name, &args),
+        "ITEM" => fn_item(evaluator, name, &args),
+        "PARENT" => fn_parent(evaluator, name, &args),
+        "CHILDREN" => fn_children(evaluator, name, &args),
+        "ISLEAF" => fn_isleaf(evaluator, name, &args),
+        "ISANCESTOR" => fn_isancestor(evaluator, name, &args),
+        "LOOKUP" => fn_lookup(evaluator, name, &args),
+        "SELECT" => fn_select(evaluator, name, &args),
+        "NAME" => fn_name(evaluator, name, &args),
+        "CODE" => fn_code(evaluator, name, &args),
+        "RANK" => fn_rank(evaluator, name, &args),
+        "RANKLIST" => fn_ranklist(evaluator, name, &args),
+        "COLLECT" => fn_collect(evaluator, name, &args),
+        "POST" => fn_post(evaluator, name, &args),
         "YEARVALUE" => fn_period_value(evaluator, name, &args, PeriodUnit::Year),
         "MONTHVALUE" => fn_period_value(evaluator, name, &args, PeriodUnit::Month),
         "QUARTERVALUE" => fn_period_value(evaluator, name, &args, PeriodUnit::Quarter),
@@ -308,6 +321,984 @@ fn right_slice(value: &str, n: i64) -> String {
     let chars: Vec<char> = value.chars().collect();
     let start = chars.len().saturating_sub(n as usize);
     chars.into_iter().skip(start).collect()
+}
+
+fn push_unique(target: &mut Vec<String>, value: String) {
+    if !target.iter().any(|existing| existing == &value) {
+        target.push(value);
+    }
+}
+
+fn append_token_candidates(evaluator: &Evaluator, value: &FormulaValue, out: &mut Vec<String>) {
+    if matches!(value, FormulaValue::Null) {
+        return;
+    }
+
+    push_unique(out, evaluator.coerce_string(value));
+
+    if let FormulaValue::Number(number) = value {
+        if number.is_finite() && number.fract() == 0.0 {
+            push_unique(out, format!("{}", *number as i64));
+        }
+    }
+
+    if let FormulaValue::Bool(boolean) = value {
+        if *boolean {
+            push_unique(out, "true".to_string());
+            push_unique(out, "TRUE".to_string());
+        } else {
+            push_unique(out, "false".to_string());
+            push_unique(out, "FALSE".to_string());
+        }
+    }
+}
+
+fn member_key_candidates(evaluator: &Evaluator, value: &FormulaValue) -> Vec<String> {
+    let mut out = Vec::new();
+    match value {
+        FormulaValue::Map(mapping) => {
+            for key in ["id", "code", "name", "key", "item", "member"] {
+                if let Some(raw) = mapping.get(key) {
+                    append_token_candidates(evaluator, raw, &mut out);
+                }
+            }
+        }
+        _ => append_token_candidates(evaluator, value, &mut out),
+    }
+    if out.is_empty() {
+        out.push(evaluator.coerce_string(value));
+    }
+    out
+}
+
+fn mapping_lookup_by_candidates(
+    mapping: &HashMap<String, FormulaValue>,
+    candidates: &[String],
+) -> Option<FormulaValue> {
+    for candidate in candidates {
+        if let Some(value) = mapping.get(candidate) {
+            return Some(value.clone());
+        }
+    }
+    None
+}
+
+fn source_key_tokens(source_key: &str) -> Vec<String> {
+    if source_key.contains('|') {
+        source_key
+            .split('|')
+            .filter(|token| !token.is_empty())
+            .map(|token| token.to_string())
+            .collect()
+    } else {
+        vec![source_key.to_string()]
+    }
+}
+
+fn contains_all_tokens(tokens: &[String], required: &[String]) -> bool {
+    required.iter().all(|token| tokens.iter().any(|candidate| candidate == token))
+}
+
+fn list_members(value: &FormulaValue, context_label: &str) -> Result<Vec<FormulaValue>, FormulaError> {
+    match value {
+        FormulaValue::List(items) => Ok(items.clone()),
+        FormulaValue::Map(mapping) => {
+            for key in ["members", "items", "list"] {
+                if let Some(FormulaValue::List(items)) = mapping.get(key) {
+                    return Ok(items.clone());
+                }
+            }
+            Ok(mapping.values().cloned().collect::<Vec<FormulaValue>>())
+        }
+        _ => Err(FormulaError::new(format!(
+            "{} requires a list-like argument",
+            context_label
+        ))),
+    }
+}
+
+fn match_member(evaluator: &Evaluator, left: &FormulaValue, right: &FormulaValue) -> bool {
+    let left_candidates = member_key_candidates(evaluator, left);
+    let right_candidates = member_key_candidates(evaluator, right);
+    left_candidates
+        .iter()
+        .any(|left_value| right_candidates.iter().any(|right_value| right_value == left_value))
+        || left == right
+}
+
+fn find_member_record(
+    evaluator: &Evaluator,
+    item: &FormulaValue,
+) -> Option<HashMap<String, FormulaValue>> {
+    if let FormulaValue::Map(mapping) = item {
+        return Some(mapping.clone());
+    }
+
+    let candidates = member_key_candidates(evaluator, item);
+    for key in [
+        "MEMBERS_BY_ID",
+        "members_by_id",
+        "MEMBER_MAP",
+        "member_map",
+        "MEMBERS_BY_CODE",
+        "members_by_code",
+        "MEMBERS_BY_NAME",
+        "members_by_name",
+    ] {
+        if let Some(FormulaValue::Map(mapping)) = evaluator.context_value(key) {
+            if let Some(FormulaValue::Map(member)) = mapping_lookup_by_candidates(mapping, &candidates) {
+                return Some(member);
+            }
+        }
+    }
+
+    for key in ["DIMENSION_MEMBERS", "dimension_members", "_dimension_members"] {
+        if let Some(FormulaValue::List(members)) = evaluator.context_value(key) {
+            for member in members {
+                if let FormulaValue::Map(record) = member {
+                    if match_member(evaluator, &FormulaValue::Map(record.clone()), item) {
+                        return Some(record.clone());
+                    }
+                }
+            }
+        }
+    }
+
+    None
+}
+
+fn resolve_parent_value(evaluator: &Evaluator, item: &FormulaValue) -> Option<FormulaValue> {
+    if let FormulaValue::Map(mapping) = item {
+        if let Some(parent) = mapping.get("parent") {
+            return Some(parent.clone());
+        }
+        if let Some(parent) = mapping.get("parent_id") {
+            return Some(parent.clone());
+        }
+    }
+
+    if let Some(record) = find_member_record(evaluator, item) {
+        if let Some(parent) = record.get("parent") {
+            return Some(parent.clone());
+        }
+        if let Some(parent) = record.get("parent_id") {
+            return Some(parent.clone());
+        }
+    }
+
+    let candidates = member_key_candidates(evaluator, item);
+    for key in ["PARENT_MAP", "parent_map", "_parent_map", "PARENTS", "parents"] {
+        if let Some(FormulaValue::Map(mapping)) = evaluator.context_value(key) {
+            if let Some(parent) = mapping_lookup_by_candidates(mapping, &candidates) {
+                return Some(parent);
+            }
+        }
+    }
+
+    None
+}
+
+fn resolve_children_values(evaluator: &Evaluator, item: &FormulaValue) -> Vec<FormulaValue> {
+    if let FormulaValue::Map(mapping) = item {
+        if let Some(raw) = mapping.get("children") {
+            return match raw {
+                FormulaValue::List(items) => items.clone(),
+                FormulaValue::Null => Vec::new(),
+                other => vec![other.clone()],
+            };
+        }
+    }
+
+    if let Some(record) = find_member_record(evaluator, item) {
+        if let Some(raw) = record.get("children") {
+            return match raw {
+                FormulaValue::List(items) => items.clone(),
+                FormulaValue::Null => Vec::new(),
+                other => vec![other.clone()],
+            };
+        }
+    }
+
+    let candidates = member_key_candidates(evaluator, item);
+    for key in ["CHILDREN_MAP", "children_map", "_children_map", "CHILDREN", "children"] {
+        if let Some(FormulaValue::Map(mapping)) = evaluator.context_value(key) {
+            if let Some(value) = mapping_lookup_by_candidates(mapping, &candidates) {
+                return match value {
+                    FormulaValue::List(items) => items,
+                    FormulaValue::Null => Vec::new(),
+                    other => vec![other],
+                };
+            }
+        }
+    }
+
+    if let Some(FormulaValue::List(members)) =
+        context_first(evaluator, &["DIMENSION_MEMBERS", "dimension_members", "_dimension_members"])
+    {
+        let mut derived = Vec::new();
+        for member in members {
+            if let FormulaValue::Map(record) = member {
+                let parent = record
+                    .get("parent")
+                    .or_else(|| record.get("parent_id"))
+                    .cloned()
+                    .unwrap_or(FormulaValue::Null);
+                if match_member(evaluator, &parent, item) {
+                    derived.push(FormulaValue::Map(record.clone()));
+                }
+            }
+        }
+        if !derived.is_empty() {
+            return derived;
+        }
+    }
+
+    Vec::new()
+}
+
+fn list_name_candidates(evaluator: &Evaluator, list_value: &FormulaValue) -> Vec<String> {
+    let mut names = Vec::new();
+    match list_value {
+        FormulaValue::Text(name) => push_unique(&mut names, name.clone()),
+        FormulaValue::Map(mapping) => {
+            for key in ["name", "id", "code", "list", "dimension"] {
+                if let Some(raw) = mapping.get(key) {
+                    append_token_candidates(evaluator, raw, &mut names);
+                }
+            }
+        }
+        FormulaValue::List(_) => {}
+        _ => push_unique(&mut names, evaluator.coerce_string(list_value)),
+    }
+    names
+}
+
+fn sanitize_context_name(name: &str) -> String {
+    name.chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() {
+                ch.to_ascii_uppercase()
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>()
+        .trim_matches('_')
+        .to_string()
+}
+
+fn lookup_current_item_by_name(evaluator: &Evaluator, list_name: &str) -> Option<FormulaValue> {
+    let mut candidates = Vec::new();
+    push_unique(&mut candidates, list_name.to_string());
+    push_unique(&mut candidates, list_name.to_ascii_uppercase());
+    push_unique(&mut candidates, list_name.to_ascii_lowercase());
+    let sanitized = sanitize_context_name(list_name);
+    if !sanitized.is_empty() {
+        push_unique(&mut candidates, sanitized.clone());
+    }
+
+    for key in ["CURRENT_ITEMS", "current_items", "_current_items", "ITEMS", "items"] {
+        if let Some(FormulaValue::Map(mapping)) = evaluator.context_value(key) {
+            if let Some(value) = mapping_lookup_by_candidates(mapping, &candidates) {
+                return Some(value);
+            }
+        }
+    }
+
+    if !sanitized.is_empty() {
+        if let Some(value) = evaluator.context_value(&format!("CURRENT_ITEM_{}", sanitized)) {
+            return Some(value.clone());
+        }
+        if let Some(value) = evaluator.context_value(&format!("ITEM_{}", sanitized)) {
+            return Some(value.clone());
+        }
+    }
+    if let Some(value) = evaluator.context_value(&format!("CURRENT_ITEM.{}", list_name)) {
+        return Some(value.clone());
+    }
+    if let Some(value) = evaluator.context_value(&format!("CURRENT_ITEM:{}", list_name)) {
+        return Some(value.clone());
+    }
+    None
+}
+
+fn lookup_values_from_source_map(
+    evaluator: &Evaluator,
+    source: &HashMap<String, FormulaValue>,
+    mapping: &FormulaValue,
+) -> Vec<FormulaValue> {
+    let mut single_lookup = |value: &FormulaValue| {
+        let candidates = member_key_candidates(evaluator, value);
+        mapping_lookup_by_candidates(source, &candidates)
+    };
+
+    let FormulaValue::Map(mapping_map) = mapping else {
+        return single_lookup(mapping).map_or_else(Vec::new, |value| vec![value]);
+    };
+
+    for selector in ["key", "item", "member", "id", "name", "code", "select", "target"] {
+        if let Some(selector_value) = mapping_map.get(selector) {
+            if let Some(value) = single_lookup(selector_value) {
+                return vec![value];
+            }
+        }
+    }
+
+    if let Some(FormulaValue::List(keys)) = mapping_map.get("keys") {
+        let mut selected = Vec::new();
+        for key in keys {
+            if let Some(value) = single_lookup(key) {
+                selected.push(value);
+            }
+        }
+        if !selected.is_empty() {
+            return selected;
+        }
+    }
+
+    if mapping_map.len() == 1 {
+        if let Some((_, value)) = mapping_map.iter().next() {
+            if let Some(found) = single_lookup(value) {
+                return vec![found];
+            }
+        }
+    }
+
+    let mut required = Vec::new();
+    for (key, value) in mapping_map {
+        if matches!(
+            key.as_str(),
+            "key"
+                | "item"
+                | "member"
+                | "id"
+                | "name"
+                | "code"
+                | "select"
+                | "target"
+                | "keys"
+                | "index"
+                | "indexes"
+                | "default"
+                | "weights"
+        ) {
+            continue;
+        }
+        let candidates = member_key_candidates(evaluator, value);
+        if let Some(token) = candidates.first() {
+            push_unique(&mut required, token.clone());
+        }
+    }
+    if required.is_empty() {
+        for value in mapping_map.values() {
+            let candidates = member_key_candidates(evaluator, value);
+            if let Some(token) = candidates.first() {
+                push_unique(&mut required, token.clone());
+            }
+        }
+    }
+    if required.is_empty() {
+        return Vec::new();
+    }
+
+    let mut matched = source
+        .iter()
+        .filter_map(|(key, value)| {
+            let tokens = source_key_tokens(key);
+            if contains_all_tokens(&tokens, &required) {
+                Some((key.clone(), value.clone()))
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<(String, FormulaValue)>>();
+    matched.sort_by(|left, right| left.0.cmp(&right.0));
+    matched.into_iter().map(|(_, value)| value).collect()
+}
+
+fn lookup_values_from_source_list(
+    evaluator: &Evaluator,
+    source: &[FormulaValue],
+    mapping: &FormulaValue,
+    context_label: &str,
+) -> Result<Vec<FormulaValue>, FormulaError> {
+    let at_index = |index: i64| -> Vec<FormulaValue> {
+        if index < 0 || index >= source.len() as i64 {
+            return Vec::new();
+        }
+        vec![source[index as usize].clone()]
+    };
+
+    if let FormulaValue::Map(mapping_map) = mapping {
+        if let Some(value) = mapping_map.get("index") {
+            let index = evaluator.num(value, context_label)?.trunc() as i64;
+            return Ok(at_index(index));
+        }
+
+        if let Some(FormulaValue::List(indexes)) = mapping_map.get("indexes") {
+            let mut selected = Vec::new();
+            for raw_index in indexes {
+                let index = evaluator.num(raw_index, context_label)?.trunc() as i64;
+                if index >= 0 && index < source.len() as i64 {
+                    selected.push(source[index as usize].clone());
+                }
+            }
+            return Ok(selected);
+        }
+
+        for selector in ["item", "member", "id", "name", "code", "select", "target"] {
+            if let Some(target) = mapping_map.get(selector) {
+                return Ok(source
+                    .iter()
+                    .filter(|item| match_member(evaluator, item, target))
+                    .cloned()
+                    .collect::<Vec<FormulaValue>>());
+            }
+        }
+
+        return Ok(Vec::new());
+    }
+
+    if let FormulaValue::Number(index) = mapping {
+        return Ok(at_index(index.trunc() as i64));
+    }
+
+    Ok(source
+        .iter()
+        .filter(|item| match_member(evaluator, item, mapping))
+        .cloned()
+        .collect::<Vec<FormulaValue>>())
+}
+
+fn rank_series_target(
+    evaluator: &Evaluator,
+    expr: &FormulaValue,
+    dimension: &FormulaValue,
+    context_label: &str,
+) -> Result<(Vec<f64>, f64), FormulaError> {
+    if let FormulaValue::List(values) = expr {
+        if values.is_empty() {
+            return Err(FormulaError::new(format!(
+                "{} requires a non-empty expression list",
+                context_label
+            )));
+        }
+        let series = values
+            .iter()
+            .map(|value| evaluator.num(value, context_label))
+            .collect::<Result<Vec<f64>, FormulaError>>()?;
+        let index = resolve_current_index(evaluator, series.len(), context_label)?;
+        return Ok((series.clone(), series[index]));
+    }
+
+    if let FormulaValue::Map(values) = expr {
+        if values.is_empty() {
+            return Err(FormulaError::new(format!(
+                "{} requires a non-empty expression map",
+                context_label
+            )));
+        }
+        let series = values
+            .values()
+            .map(|value| evaluator.num(value, context_label))
+            .collect::<Result<Vec<f64>, FormulaError>>()?;
+        let candidates = member_key_candidates(evaluator, dimension);
+        for candidate in candidates {
+            if let Some(value) = values.get(&candidate) {
+                return Ok((series, evaluator.num(value, context_label)?));
+            }
+        }
+        return Ok((series.clone(), *series.last().unwrap_or(&0.0)));
+    }
+
+    let target = evaluator.num(expr, context_label)?;
+    let series = match dimension {
+        FormulaValue::List(values) => values
+            .iter()
+            .map(|value| evaluator.num(value, context_label))
+            .collect::<Result<Vec<f64>, FormulaError>>()?,
+        FormulaValue::Map(values) => values
+            .values()
+            .map(|value| evaluator.num(value, context_label))
+            .collect::<Result<Vec<f64>, FormulaError>>()?,
+        _ => vec![target],
+    };
+    if series.is_empty() {
+        return Err(FormulaError::new(format!(
+            "{} requires a non-empty dimension",
+            context_label
+        )));
+    }
+    Ok((series, target))
+}
+
+fn fn_finditem(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 2, 2)?;
+
+    if let FormulaValue::Map(mapping) = &args[0] {
+        let candidates = member_key_candidates(evaluator, &args[1]);
+        if let Some(found) = mapping_lookup_by_candidates(mapping, &candidates) {
+            return Ok(found);
+        }
+    }
+
+    let members = list_members(&args[0], name)?;
+    for member in members {
+        if match_member(evaluator, &member, &args[1]) {
+            return Ok(member);
+        }
+    }
+    Ok(FormulaValue::Null)
+}
+
+fn fn_item(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 1, 1)?;
+    let list_value = &args[0];
+    let list_names = list_name_candidates(evaluator, list_value);
+
+    for list_name in &list_names {
+        if let Some(current) = lookup_current_item_by_name(evaluator, list_name) {
+            return Ok(current);
+        }
+    }
+
+    if list_names.is_empty() && matches!(list_value, FormulaValue::List(_)) {
+        for key in ["CURRENT_ITEMS", "current_items", "_current_items"] {
+            if let Some(FormulaValue::Map(mapping)) = evaluator.context_value(key) {
+                if mapping.len() == 1 {
+                    if let Some(value) = mapping.values().next() {
+                        return Ok(value.clone());
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some(generic) = context_first(evaluator, &["CURRENT_ITEM", "current_item", "_current_item"]) {
+        if let FormulaValue::Map(mapping) = generic {
+            if !list_names.is_empty() {
+                if let Some(found) = mapping_lookup_by_candidates(mapping, &list_names) {
+                    return Ok(found);
+                }
+            }
+        }
+        return Ok(generic.clone());
+    }
+
+    if !matches!(list_value, FormulaValue::List(_) | FormulaValue::Map(_)) {
+        return Ok(list_value.clone());
+    }
+
+    Err(FormulaError::new("ITEM requires current item context"))
+}
+
+fn fn_parent(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 1, 1)?;
+    Ok(resolve_parent_value(evaluator, &args[0]).unwrap_or(FormulaValue::Null))
+}
+
+fn fn_children(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 1, 1)?;
+    Ok(FormulaValue::List(resolve_children_values(evaluator, &args[0])))
+}
+
+fn fn_isleaf(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 1, 1)?;
+    Ok(FormulaValue::Bool(
+        resolve_children_values(evaluator, &args[0]).is_empty(),
+    ))
+}
+
+fn fn_isancestor(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 2, 2)?;
+    if match_member(evaluator, &args[0], &args[1]) {
+        return Ok(FormulaValue::Bool(false));
+    }
+
+    let mut seen = Vec::new();
+    let mut current = args[1].clone();
+    for _ in 0..256 {
+        let Some(parent) = resolve_parent_value(evaluator, &current) else {
+            return Ok(FormulaValue::Bool(false));
+        };
+        if match_member(evaluator, &parent, &args[0]) {
+            return Ok(FormulaValue::Bool(true));
+        }
+        if let Some(token) = member_key_candidates(evaluator, &parent).first() {
+            if seen.iter().any(|existing| existing == token) {
+                return Ok(FormulaValue::Bool(false));
+            }
+            seen.push(token.clone());
+        }
+        current = parent;
+    }
+    Ok(FormulaValue::Bool(false))
+}
+
+fn fn_lookup(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 1, 2)?;
+    if args.len() == 1 {
+        return Ok(args[0].clone());
+    }
+
+    let source_or_key = &args[0];
+    let mapping = &args[1];
+
+    if let FormulaValue::Map(source) = source_or_key {
+        let selected = lookup_values_from_source_map(evaluator, source, mapping);
+        return Ok(selected.into_iter().next().unwrap_or(FormulaValue::Null));
+    }
+
+    if let FormulaValue::List(source) = source_or_key {
+        let selected = lookup_values_from_source_list(evaluator, source, mapping, name)?;
+        return Ok(selected.into_iter().next().unwrap_or(FormulaValue::Null));
+    }
+
+    if let FormulaValue::Map(mapping_map) = mapping {
+        let candidates = member_key_candidates(evaluator, source_or_key);
+        if let Some(found) = mapping_lookup_by_candidates(mapping_map, &candidates) {
+            return Ok(found);
+        }
+        return Err(FormulaError::new(format!(
+            "{}: key {:?} not found",
+            name,
+            evaluator.coerce_string(source_or_key)
+        )));
+    }
+
+    Ok(source_or_key.clone())
+}
+
+fn fn_select(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 2, 2)?;
+    if let FormulaValue::Map(source) = &args[0] {
+        let selected = lookup_values_from_source_map(evaluator, source, &args[1]);
+        return Ok(selected.into_iter().next().unwrap_or(FormulaValue::Null));
+    }
+    if let FormulaValue::List(source) = &args[0] {
+        let selected = lookup_values_from_source_list(evaluator, source, &args[1], name)?;
+        return Ok(selected.into_iter().next().unwrap_or(FormulaValue::Null));
+    }
+    fn_lookup(evaluator, name, args)
+}
+
+fn fn_sum_mapped(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 2, 2)?;
+    let values = match (&args[0], &args[1]) {
+        (FormulaValue::Map(source), FormulaValue::Map(_)) => {
+            lookup_values_from_source_map(evaluator, source, &args[1])
+        }
+        (FormulaValue::List(source), FormulaValue::Map(_)) => {
+            let selected = lookup_values_from_source_list(evaluator, source, &args[1], name)?;
+            if selected.is_empty() {
+                source.clone()
+            } else {
+                selected
+            }
+        }
+        _ => evaluator
+            .flatten_numbers(args, name)?
+            .into_iter()
+            .map(FormulaValue::Number)
+            .collect::<Vec<FormulaValue>>(),
+    };
+
+    let total = values
+        .iter()
+        .map(|value| evaluator.num(value, name))
+        .collect::<Result<Vec<f64>, FormulaError>>()?
+        .iter()
+        .sum::<f64>();
+    Ok(FormulaValue::Number(total))
+}
+
+fn fn_name(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 1, 1)?;
+    if let FormulaValue::Map(mapping) = &args[0] {
+        if let Some(value) = mapping.get("name") {
+            return Ok(FormulaValue::Text(evaluator.coerce_string(value)));
+        }
+        if let Some(value) = mapping.get("id") {
+            return Ok(FormulaValue::Text(evaluator.coerce_string(value)));
+        }
+    }
+    if let Some(record) = find_member_record(evaluator, &args[0]) {
+        if let Some(value) = record.get("name") {
+            return Ok(FormulaValue::Text(evaluator.coerce_string(value)));
+        }
+        if let Some(value) = record.get("id") {
+            return Ok(FormulaValue::Text(evaluator.coerce_string(value)));
+        }
+    }
+    Ok(FormulaValue::Text(evaluator.coerce_string(&args[0])))
+}
+
+fn fn_code(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 1, 1)?;
+    if let FormulaValue::Map(mapping) = &args[0] {
+        if let Some(value) = mapping.get("code") {
+            return Ok(FormulaValue::Text(evaluator.coerce_string(value)));
+        }
+        if let Some(value) = mapping.get("id") {
+            return Ok(FormulaValue::Text(evaluator.coerce_string(value)));
+        }
+    }
+    if let Some(record) = find_member_record(evaluator, &args[0]) {
+        if let Some(value) = record.get("code") {
+            return Ok(FormulaValue::Text(evaluator.coerce_string(value)));
+        }
+        if let Some(value) = record.get("id") {
+            return Ok(FormulaValue::Text(evaluator.coerce_string(value)));
+        }
+    }
+    Ok(FormulaValue::Text(evaluator.coerce_string(&args[0])))
+}
+
+fn fn_rank(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 2, 2)?;
+    let (series, target) = rank_series_target(evaluator, &args[0], &args[1], name)?;
+    let higher = series.iter().filter(|value| **value > target).count();
+    Ok(FormulaValue::Number((higher + 1) as f64))
+}
+
+fn fn_ranklist(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 3, 3)?;
+    let limit = evaluator.num(&args[2], name)?.trunc() as i64;
+    if limit < 0 {
+        return Err(FormulaError::new(format!("{} requires n >= 0", name)));
+    }
+    if limit == 0 {
+        return Ok(FormulaValue::List(Vec::new()));
+    }
+    let limit = limit as usize;
+
+    if let FormulaValue::Map(values) = &args[0] {
+        let mut ranked = values
+            .iter()
+            .map(|(key, value)| {
+                Ok((key.clone(), evaluator.num(value, name)?))
+            })
+            .collect::<Result<Vec<(String, f64)>, FormulaError>>()?;
+        ranked.sort_by(|left, right| {
+            right
+                .1
+                .partial_cmp(&left.1)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| left.0.cmp(&right.0))
+        });
+        return Ok(FormulaValue::List(
+            ranked
+                .into_iter()
+                .take(limit)
+                .map(|(key, _)| FormulaValue::Text(key))
+                .collect::<Vec<FormulaValue>>(),
+        ));
+    }
+
+    if let FormulaValue::List(values) = &args[0] {
+        if values.is_empty() {
+            return Ok(FormulaValue::List(Vec::new()));
+        }
+        let scores = values
+            .iter()
+            .map(|value| evaluator.num(value, name))
+            .collect::<Result<Vec<f64>, FormulaError>>()?;
+
+        let labels = match &args[1] {
+            FormulaValue::List(dim_values) if dim_values.len() == values.len() => {
+                dim_values.clone()
+            }
+            _ => values.clone(),
+        };
+
+        let mut order = (0..scores.len()).collect::<Vec<usize>>();
+        order.sort_by(|left, right| {
+            scores[*right]
+                .partial_cmp(&scores[*left])
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| left.cmp(right))
+        });
+        return Ok(FormulaValue::List(
+            order
+                .into_iter()
+                .take(limit)
+                .map(|index| labels[index].clone())
+                .collect::<Vec<FormulaValue>>(),
+        ));
+    }
+
+    if let FormulaValue::Map(values) = &args[1] {
+        let mut ranked = values
+            .iter()
+            .map(|(key, value)| {
+                Ok((key.clone(), evaluator.num(value, name)?))
+            })
+            .collect::<Result<Vec<(String, f64)>, FormulaError>>()?;
+        ranked.sort_by(|left, right| {
+            right
+                .1
+                .partial_cmp(&left.1)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| left.0.cmp(&right.0))
+        });
+        return Ok(FormulaValue::List(
+            ranked
+                .into_iter()
+                .take(limit)
+                .map(|(key, _)| FormulaValue::Text(key))
+                .collect::<Vec<FormulaValue>>(),
+        ));
+    }
+
+    if let FormulaValue::List(values) = &args[1] {
+        let mut ranked = values
+            .iter()
+            .map(|value| evaluator.num(value, name))
+            .collect::<Result<Vec<f64>, FormulaError>>()?;
+        ranked.sort_by(|left, right| {
+            right
+                .partial_cmp(left)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        return Ok(FormulaValue::List(
+            ranked
+                .into_iter()
+                .take(limit)
+                .map(FormulaValue::Number)
+                .collect::<Vec<FormulaValue>>(),
+        ));
+    }
+
+    Ok(FormulaValue::List(vec![args[0].clone()]))
+}
+
+fn fn_collect(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 2, 2)?;
+    match (&args[0], &args[1]) {
+        (FormulaValue::Map(values), FormulaValue::List(dimension)) => {
+            let mut selected = Vec::new();
+            for item in dimension {
+                let candidates = member_key_candidates(evaluator, item);
+                if let Some(value) = mapping_lookup_by_candidates(values, &candidates) {
+                    selected.push(value);
+                }
+            }
+            if !selected.is_empty() {
+                return Ok(FormulaValue::List(selected));
+            }
+            let mut keys = values.keys().cloned().collect::<Vec<String>>();
+            keys.sort();
+            Ok(FormulaValue::List(
+                keys.into_iter()
+                    .filter_map(|key| values.get(&key).cloned())
+                    .collect::<Vec<FormulaValue>>(),
+            ))
+        }
+        (FormulaValue::Map(values), FormulaValue::Map(_)) => {
+            let selected = lookup_values_from_source_map(evaluator, values, &args[1]);
+            if !selected.is_empty() {
+                return Ok(FormulaValue::List(selected));
+            }
+            let mut keys = values.keys().cloned().collect::<Vec<String>>();
+            keys.sort();
+            Ok(FormulaValue::List(
+                keys.into_iter()
+                    .filter_map(|key| values.get(&key).cloned())
+                    .collect::<Vec<FormulaValue>>(),
+            ))
+        }
+        (FormulaValue::Map(values), _) => {
+            let mut keys = values.keys().cloned().collect::<Vec<String>>();
+            keys.sort();
+            Ok(FormulaValue::List(
+                keys.into_iter()
+                    .filter_map(|key| values.get(&key).cloned())
+                    .collect::<Vec<FormulaValue>>(),
+            ))
+        }
+        (FormulaValue::List(values), _) => Ok(FormulaValue::List(values.clone())),
+        (value, FormulaValue::List(dimension)) => Ok(FormulaValue::List(
+            dimension.iter().map(|_| value.clone()).collect::<Vec<FormulaValue>>(),
+        )),
+        (value, FormulaValue::Map(mapping)) => {
+            if let Some(count) = mapping.get("count") {
+                let repeat = evaluator.num(count, name)?.trunc() as i64;
+                if repeat < 0 {
+                    return Err(FormulaError::new(format!("{} requires count >= 0", name)));
+                }
+                return Ok(FormulaValue::List(
+                    (0..repeat).map(|_| value.clone()).collect::<Vec<FormulaValue>>(),
+                ));
+            }
+            Ok(FormulaValue::List(vec![value.clone()]))
+        }
+        (value, _) => Ok(FormulaValue::List(vec![value.clone()])),
+    }
+}
+
+fn fn_post(
+    _evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 2, 2)?;
+    Ok(args[1].clone())
 }
 
 #[derive(Clone, Copy)]

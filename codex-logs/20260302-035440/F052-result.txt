@@ -1,0 +1,17 @@
+Implemented F052 end-to-end for the formula engine stack.
+
+- Added Python F052 function behavior in [backend/app/engine/evaluator.py](/Users/ainunnajib/dynaplan/backend/app/engine/evaluator.py#L348) and helper implementations for mapped lookup/aggregation, hierarchy, ranking, collect, and post in [backend/app/engine/evaluator.py](/Users/ainunnajib/dynaplan/backend/app/engine/evaluator.py#L729).
+- Registered new built-ins in [backend/app/engine/formula.py](/Users/ainunnajib/dynaplan/backend/app/engine/formula.py#L126).
+- Added backend tests for F052 in [backend/tests/test_formula_engine.py](/Users/ainunnajib/dynaplan/backend/tests/test_formula_engine.py#L593).
+- Mirrored F052 support in Rust dispatch + implementations in [engine/dynaplan-core/src/formula/functions.rs](/Users/ainunnajib/dynaplan/engine/dynaplan-core/src/formula/functions.rs#L31) and [engine/dynaplan-core/src/formula/functions.rs](/Users/ainunnajib/dynaplan/engine/dynaplan-core/src/formula/functions.rs#L835).
+- Added Rust parity tests in [engine/dynaplan-core/src/formula/tests.rs](/Users/ainunnajib/dynaplan/engine/dynaplan-core/src/formula/tests.rs#L998).
+- Updated progress tracking in [claude-progress.txt](/Users/ainunnajib/dynaplan/claude-progress.txt#L3).
+
+Validation run:
+- `cd backend && .venv/bin/python -m pytest -x --tb=short -q`  
+  Result: `1486 passed, 1 skipped, 1 xfailed, 1 xpassed`
+- `cd frontend && bun tsc --noEmit`  
+  Result: success (exit code 0)
+
+Note:
+- Rust toolchain (`cargo`) is unavailable in this environment, so Rust tests/build could not be executed here.

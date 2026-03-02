@@ -585,6 +585,214 @@ class TestTimeFunctions:
                 },
             )
 
+
+# ===========================================================================
+# Evaluator — lookup & cross-module functions (F052)
+# ===========================================================================
+
+class TestLookupCrossModuleFunctions:
+    def test_finditem_from_member_list(self):
+        result = evaluate_formula(
+            'FINDITEM(Products, "Gadget")',
+            {
+                "Products": [
+                    {"id": "p1", "name": "Widget", "code": "W01"},
+                    {"id": "p2", "name": "Gadget", "code": "G02"},
+                ]
+            },
+        )
+        assert isinstance(result, dict)
+        assert result["id"] == "p2"
+
+    def test_finditem_from_name_map(self):
+        result = evaluate_formula(
+            'FINDITEM(Products, "Widget")',
+            {
+                "Products": {
+                    "Widget": {"id": "p1", "name": "Widget"},
+                    "Gadget": {"id": "p2", "name": "Gadget"},
+                }
+            },
+        )
+        assert isinstance(result, dict)
+        assert result["id"] == "p1"
+
+    def test_item_uses_current_items_context(self):
+        result = evaluate_formula(
+            "ITEM(Products)",
+            {
+                "Products": [{"id": "p1"}, {"id": "p2"}],
+                "CURRENT_ITEMS": {"Products": {"id": "p2", "name": "Gadget"}},
+            },
+        )
+        assert isinstance(result, dict)
+        assert result["id"] == "p2"
+
+    def test_item_falls_back_to_scalar_argument(self):
+        result = evaluate_formula("ITEM(CurrentProduct)", {"CurrentProduct": "p1"})
+        assert result == "p1"
+
+    def test_parent_from_member_record(self):
+        result = evaluate_formula(
+            "PARENT(Product)",
+            {"Product": {"id": "child", "parent": "root"}},
+        )
+        assert result == "root"
+
+    def test_children_from_children_map(self):
+        result = evaluate_formula(
+            'CHILDREN("root")',
+            {
+                "CHILDREN_MAP": {
+                    "root": [{"id": "c1"}, {"id": "c2"}],
+                }
+            },
+        )
+        assert isinstance(result, list)
+        assert len(result) == 2
+
+    def test_isleaf_true_when_no_children(self):
+        result = evaluate_formula(
+            'ISLEAF("c1")',
+            {"CHILDREN_MAP": {"root": ["c1"]}},
+        )
+        assert result is True
+
+    def test_isancestor_true_from_parent_map(self):
+        result = evaluate_formula(
+            'ISANCESTOR("root", "leaf")',
+            {"PARENT_MAP": {"leaf": "mid", "mid": "root"}},
+        )
+        assert result is True
+
+    def test_isancestor_false_when_not_related(self):
+        result = evaluate_formula(
+            'ISANCESTOR("left", "leaf")',
+            {"PARENT_MAP": {"leaf": "mid", "mid": "root"}},
+        )
+        assert result is False
+
+    def test_select_with_explicit_key_mapping(self):
+        result = evaluate_formula(
+            "SELECT(SalesByProduct, Mapping)",
+            {
+                "SalesByProduct": {"p1": 10, "p2": 20},
+                "Mapping": {"key": "p2"},
+            },
+        )
+        assert result == 20
+
+    def test_lookup_legacy_key_mapping(self):
+        result = evaluate_formula(
+            "LOOKUP(Product, ProductToCode)",
+            {
+                "Product": "Widget",
+                "ProductToCode": {"Widget": "W01", "Gadget": "G02"},
+            },
+        )
+        assert result == "W01"
+
+    def test_lookup_source_map_with_dimension_mapping(self):
+        result = evaluate_formula(
+            "LOOKUP(SalesByIntersection, Mapping)",
+            {
+                "SalesByIntersection": {
+                    "North|Widget": 100,
+                    "South|Widget": 50,
+                },
+                "Mapping": {"Region": "North", "Product": "Widget"},
+            },
+        )
+        assert result == 100
+
+    def test_sum_source_map_with_partial_mapping(self):
+        result = evaluate_formula(
+            "SUM(SalesByIntersection, Mapping)",
+            {
+                "SalesByIntersection": {
+                    "North|Widget": 100,
+                    "South|Widget": 50,
+                    "North|Gadget": 20,
+                },
+                "Mapping": {"Region": "North"},
+            },
+        )
+        assert result == 120.0
+
+    def test_name_from_member_record(self):
+        result = evaluate_formula(
+            "NAME(Member)",
+            {"Member": {"id": "p1", "name": "Widget"}},
+        )
+        assert result == "Widget"
+
+    def test_code_from_context_member_map(self):
+        result = evaluate_formula(
+            "CODE(MemberId)",
+            {
+                "MemberId": "p2",
+                "MEMBERS_BY_ID": {
+                    "p2": {"id": "p2", "name": "Gadget", "code": "G02"},
+                },
+            },
+        )
+        assert result == "G02"
+
+    def test_rank_scalar_against_dimension_values(self):
+        result = evaluate_formula("RANK(20, Scores)", {"Scores": [10, 20, 30]})
+        assert result == 2.0
+
+    def test_rank_uses_current_index_for_expression_list(self):
+        result = evaluate_formula(
+            "RANK(Scores, Teams)",
+            {
+                "Scores": [30, 10, 20],
+                "Teams": ["A", "B", "C"],
+                "CURRENT_INDEX": 2,
+            },
+        )
+        assert result == 2.0
+
+    def test_ranklist_from_expression_map(self):
+        result = evaluate_formula(
+            "RANKLIST(SalesByProduct, Products, 2)",
+            {
+                "SalesByProduct": {"Widget": 100, "Gadget": 150, "Bolt": 50},
+                "Products": ["Widget", "Gadget", "Bolt"],
+            },
+        )
+        assert result == ["Gadget", "Widget"]
+
+    def test_ranklist_with_dimension_labels(self):
+        result = evaluate_formula(
+            "RANKLIST(Scores, Teams, 2)",
+            {"Scores": [15, 25, 20], "Teams": ["A", "B", "C"]},
+        )
+        assert result == ["B", "C"]
+
+    def test_collect_values_by_dimension_order(self):
+        result = evaluate_formula(
+            "COLLECT(SalesByProduct, Products)",
+            {
+                "SalesByProduct": {"p1": 100, "p2": 200},
+                "Products": ["p2", "p1"],
+            },
+        )
+        assert result == [200, 100]
+
+    def test_collect_scalar_replicates_across_dimension(self):
+        result = evaluate_formula(
+            "COLLECT(Value, Products)",
+            {"Value": 5, "Products": ["p1", "p2", "p3"]},
+        )
+        assert result == [5, 5, 5]
+
+    def test_post_returns_value_and_records_write(self):
+        context = {"POST_WRITES": {}}
+        result = evaluate_formula('POST("TargetLineItem", 42)', context)
+        assert result == 42.0
+        assert context["POST_WRITES"]["TargetLineItem"] == 42.0
+
 # ===========================================================================
 # Evaluator — text functions
 # ===========================================================================
