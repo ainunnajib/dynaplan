@@ -1,6 +1,7 @@
 use std::collections::HashMap;
+use std::time::{SystemTime, UNIX_EPOCH};
 
-use chrono::{Datelike, Duration, NaiveDate, Weekday};
+use chrono::{Datelike, Duration, NaiveDate, NaiveDateTime, Weekday};
 
 use super::evaluator::{Evaluator, FormulaError, FormulaValue};
 use super::parser::ASTNode;
@@ -28,6 +29,17 @@ pub const BUILTIN_FUNCTIONS: &[&str] = &[
     "UPPER",
     "LOWER",
     "TRIM",
+    "MID",
+    "FIND",
+    "SUBSTITUTE",
+    "TEXT",
+    "VALUE",
+    "TEXTLIST",
+    "MAKETEXT",
+    "CEILING",
+    "FLOOR",
+    "MOD",
+    "SIGN",
     "FINDITEM",
     "ITEM",
     "PARENT",
@@ -63,6 +75,11 @@ pub const BUILTIN_FUNCTIONS: &[&str] = &[
     "PREVIOUS",
     "NEXT",
     "INPERIOD",
+    "YEARTODATE",
+    "MONTHTODATE",
+    "DATE",
+    "DATEVALUE",
+    "TODAY",
 ];
 
 pub fn is_builtin_function(name: &str) -> bool {
@@ -95,6 +112,33 @@ pub(crate) fn evaluate_function(
             let decimals = evaluator.num(&args[1], name)?.trunc() as i32;
             let factor = 10f64.powi(decimals);
             Ok(FormulaValue::Number((n * factor).round() / factor))
+        }
+        "CEILING" => {
+            evaluator.check_arity(name, &args, 1)?;
+            Ok(FormulaValue::Number(evaluator.num(&args[0], name)?.ceil()))
+        }
+        "FLOOR" => {
+            evaluator.check_arity(name, &args, 1)?;
+            Ok(FormulaValue::Number(evaluator.num(&args[0], name)?.floor()))
+        }
+        "MOD" => {
+            evaluator.check_arity(name, &args, 2)?;
+            let divisor = evaluator.num(&args[1], name)?;
+            if divisor == 0.0 {
+                return Err(FormulaError::new("MOD divisor cannot be zero"));
+            }
+            Ok(FormulaValue::Number(evaluator.num(&args[0], name)? % divisor))
+        }
+        "SIGN" => {
+            evaluator.check_arity(name, &args, 1)?;
+            let value = evaluator.num(&args[0], name)?;
+            Ok(FormulaValue::Number(if value > 0.0 {
+                1.0
+            } else if value < 0.0 {
+                -1.0
+            } else {
+                0.0
+            }))
         }
         "MIN" => {
             if args.is_empty() {
@@ -249,6 +293,13 @@ pub(crate) fn evaluate_function(
                     .to_string(),
             ))
         }
+        "MID" => fn_mid(evaluator, name, &args),
+        "FIND" => fn_find(evaluator, name, &args),
+        "SUBSTITUTE" => fn_substitute(evaluator, name, &args),
+        "TEXT" => fn_text(evaluator, name, &args),
+        "VALUE" => fn_value(evaluator, name, &args),
+        "TEXTLIST" => fn_textlist(evaluator, name, &args),
+        "MAKETEXT" => fn_maketext(evaluator, name, &args),
         "FINDITEM" => fn_finditem(evaluator, name, &args),
         "ITEM" => fn_item(evaluator, name, &args),
         "PARENT" => fn_parent(evaluator, name, &args),
@@ -284,6 +335,11 @@ pub(crate) fn evaluate_function(
         "PREVIOUS" => fn_previous(evaluator, name, &args),
         "NEXT" => fn_next(evaluator, name, &args),
         "INPERIOD" => fn_in_period(evaluator, name, &args),
+        "YEARTODATE" => fn_year_to_date(evaluator, name, &args),
+        "MONTHTODATE" => fn_month_to_date(evaluator, name, &args),
+        "DATE" => fn_date(evaluator, name, &args),
+        "DATEVALUE" => fn_date_value(evaluator, name, &args),
+        "TODAY" => fn_today(evaluator, name, &args),
         _ => Err(FormulaError::new(format!("Unknown function: {:?}", name))),
     }
 }
@@ -321,6 +377,303 @@ fn right_slice(value: &str, n: i64) -> String {
     let chars: Vec<char> = value.chars().collect();
     let start = chars.len().saturating_sub(n as usize);
     chars.into_iter().skip(start).collect()
+}
+
+fn mid_slice(value: &str, start: i64, length: i64) -> String {
+    if length <= 0 {
+        return String::new();
+    }
+    let chars: Vec<char> = value.chars().collect();
+    let start_index = if start <= 1 { 0 } else { (start - 1) as usize };
+    chars
+        .into_iter()
+        .skip(start_index)
+        .take(length as usize)
+        .collect::<String>()
+}
+
+fn compact_number_text(value: f64) -> String {
+    if value.is_finite() && value.fract() == 0.0 {
+        return format!("{}", value as i64);
+    }
+
+    let mut text = value.to_string();
+    if text.contains('.') {
+        while text.ends_with('0') {
+            text.pop();
+        }
+        if text.ends_with('.') {
+            text.pop();
+        }
+    }
+    text
+}
+
+fn coerce_text_output(value: &FormulaValue) -> String {
+    match value {
+        FormulaValue::Null => String::new(),
+        FormulaValue::Bool(v) => {
+            if *v {
+                "TRUE".to_string()
+            } else {
+                "FALSE".to_string()
+            }
+        }
+        FormulaValue::Number(v) => compact_number_text(*v),
+        FormulaValue::Text(v) => v.clone(),
+        FormulaValue::List(values) => values
+            .iter()
+            .map(coerce_text_output)
+            .collect::<Vec<String>>()
+            .join(", "),
+        FormulaValue::Map(values) => {
+            for key in ["name", "code", "id", "key", "item", "member"] {
+                if let Some(raw) = values.get(key) {
+                    if !matches!(raw, FormulaValue::Null) {
+                        return coerce_text_output(raw);
+                    }
+                }
+            }
+            format!("{:?}", values)
+        }
+    }
+}
+
+fn parse_numeric_pattern_decimals(pattern: &str) -> Option<(usize, bool, bool)> {
+    let trimmed = pattern.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let is_percent = trimmed.ends_with('%');
+    let core = if is_percent {
+        &trimmed[0..trimmed.len() - 1]
+    } else {
+        trimmed
+    };
+
+    if core.is_empty() {
+        return None;
+    }
+
+    let mut chars = core.chars().peekable();
+    while let Some(ch) = chars.peek() {
+        if *ch == '#' || *ch == '0' || *ch == ',' {
+            chars.next();
+        } else {
+            break;
+        }
+    }
+
+    let mut decimals = 0usize;
+    if matches!(chars.peek(), Some('.')) {
+        chars.next();
+        while let Some(ch) = chars.peek() {
+            if *ch == '#' || *ch == '0' {
+                decimals += 1;
+                chars.next();
+            } else {
+                break;
+            }
+        }
+    }
+
+    if chars.next().is_some() {
+        return None;
+    }
+
+    let use_grouping = core.contains(',');
+    Some((decimals, is_percent, use_grouping))
+}
+
+fn format_number_pattern(value: f64, pattern: &str) -> Option<String> {
+    let (decimals, is_percent, use_grouping) = parse_numeric_pattern_decimals(pattern)?;
+    let number_to_format = if is_percent { value * 100.0 } else { value };
+    let formatted = if use_grouping {
+        format_with_grouping(number_to_format, decimals)
+    } else {
+        format!("{:.*}", decimals, number_to_format)
+    };
+    if is_percent {
+        Some(format!("{}%", formatted))
+    } else {
+        Some(formatted)
+    }
+}
+
+fn format_with_grouping(value: f64, decimals: usize) -> String {
+    let mut fixed = format!("{:.*}", decimals, value);
+    let mut sign = String::new();
+    if fixed.starts_with('-') {
+        sign.push('-');
+        fixed = fixed[1..].to_string();
+    }
+
+    let parts = fixed.split('.').collect::<Vec<&str>>();
+    let integer_part = parts.get(0).copied().unwrap_or("0");
+    let frac_part = if parts.len() > 1 {
+        Some(parts[1].to_string())
+    } else {
+        None
+    };
+
+    let reversed = integer_part.chars().rev().collect::<Vec<char>>();
+    let mut grouped = String::new();
+    for (idx, ch) in reversed.iter().enumerate() {
+        if idx > 0 && idx % 3 == 0 {
+            grouped.push(',');
+        }
+        grouped.push(*ch);
+    }
+    let grouped = grouped.chars().rev().collect::<String>();
+
+    if let Some(frac) = frac_part {
+        format!("{}{}.{}", sign, grouped, frac)
+    } else {
+        format!("{}{}", sign, grouped)
+    }
+}
+
+fn fn_mid(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 3, 3)?;
+    let text = evaluator.str_value(&args[0], name)?;
+    let start = evaluator.num(&args[1], name)?.trunc() as i64;
+    let length = evaluator.num(&args[2], name)?.trunc() as i64;
+    Ok(FormulaValue::Text(mid_slice(&text, start, length)))
+}
+
+fn fn_find(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 2, 2)?;
+    let search = evaluator.str_value(&args[0], name)?;
+    let text = evaluator.str_value(&args[1], name)?;
+    if search.is_empty() {
+        return Ok(FormulaValue::Number(1.0));
+    }
+    if let Some(byte_idx) = text.find(&search) {
+        let position = text[0..byte_idx].chars().count() + 1;
+        return Ok(FormulaValue::Number(position as f64));
+    }
+    Ok(FormulaValue::Number(0.0))
+}
+
+fn fn_substitute(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 3, 3)?;
+    let text = evaluator.str_value(&args[0], name)?;
+    let old_text = evaluator.str_value(&args[1], name)?;
+    let new_text = evaluator.str_value(&args[2], name)?;
+    Ok(FormulaValue::Text(text.replace(&old_text, &new_text)))
+}
+
+fn fn_text(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 1, 2)?;
+    let number = evaluator.num(&args[0], name)?;
+
+    if args.len() == 1 {
+        return Ok(FormulaValue::Text(compact_number_text(number)));
+    }
+
+    let pattern = evaluator.str_value(&args[1], name)?.trim().to_string();
+    if pattern.is_empty() || pattern.eq_ignore_ascii_case("GENERAL") {
+        return Ok(FormulaValue::Text(compact_number_text(number)));
+    }
+
+    if let Some(formatted) = format_number_pattern(number, &pattern) {
+        return Ok(FormulaValue::Text(formatted));
+    }
+
+    Ok(FormulaValue::Text(compact_number_text(number)))
+}
+
+fn fn_value(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 1, 1)?;
+    if matches!(&args[0], FormulaValue::Number(_) | FormulaValue::Bool(_)) {
+        return Ok(FormulaValue::Number(evaluator.num(&args[0], name)?));
+    }
+
+    let text = evaluator.str_value(&args[0], name)?.trim().to_string();
+    if text.is_empty() {
+        return Err(FormulaError::new(format!(
+            "{} requires a non-empty text value",
+            name
+        )));
+    }
+
+    let mut normalized = text.replace(',', "").replace('$', "");
+    let is_percent = normalized.ends_with('%');
+    if is_percent {
+        normalized = normalized[0..normalized.len() - 1].to_string();
+    }
+
+    let parsed = normalized.parse::<f64>().map_err(|_| {
+        FormulaError::new(format!("{} cannot parse numeric text: {:?}", name, text))
+    })?;
+    if is_percent {
+        Ok(FormulaValue::Number(parsed / 100.0))
+    } else {
+        Ok(FormulaValue::Number(parsed))
+    }
+}
+
+fn fn_textlist(
+    _evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 1, 1)?;
+    if let FormulaValue::List(values) = &args[0] {
+        let rendered = values
+            .iter()
+            .map(coerce_text_output)
+            .collect::<Vec<String>>()
+            .join(", ");
+        return Ok(FormulaValue::Text(rendered));
+    }
+    Ok(FormulaValue::Text(coerce_text_output(&args[0])))
+}
+
+fn fn_maketext(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 1, 128)?;
+    let mut result = evaluator.str_value(&args[0], name)?;
+    let rendered_args = args[1..]
+        .iter()
+        .map(coerce_text_output)
+        .collect::<Vec<String>>();
+
+    for (idx, rendered) in rendered_args.iter().enumerate() {
+        result = result.replace(&format!("{{{}}}", idx), rendered);
+    }
+    for rendered in &rendered_args {
+        if !result.contains("{}") {
+            break;
+        }
+        result = result.replacen("{}", rendered, 1);
+    }
+
+    Ok(FormulaValue::Text(result))
 }
 
 fn push_unique(target: &mut Vec<String>, value: String) {
@@ -1817,6 +2170,97 @@ fn fn_in_period(
     let target_date = coerce_date(&args[0], name)?;
     let (start, end) = period_bounds(&args[1], name)?;
     Ok(FormulaValue::Bool(target_date >= start && target_date <= end))
+}
+
+fn fn_year_to_date(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 0, 1)?;
+    let period = if args.len() == 1 {
+        &args[0]
+    } else if let Some(current) = resolve_current_period(evaluator) {
+        current
+    } else {
+        let today = current_system_date();
+        return Ok(FormulaValue::Text(format!("YTD {:04}", today.year())));
+    };
+
+    let (start, _) = period_bounds(period, name)?;
+    Ok(FormulaValue::Text(format!("YTD {:04}", start.year())))
+}
+
+fn fn_month_to_date(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 0, 1)?;
+    let period = if args.len() == 1 {
+        &args[0]
+    } else if let Some(current) = resolve_current_period(evaluator) {
+        current
+    } else {
+        let today = current_system_date();
+        return Ok(FormulaValue::Text(format!(
+            "MTD {:04}-{:02}",
+            today.year(),
+            today.month()
+        )));
+    };
+
+    let (start, _) = period_bounds(period, name)?;
+    Ok(FormulaValue::Text(format!(
+        "MTD {:04}-{:02}",
+        start.year(),
+        start.month()
+    )))
+}
+
+fn fn_date(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 3, 3)?;
+    let year = evaluator.num(&args[0], name)?.trunc() as i32;
+    let month = evaluator.num(&args[1], name)?.trunc() as u32;
+    let day = evaluator.num(&args[2], name)?.trunc() as u32;
+
+    let date_value = NaiveDate::from_ymd_opt(year, month, day).ok_or_else(|| {
+        FormulaError::new("DATE produced an invalid date")
+    })?;
+    Ok(FormulaValue::Text(date_value.to_string()))
+}
+
+fn fn_date_value(
+    evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 1, 1)?;
+    let parsed = coerce_date(&args[0], name)?;
+    Ok(FormulaValue::Text(parsed.to_string()))
+}
+
+fn fn_today(
+    _evaluator: &Evaluator,
+    name: &str,
+    args: &[FormulaValue],
+) -> Result<FormulaValue, FormulaError> {
+    check_arity_range(name, args, 0, 0)?;
+    Ok(FormulaValue::Text(current_system_date().to_string()))
+}
+
+fn current_system_date() -> NaiveDate {
+    let duration = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default();
+    let seconds = duration.as_secs() as i64;
+    NaiveDateTime::from_timestamp_opt(seconds, 0)
+        .map(|dt| dt.date())
+        .unwrap_or_else(|| NaiveDate::from_ymd_opt(1970, 1, 1).unwrap())
 }
 
 fn coerce_date(value: &FormulaValue, context_label: &str) -> Result<NaiveDate, FormulaError> {

@@ -824,6 +824,81 @@ class TestTextFunctions:
         result = evaluate_formula('CONCATENATE("Hello, ", Name)', {"Name": "Alice"})
         assert result == "Hello, Alice"
 
+    def test_mid_extracts_substring(self):
+        result = evaluate_formula('MID("Dynaplan", 2, 4)')
+        assert result == "ynap"
+
+    def test_find_returns_one_based_index(self):
+        result = evaluate_formula('FIND("plan", "Dynaplan")')
+        assert result == 5.0
+
+    def test_find_returns_zero_when_missing(self):
+        result = evaluate_formula('FIND("xyz", "Dynaplan")')
+        assert result == 0.0
+
+    def test_substitute_replaces_all_occurrences(self):
+        result = evaluate_formula('SUBSTITUTE("A-B-B", "B", "X")')
+        assert result == "A-X-X"
+
+    def test_text_formats_decimal_pattern(self):
+        result = evaluate_formula('TEXT(1234.567, "0.00")')
+        assert result == "1234.57"
+
+    def test_text_formats_percent_pattern(self):
+        result = evaluate_formula('TEXT(0.125, "0.0%")')
+        assert result == "12.5%"
+
+    def test_value_parses_numeric_text(self):
+        result = evaluate_formula('VALUE("1,234.50")')
+        assert result == 1234.5
+
+    def test_value_parses_percent_text(self):
+        result = evaluate_formula('VALUE("12.5%")')
+        assert result == 0.125
+
+    def test_textlist_prefers_member_name(self):
+        result = evaluate_formula("TEXTLIST(Member)", {"Member": {"id": "p1", "name": "Widget"}})
+        assert result == "Widget"
+
+    def test_maketext_supports_numbered_placeholders(self):
+        result = evaluate_formula('MAKETEXT("{0}-{1}", "Plan", 2026)')
+        assert result == "Plan-2026"
+
+    def test_maketext_supports_sequential_placeholders(self):
+        result = evaluate_formula('MAKETEXT("{} {}", "Hello", "World")')
+        assert result == "Hello World"
+
+    def test_yeartodate_uses_current_period(self):
+        result = evaluate_formula("YEARTODATE()", {"CURRENT_PERIOD": "2025-11"})
+        assert result == "YTD 2025"
+
+    def test_monthtodate_with_explicit_period(self):
+        result = evaluate_formula('MONTHTODATE("2026-03")')
+        assert result == "MTD 2026-03"
+
+    def test_date_function_builds_iso_date(self):
+        result = evaluate_formula("DATE(2026, 3, 2)")
+        assert result == "2026-03-02"
+
+    def test_datevalue_normalizes_datetime_text(self):
+        result = evaluate_formula('DATEVALUE("2026-03-02T15:30:00Z")')
+        assert result == "2026-03-02"
+
+    def test_today_returns_iso_date_text(self):
+        result = evaluate_formula("TODAY()")
+        parsed = date.fromisoformat(result)
+        assert isinstance(parsed, date)
+
+    def test_ceiling_floor_mod_sign(self):
+        assert evaluate_formula("CEILING(1.2)") == 2.0
+        assert evaluate_formula("FLOOR(1.8)") == 1.0
+        assert evaluate_formula("MOD(10, 3)") == 1.0
+        assert evaluate_formula("SIGN(-3)") == -1.0
+
+    def test_mod_zero_divisor_raises(self):
+        with pytest.raises(FormulaError, match="MOD divisor cannot be zero"):
+            evaluate_formula("MOD(5, 0)")
+
 
 # ===========================================================================
 # High-level API: validate_formula

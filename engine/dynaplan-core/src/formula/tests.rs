@@ -597,6 +597,132 @@ fn concatenate_with_variable() {
 }
 
 #[test]
+fn mid_extracts_substring() {
+    let result = as_text(ev("MID(\"Dynaplan\", 2, 4)", vec![]));
+    assert_eq!(result, "ynap");
+}
+
+#[test]
+fn find_returns_one_based_index() {
+    let result = as_number(ev("FIND(\"plan\", \"Dynaplan\")", vec![]));
+    assert_eq!(result, 5.0);
+}
+
+#[test]
+fn find_returns_zero_when_missing() {
+    let result = as_number(ev("FIND(\"xyz\", \"Dynaplan\")", vec![]));
+    assert_eq!(result, 0.0);
+}
+
+#[test]
+fn substitute_replaces_all_occurrences() {
+    let result = as_text(ev(
+        "SUBSTITUTE(\"A-B-B\", \"B\", \"X\")",
+        vec![],
+    ));
+    assert_eq!(result, "A-X-X");
+}
+
+#[test]
+fn text_formats_decimal_pattern() {
+    let result = as_text(ev("TEXT(1234.567, \"0.00\")", vec![]));
+    assert_eq!(result, "1234.57");
+}
+
+#[test]
+fn text_formats_percent_pattern() {
+    let result = as_text(ev("TEXT(0.125, \"0.0%\")", vec![]));
+    assert_eq!(result, "12.5%");
+}
+
+#[test]
+fn value_parses_numeric_text() {
+    let result = as_number(ev("VALUE(\"1,234.50\")", vec![]));
+    assert_eq!(result, 1234.5);
+}
+
+#[test]
+fn value_parses_percent_text() {
+    let result = as_number(ev("VALUE(\"12.5%\")", vec![]));
+    assert_eq!(result, 0.125);
+}
+
+#[test]
+fn textlist_prefers_member_name() {
+    let result = as_text(ev(
+        "TEXTLIST(Member)",
+        vec![(
+            "Member",
+            FormulaValue::Map(map(vec![("id", "p1".into()), ("name", "Widget".into())])),
+        )],
+    ));
+    assert_eq!(result, "Widget");
+}
+
+#[test]
+fn maketext_supports_numbered_placeholders() {
+    let result = as_text(ev("MAKETEXT(\"{0}-{1}\", \"Plan\", 2026)", vec![]));
+    assert_eq!(result, "Plan-2026");
+}
+
+#[test]
+fn maketext_supports_sequential_placeholders() {
+    let result = as_text(ev("MAKETEXT(\"{} {}\", \"Hello\", \"World\")", vec![]));
+    assert_eq!(result, "Hello World");
+}
+
+#[test]
+fn yeartodate_uses_current_period() {
+    let result = as_text(ev(
+        "YEARTODATE()",
+        vec![("CURRENT_PERIOD", FormulaValue::Text("2025-11".to_string()))],
+    ));
+    assert_eq!(result, "YTD 2025");
+}
+
+#[test]
+fn monthtodate_with_explicit_period() {
+    let result = as_text(ev("MONTHTODATE(\"2026-03\")", vec![]));
+    assert_eq!(result, "MTD 2026-03");
+}
+
+#[test]
+fn date_function_builds_iso_date() {
+    let result = as_text(ev("DATE(2026, 3, 2)", vec![]));
+    assert_eq!(result, "2026-03-02");
+}
+
+#[test]
+fn datevalue_normalizes_datetime_text() {
+    let result = as_text(ev(
+        "DATEVALUE(\"2026-03-02T15:30:00Z\")",
+        vec![],
+    ));
+    assert_eq!(result, "2026-03-02");
+}
+
+#[test]
+fn today_returns_iso_date_text() {
+    let result = as_text(ev("TODAY()", vec![]));
+    assert_eq!(result.len(), 10);
+    assert_eq!(result.chars().nth(4), Some('-'));
+    assert_eq!(result.chars().nth(7), Some('-'));
+}
+
+#[test]
+fn ceiling_floor_mod_sign() {
+    assert_eq!(as_number(ev("CEILING(1.2)", vec![])), 2.0);
+    assert_eq!(as_number(ev("FLOOR(1.8)", vec![])), 1.0);
+    assert_eq!(as_number(ev("MOD(10, 3)", vec![])), 1.0);
+    assert_eq!(as_number(ev("SIGN(-3)", vec![])), -1.0);
+}
+
+#[test]
+fn mod_zero_divisor_raises() {
+    assert!(evaluate_formula("MOD(5, 0)", HashMap::new()).is_err());
+}
+
+#[test]
 fn validate_formula_valid_returns_empty_list() {
     assert!(validate_formula("Revenue * 0.15").is_empty());
 }

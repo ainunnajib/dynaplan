@@ -8,13 +8,16 @@ Built-in functions (case-insensitive, stored upper-case):
     Math        : ABS, ROUND, MIN, MAX, POWER, SQRT, LOG
     Aggregation : SUM, AVERAGE, COUNT, ITEMCOUNT
     Logical     : IF, AND, OR, NOT, ISBLANK
-    Text        : CONCATENATE, LEFT, RIGHT, LEN, UPPER, LOWER, TRIM
+    Text        : CONCATENATE, LEFT, RIGHT, LEN, UPPER, LOWER, TRIM,
+                  MID, FIND, SUBSTITUTE, TEXT, VALUE, TEXTLIST, MAKETEXT
     Lookup      : FINDITEM, ITEM, PARENT, CHILDREN, ISLEAF, ISANCESTOR,
                   LOOKUP, SELECT, NAME, CODE, RANK, RANKLIST, COLLECT, POST
     Time        : YEARVALUE, MONTHVALUE, QUARTERVALUE, WEEKVALUE, HALFYEARVALUE,
                   CURRENTPERIODSTART, CURRENTPERIODEND, PERIODSTART, PERIODEND,
                   TIMESUM, TIMEAVERAGE, TIMECOUNT, LAG, LEAD, OFFSET,
-                  MOVINGSUM, MOVINGAVERAGE, CUMULATE, PREVIOUS, NEXT, INPERIOD
+                  MOVINGSUM, MOVINGAVERAGE, CUMULATE, PREVIOUS, NEXT, INPERIOD,
+                  YEARTODATE, MONTHTODATE, DATE, DATEVALUE, TODAY
+    Math (extra): CEILING, FLOOR, MOD, SIGN
 """
 
 import calendar
@@ -344,6 +347,73 @@ class Evaluator:
             self._check_arity(name, args, 1)
             return self._str(args[0], name).strip()
 
+        if name == "MID":
+            self._check_arity(name, args, 3)
+            text = self._str(args[0], name)
+            start = int(self._num(args[1], name))
+            length = int(self._num(args[2], name))
+            if length <= 0:
+                return ""
+            start_index = max(0, start - 1)
+            return text[start_index:start_index + length]
+
+        if name == "FIND":
+            self._check_arity(name, args, 2)
+            search_text = self._str(args[0], name)
+            full_text = self._str(args[1], name)
+            if len(search_text) == 0:
+                return 1.0
+            index = full_text.find(search_text)
+            return 0.0 if index < 0 else float(index + 1)
+
+        if name == "SUBSTITUTE":
+            self._check_arity(name, args, 3)
+            text = self._str(args[0], name)
+            old_text = self._str(args[1], name)
+            new_text = self._str(args[2], name)
+            return text.replace(old_text, new_text)
+
+        if name == "TEXT":
+            self._check_arity_range(name, args, 1, 2)
+            format_pattern = args[1] if len(args) == 2 else None
+            return self._fn_text(args[0], format_pattern)
+
+        if name == "VALUE":
+            self._check_arity(name, args, 1)
+            return self._fn_value(args[0], name)
+
+        if name == "TEXTLIST":
+            self._check_arity(name, args, 1)
+            return self._fn_textlist(args[0])
+
+        if name == "MAKETEXT":
+            self._check_arity_range(name, args, 1, 128)
+            return self._fn_maketext(args[0], args[1:])
+
+        if name == "CEILING":
+            self._check_arity(name, args, 1)
+            return float(math.ceil(self._num(args[0], name)))
+
+        if name == "FLOOR":
+            self._check_arity(name, args, 1)
+            return float(math.floor(self._num(args[0], name)))
+
+        if name == "MOD":
+            self._check_arity(name, args, 2)
+            divisor = self._num(args[1], name)
+            if divisor == 0:
+                raise FormulaError("MOD divisor cannot be zero")
+            return self._num(args[0], name) % divisor
+
+        if name == "SIGN":
+            self._check_arity(name, args, 1)
+            number = self._num(args[0], name)
+            if number > 0:
+                return 1.0
+            if number < 0:
+                return -1.0
+            return 0.0
+
         # --- Lookup & cross-module ---
         if name == "FINDITEM":
             self._check_arity(name, args, 2)
@@ -412,6 +482,40 @@ class Evaluator:
             "HALFYEARVALUE",
         }:
             return self._fn_period_value(name, args)
+
+        if name == "YEARTODATE":
+            self._check_arity_range(name, args, 0, 1)
+            period = args[0] if len(args) == 1 else self._resolve_current_period()
+            if period is None:
+                period = date.today()
+            start, _ = self._period_bounds(period, name)
+            return f"YTD {start.year:04d}"
+
+        if name == "MONTHTODATE":
+            self._check_arity_range(name, args, 0, 1)
+            period = args[0] if len(args) == 1 else self._resolve_current_period()
+            if period is None:
+                period = date.today()
+            start, _ = self._period_bounds(period, name)
+            return f"MTD {start.year:04d}-{start.month:02d}"
+
+        if name == "DATE":
+            self._check_arity(name, args, 3)
+            year = int(self._num(args[0], name))
+            month = int(self._num(args[1], name))
+            day = int(self._num(args[2], name))
+            try:
+                return date(year, month, day).isoformat()
+            except ValueError as exc:
+                raise FormulaError(f"DATE produced an invalid date: {exc}")
+
+        if name == "DATEVALUE":
+            self._check_arity(name, args, 1)
+            return self._coerce_date(args[0], name).isoformat()
+
+        if name == "TODAY":
+            self._check_arity(name, args, 0)
+            return date.today().isoformat()
 
         if name == "CURRENTPERIODSTART":
             self._check_arity_range(name, args, 0, 1)
@@ -624,6 +728,111 @@ class Evaluator:
                     result.append(self._num(item, context_label))
             else:
                 result.append(self._num(a, context_label))
+        return result
+
+    def _coerce_text_value(self, value: Any) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, bool):
+            return "TRUE" if value else "FALSE"
+        if isinstance(value, float):
+            if math.isfinite(value) and value.is_integer():
+                return str(int(value))
+            return f"{value:g}"
+        if isinstance(value, date):
+            return value.isoformat()
+        return str(value)
+
+    def _parse_numeric_pattern_decimals(self, pattern: str) -> Optional[int]:
+        normalized = pattern.strip()
+        if len(normalized) == 0:
+            return None
+
+        plain_match = re.fullmatch(r"[#,0]+(?:\.([0#]+))?", normalized)
+        if plain_match:
+            fractional = plain_match.group(1)
+            return 0 if fractional is None else len(fractional)
+
+        percent_match = re.fullmatch(r"[#,0]+(?:\.([0#]+))?%", normalized)
+        if percent_match:
+            fractional = percent_match.group(1)
+            return 0 if fractional is None else len(fractional)
+
+        return None
+
+    def _fn_text(self, value: Any, format_pattern: Optional[Any]) -> str:
+        number = self._num(value, "TEXT")
+        if format_pattern is None:
+            return self._coerce_text_value(number)
+
+        pattern = self._str(format_pattern, "TEXT").strip()
+        if len(pattern) == 0 or pattern.upper() == "GENERAL":
+            return self._coerce_text_value(number)
+
+        decimals = self._parse_numeric_pattern_decimals(pattern)
+        if decimals is not None:
+            is_percent = pattern.endswith("%")
+            number_to_format = number * 100.0 if is_percent else number
+            use_grouping = "," in pattern
+            if use_grouping:
+                formatted = f"{number_to_format:,.{decimals}f}"
+            else:
+                formatted = f"{number_to_format:.{decimals}f}"
+            if is_percent:
+                return f"{formatted}%"
+            return formatted
+
+        try:
+            return format(number, pattern)
+        except (TypeError, ValueError):
+            return self._coerce_text_value(number)
+
+    def _fn_value(self, value: Any, context_label: str) -> float:
+        if isinstance(value, (int, float, bool)):
+            return self._num(value, context_label)
+
+        text = self._str(value, context_label).strip()
+        if len(text) == 0:
+            raise FormulaError(f"{context_label} requires a non-empty text value")
+
+        normalized = text.replace(",", "").replace("$", "")
+        is_percent = normalized.endswith("%")
+        if is_percent:
+            normalized = normalized[:-1]
+
+        try:
+            parsed = float(normalized)
+        except ValueError:
+            raise FormulaError(f"{context_label} cannot parse numeric text: {text!r}")
+
+        if is_percent:
+            return parsed / 100.0
+        return parsed
+
+    def _fn_textlist(self, value: Any) -> str:
+        if isinstance(value, list):
+            return ", ".join(self._fn_textlist(item) for item in value)
+
+        if isinstance(value, dict):
+            for key in ("name", "code", "id", "key", "item", "member"):
+                if key in value and value.get(key) is not None:
+                    return self._coerce_text_value(value.get(key))
+
+        return self._coerce_text_value(value)
+
+    def _fn_maketext(self, pattern_value: Any, arg_values: List[Any]) -> str:
+        pattern = self._str(pattern_value, "MAKETEXT")
+        rendered_args = [self._coerce_text_value(value) for value in arg_values]
+        result = pattern
+
+        for index, rendered in enumerate(rendered_args):
+            result = result.replace("{" + str(index) + "}", rendered)
+
+        for rendered in rendered_args:
+            if "{}" not in result:
+                break
+            result = result.replace("{}", rendered, 1)
+
         return result
 
     # ------------------------------------------------------------------

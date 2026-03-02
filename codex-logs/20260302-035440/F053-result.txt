@@ -1,0 +1,18 @@
+Implemented F053 end-to-end with Python formula runtime support, Rust parity updates, tests, and progress tracking.
+
+**Code changes**
+- Added F053 function handling in Python evaluator (`MID`, `FIND`, `SUBSTITUTE`, `TEXT`, `VALUE`, `TEXTLIST`, `MAKETEXT`, `YEARTODATE`, `MONTHTODATE`, `DATE`, `DATEVALUE`, `TODAY`, `CEILING`, `FLOOR`, `MOD`, `SIGN`): [evaluator.py](/Users/ainunnajib/dynaplan/backend/app/engine/evaluator.py#L350)
+- Added helper implementations for formatting/parsing/text rendering in evaluator: [evaluator.py](/Users/ainunnajib/dynaplan/backend/app/engine/evaluator.py#L763)
+- Updated formula built-in registry with F053 names: [formula.py](/Users/ainunnajib/dynaplan/backend/app/engine/formula.py#L131)
+- Added backend formula tests for F053 coverage: [test_formula_engine.py](/Users/ainunnajib/dynaplan/backend/tests/test_formula_engine.py#L827)
+- Added Rust formula built-ins + dispatch + implementations for the same F053 functions: [functions.rs](/Users/ainunnajib/dynaplan/engine/dynaplan-core/src/formula/functions.rs#L32)
+- Added Rust formula tests for F053 behavior: [tests.rs](/Users/ainunnajib/dynaplan/engine/dynaplan-core/src/formula/tests.rs#L601)
+- Updated session tracking/progress: [claude-progress.txt](/Users/ainunnajib/dynaplan/claude-progress.txt#L3)
+
+**Validation run**
+- `cd backend && .venv/bin/python -m pytest -x --tb=short -q`  
+  Result: `1504 passed, 1 skipped, 1 xfailed, 1 xpassed`
+- `cd frontend && bun tsc --noEmit`  
+  Result: passed (no errors)
+
+Rust `cargo test` was not run in this environment (toolchain remains pending, as tracked in progress).
