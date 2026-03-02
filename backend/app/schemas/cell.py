@@ -9,6 +9,7 @@ from pydantic import BaseModel
 class CellWrite(BaseModel):
     line_item_id: uuid.UUID
     dimension_members: List[uuid.UUID]
+    version_id: Optional[uuid.UUID] = None
     value: Any  # number, string, or boolean
 
 
@@ -21,6 +22,7 @@ class CellBulkWrite(BaseModel):
 class CellRead(BaseModel):
     line_item_id: uuid.UUID
     dimension_members: List[uuid.UUID]
+    version_id: Optional[uuid.UUID] = None
     dimension_key: str
     value: Any
     value_type: str  # "number", "text", "boolean", or "null"
@@ -32,6 +34,7 @@ class CellRead(BaseModel):
 
 class CellQuery(BaseModel):
     line_item_id: uuid.UUID
+    version_id: Optional[uuid.UUID] = None
     dimension_filters: Optional[Dict[str, List[uuid.UUID]]] = None
 
 

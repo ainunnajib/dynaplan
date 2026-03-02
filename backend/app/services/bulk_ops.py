@@ -166,8 +166,20 @@ async def bulk_write_cells(
                 dimension_members = [
                     uuid.UUID(str(m)) for m in cell_data["dimension_members"]
                 ]
+                version_id_raw = cell_data.get("version_id")
+                version_id = (
+                    uuid.UUID(str(version_id_raw))
+                    if version_id_raw is not None
+                    else None
+                )
                 value = cell_data["value"]
-                await write_cell(db, line_item_id, dimension_members, value)
+                await write_cell(
+                    db,
+                    line_item_id,
+                    dimension_members,
+                    version_id,
+                    value,
+                )
                 total_processed += 1
             except Exception:
                 total_failed += 1
@@ -342,11 +354,15 @@ async def bulk_copy_cells(
 
         for src_cell in source_cells:
             try:
-                dimension_members = [
-                    uuid.UUID(part)
-                    for part in src_cell.dimension_key.split("|")
-                    if part
-                ] if src_cell.dimension_key else []
+                dimension_members: List[uuid.UUID] = []
+                if src_cell.dimension_key:
+                    for part in src_cell.dimension_key.split("|"):
+                        if not part:
+                            continue
+                        try:
+                            dimension_members.append(uuid.UUID(part))
+                        except ValueError:
+                            continue
 
                 # Determine value to copy
                 if src_cell.value_boolean is not None:
@@ -358,7 +374,13 @@ async def bulk_copy_cells(
                 else:
                     value = None
 
-                await write_cell(db, target_li_id, dimension_members, value)
+                await write_cell(
+                    db,
+                    target_li_id,
+                    dimension_members,
+                    src_cell.version_id,
+                    value,
+                )
                 total_processed += 1
             except Exception:
                 total_failed += 1

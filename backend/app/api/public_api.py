@@ -128,6 +128,7 @@ async def public_query_cells(
     return await read_cells_for_line_item(
         db,
         line_item_id=data.line_item_id,
+        version_id=data.version_id,
         dimension_filters=data.dimension_filters,
     )
 
@@ -148,6 +149,7 @@ async def public_write_cell(
         db,
         line_item_id=data.line_item_id,
         dimension_members=data.dimension_members,
+        version_id=data.version_id,
         value=data.value,
     )
 

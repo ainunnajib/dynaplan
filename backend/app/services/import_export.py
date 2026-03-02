@@ -216,6 +216,7 @@ async def import_to_module(
                     db=db,
                     line_item_id=line_item_id,
                     dimension_members=dimension_members,
+                    version_id=None,
                     value=value,
                 )
                 row_had_data = True

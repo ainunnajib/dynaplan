@@ -18,6 +18,7 @@ from app.schemas.scenario_compare import (
     ComparisonRow,
     VarianceSummary,
 )
+from app.services.cell_versioning import migrate_legacy_cell_versions
 
 
 # ── Internal helpers ───────────────────────────────────────────────────────────
@@ -119,6 +120,8 @@ async def compare_versions(
     if len(versions_map) != len(version_ids):
         return None
 
+    await migrate_legacy_cell_versions(db, model_id=model_id)
+
     # Get line items for this model (or subset)
     line_items_map = await _get_line_items(db, model_id, line_item_ids)
     if not line_items_map:
@@ -142,12 +145,15 @@ async def compare_versions(
 
     for cell in all_cells:
         key_parts = cell.dimension_key.split("|") if cell.dimension_key else []
-        # Find which version_id (if any) is in this cell's key
-        cell_version = None
-        for part in key_parts:
-            if part in str_version_ids:
-                cell_version = part
-                break
+        cell_version: Optional[str] = None
+        if cell.version_id is not None and str(cell.version_id) in str_version_ids:
+            cell_version = str(cell.version_id)
+        # Legacy fallback: detect version context in dimension_key.
+        if cell_version is None:
+            for part in key_parts:
+                if part in str_version_ids:
+                    cell_version = part
+                    break
 
         if cell_version is None:
             # Cell doesn't contain a version dimension — treat as shared across all versions.

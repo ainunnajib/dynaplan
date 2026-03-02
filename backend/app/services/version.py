@@ -12,6 +12,93 @@ from app.schemas.version import (
     VersionCreate,
     VersionUpdate,
 )
+from app.services.cell_versioning import (
+    migrate_legacy_cell_versions,
+    remove_versions_from_dimension_key,
+)
+
+
+def _parse_period_from_dimension_key(dimension_key: str) -> Optional[str]:
+    """Extract the first YYYY-MM segment found in a dimension key."""
+    if not dimension_key:
+        return None
+    for part in dimension_key.split("|"):
+        if len(part) != 7:
+            continue
+        if part[4] != "-":
+            continue
+        year = part[:4]
+        month = part[5:]
+        if not year.isdigit() or not month.isdigit():
+            continue
+        month_int = int(month)
+        if 1 <= month_int <= 12:
+            return part
+    return None
+
+
+def _period_is_before(period_a: str, period_b: str) -> bool:
+    return period_a < period_b
+
+
+async def get_cells_with_switchover(
+    db: AsyncSession,
+    line_item_id: uuid.UUID,
+    actuals_version_id: uuid.UUID,
+    forecast_version_id: uuid.UUID,
+    switchover_period: str,
+) -> List[CellValue]:
+    """Resolve effective cells using actuals before and forecast from switchover."""
+    await migrate_legacy_cell_versions(db, line_item_ids=[line_item_id])
+
+    result = await db.execute(
+        select(CellValue).where(
+            CellValue.line_item_id == line_item_id,
+            CellValue.version_id.in_([actuals_version_id, forecast_version_id]),
+        )
+    )
+    cells = list(result.scalars().all())
+
+    effective: Dict[str, CellValue] = {}
+    for cell in cells:
+        base_key = remove_versions_from_dimension_key(
+            dimension_key=cell.dimension_key,
+            version_ids=[actuals_version_id, forecast_version_id],
+        )
+        period = _parse_period_from_dimension_key(cell.dimension_key)
+
+        use_actuals = (
+            cell.version_id == actuals_version_id
+            and (
+                period is None
+                or _period_is_before(period, switchover_period)
+            )
+        )
+        use_forecast = (
+            cell.version_id == forecast_version_id
+            and (
+                period is None
+                or not _period_is_before(period, switchover_period)
+            )
+        )
+        if not use_actuals and not use_forecast:
+            continue
+
+        existing = effective.get(base_key)
+        if existing is None:
+            effective[base_key] = cell
+            continue
+
+        # Forecast wins at and after switchover for the same base key.
+        if (
+            existing.version_id == actuals_version_id
+            and cell.version_id == forecast_version_id
+            and period is not None
+            and not _period_is_before(period, switchover_period)
+        ):
+            effective[base_key] = cell
+
+    return list(effective.values())
 
 
 # ── CRUD ───────────────────────────────────────────────────────────────────────
@@ -127,48 +214,60 @@ async def compare_versions(
     if version_a is None or version_b is None:
         return None
 
-    # Fetch cells for the line item that contain the version dimension member IDs
-    def _version_filter(version_id: uuid.UUID):
-        return str(version_id)
+    await migrate_legacy_cell_versions(db, line_item_ids=[line_item_id])
 
     result_a = await db.execute(
         select(CellValue).where(
             CellValue.line_item_id == line_item_id,
-            CellValue.dimension_key.contains(_version_filter(version_id_a)),
+            CellValue.version_id == version_id_a,
         )
     )
-    cells_a = {cell.dimension_key: cell for cell in result_a.scalars().all()}
+    cells_a = list(result_a.scalars().all())
 
     result_b = await db.execute(
         select(CellValue).where(
             CellValue.line_item_id == line_item_id,
-            CellValue.dimension_key.contains(_version_filter(version_id_b)),
+            CellValue.version_id == version_id_b,
         )
     )
-    cells_b = {cell.dimension_key: cell for cell in result_b.scalars().all()}
+    cells_b = list(result_b.scalars().all())
+
+    # Cells with no explicit version context are treated as shared.
+    result_shared = await db.execute(
+        select(CellValue).where(
+            CellValue.line_item_id == line_item_id,
+            CellValue.version_id.is_(None),
+        )
+    )
+    shared_cells = list(result_shared.scalars().all())
 
     # Build a union of all dimension keys, normalizing so we can match
     # A cell keyed with version_a's id needs to be compared against the
     # equivalent key with version_b's id. We strip out the version segment
     # and use the rest as a base key.
-    str_a = str(version_id_a)
-    str_b = str(version_id_b)
-
-    def _base_key(dimension_key: str, version_str: str) -> str:
-        """Remove the version segment from a dimension key to get a comparable base."""
-        parts = [p for p in dimension_key.split("|") if p != version_str]
-        return "|".join(sorted(parts))
-
     # Build maps: base_key -> cell
     base_map_a: Dict[str, CellValue] = {}
-    for dk, cell in cells_a.items():
-        bk = _base_key(dk, str_a)
+    for cell in cells_a:
+        bk = remove_versions_from_dimension_key(
+            dimension_key=cell.dimension_key,
+            version_ids=[version_id_a],
+        )
         base_map_a[bk] = cell
 
     base_map_b: Dict[str, CellValue] = {}
-    for dk, cell in cells_b.items():
-        bk = _base_key(dk, str_b)
+    for cell in cells_b:
+        bk = remove_versions_from_dimension_key(
+            dimension_key=cell.dimension_key,
+            version_ids=[version_id_b],
+        )
         base_map_b[bk] = cell
+
+    for cell in shared_cells:
+        base_key = cell.dimension_key
+        if base_key not in base_map_a:
+            base_map_a[base_key] = cell
+        if base_key not in base_map_b:
+            base_map_b[base_key] = cell
 
     all_base_keys = set(base_map_a.keys()) | set(base_map_b.keys())
 

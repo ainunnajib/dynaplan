@@ -17,6 +17,7 @@ from app.models.cell import CellValue
 from app.models.forecast_config import ForecastConfig
 from app.models.version import Version
 from app.schemas.rolling_forecast import ForecastStatus, RollResult
+from app.services.cell_versioning import migrate_legacy_cell_versions
 
 
 # ---------------------------------------------------------------------------
@@ -175,6 +176,8 @@ async def roll_forecast(
     cells_archived = 0
 
     if config.auto_archive and config.archive_actuals_version_id is not None:
+        await migrate_legacy_cell_versions(db, model_id=model_id)
+
         # Load the actuals version
         actuals_version_result = await db.execute(
             select(Version).where(Version.id == config.archive_actuals_version_id)
@@ -194,7 +197,7 @@ async def roll_forecast(
 
                 cells_result = await db.execute(
                     select(CellValue).where(
-                        CellValue.dimension_key.contains(forecast_version_str)
+                        CellValue.version_id == config.forecast_version_id
                     )
                 )
                 forecast_cells = list(cells_result.scalars().all())
@@ -211,6 +214,12 @@ async def roll_forecast(
                     new_key = fc.dimension_key.replace(
                         forecast_version_str, actuals_version_str
                     )
+                    if actuals_version_str not in new_key:
+                        if new_key:
+                            new_key = f"{new_key}|{actuals_version_str}"
+                        else:
+                            new_key = actuals_version_str
+                    new_key = "|".join(sorted(part for part in new_key.split("|") if part))
 
                     # Upsert: check if actuals cell already exists
                     existing_result = await db.execute(
@@ -227,12 +236,15 @@ async def roll_forecast(
                     else:
                         new_cell = CellValue(
                             line_item_id=fc.line_item_id,
+                            version_id=config.archive_actuals_version_id,
                             dimension_key=new_key,
                             value_number=fc.value_number,
                             value_text=fc.value_text,
                             value_boolean=fc.value_boolean,
                         )
                         db.add(new_cell)
+                    if existing is not None and existing.version_id is None:
+                        existing.version_id = config.archive_actuals_version_id
                     cells_archived += 1
 
                 await db.flush()

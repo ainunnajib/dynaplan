@@ -17,6 +17,12 @@ class CellValue(Base):
     line_item_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("line_items.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    version_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid,
+        ForeignKey("versions.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     # Sorted, pipe-separated string of dimension_item UUIDs e.g. "uuid1|uuid2|uuid3"
     dimension_key: Mapped[str] = mapped_column(
         String(1024), nullable=False

@@ -2,7 +2,7 @@ import asyncio
 import uuid
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -12,6 +12,7 @@ from app.models.cell import CellValue
 from app.models.dimension import DimensionItem
 from app.models.module import LineItem, Module
 from app.schemas.cell import CellRead, CellWrite
+from app.services.cell_versioning import resolve_cell_version_context
 from app.services.workspace_quota import enforce_cell_write_quota
 
 
@@ -53,15 +54,20 @@ def _cell_to_read(cell: CellValue) -> CellRead:
         value = None
         value_type = "null"
 
-    dimension_members = [
-        uuid.UUID(part)
-        for part in cell.dimension_key.split("|")
-        if part
-    ] if cell.dimension_key else []
+    dimension_members: List[uuid.UUID] = []
+    if cell.dimension_key:
+        for part in cell.dimension_key.split("|"):
+            if not part:
+                continue
+            try:
+                dimension_members.append(uuid.UUID(part))
+            except ValueError:
+                continue
 
     return CellRead(
         line_item_id=cell.line_item_id,
         dimension_members=dimension_members,
+        version_id=cell.version_id,
         dimension_key=cell.dimension_key,
         value=value,
         value_type=value_type,
@@ -178,12 +184,20 @@ async def _upsert_cell_no_commit(
     db: AsyncSession,
     line_item_id: uuid.UUID,
     dimension_members: List[uuid.UUID],
+    version_id: Optional[uuid.UUID],
     value: Any,
 ) -> CellValue:
     """Upsert a single cell without committing the current transaction."""
-    await _validate_cell_dimensions(db, line_item_id, dimension_members)
+    resolved_version_id, key_dimension_members, validation_dimension_members = await resolve_cell_version_context(
+        db=db,
+        line_item_id=line_item_id,
+        dimension_members=dimension_members,
+        explicit_version_id=version_id,
+    )
 
-    dimension_key = make_dimension_key(dimension_members)
+    await _validate_cell_dimensions(db, line_item_id, validation_dimension_members)
+
+    dimension_key = make_dimension_key(key_dimension_members)
     value_number, value_text, value_boolean, _value_type = _extract_value_and_type(value)
 
     result = await db.execute(
@@ -208,10 +222,13 @@ async def _upsert_cell_no_commit(
         existing.value_number = value_number
         existing.value_text = value_text
         existing.value_boolean = value_boolean
+        if resolved_version_id is not None and existing.version_id is None:
+            existing.version_id = resolved_version_id
         return existing
 
     cell = CellValue(
         line_item_id=line_item_id,
+        version_id=resolved_version_id,
         dimension_key=dimension_key,
         value_number=value_number,
         value_text=value_text,
@@ -225,16 +242,24 @@ async def write_cell(
     db: AsyncSession,
     line_item_id: uuid.UUID,
     dimension_members: List[uuid.UUID],
+    version_id: Optional[uuid.UUID],
     value: Any,
 ) -> CellRead:
     """Upsert a single cell value."""
-    dimension_key = make_dimension_key(dimension_members)
+    resolved_version_id, key_dimension_members, _validation_dimension_members = await resolve_cell_version_context(
+        db=db,
+        line_item_id=line_item_id,
+        dimension_members=dimension_members,
+        explicit_version_id=version_id,
+    )
+    dimension_key = make_dimension_key(key_dimension_members)
     value_number, value_text, value_boolean, _value_type = _extract_value_and_type(value)
 
     cell = await _upsert_cell_no_commit(
         db=db,
         line_item_id=line_item_id,
         dimension_members=dimension_members,
+        version_id=version_id,
         value=value,
     )
 
@@ -256,6 +281,8 @@ async def write_cell(
                 existing.value_number = value_number
                 existing.value_text = value_text
                 existing.value_boolean = value_boolean
+                if resolved_version_id is not None and existing.version_id is None:
+                    existing.version_id = resolved_version_id
                 try:
                     await db.commit()
                 except Exception:
@@ -274,6 +301,7 @@ async def write_cell(
             db=db,
             line_item_id=line_item_id,
             dimension_members=dimension_members,
+            version_id=version_id,
             value=value,
         )
         try:
@@ -312,6 +340,7 @@ async def write_cells_bulk(
                 db=db,
                 line_item_id=cell_write.line_item_id,
                 dimension_members=cell_write.dimension_members,
+                version_id=cell_write.version_id,
                 value=cell_write.value,
             )
             upserted_cells.append(cell)
@@ -339,9 +368,16 @@ async def read_cell(
     db: AsyncSession,
     line_item_id: uuid.UUID,
     dimension_members: List[uuid.UUID],
+    version_id: Optional[uuid.UUID] = None,
 ) -> Optional[CellRead]:
     """Read a single cell value."""
-    dimension_key = make_dimension_key(dimension_members)
+    _resolved_version_id, key_dimension_members, _validation_dimension_members = await resolve_cell_version_context(
+        db=db,
+        line_item_id=line_item_id,
+        dimension_members=dimension_members,
+        explicit_version_id=version_id,
+    )
+    dimension_key = make_dimension_key(key_dimension_members)
     result = await db.execute(
         select(CellValue).where(
             CellValue.line_item_id == line_item_id,
@@ -357,6 +393,7 @@ async def read_cell(
 async def read_cells_for_line_item(
     db: AsyncSession,
     line_item_id: uuid.UUID,
+    version_id: Optional[uuid.UUID] = None,
     dimension_filters: Optional[Dict[str, List[uuid.UUID]]] = None,
 ) -> List[CellRead]:
     """Read all cells for a line item, optionally filtered by dimension members.
@@ -365,9 +402,17 @@ async def read_cells_for_line_item(
     dimension_item UUIDs. A cell is included only if its dimension_key contains
     at least one member from each filter entry.
     """
-    result = await db.execute(
-        select(CellValue).where(CellValue.line_item_id == line_item_id)
-    )
+    stmt = select(CellValue).where(CellValue.line_item_id == line_item_id)
+    if version_id is not None:
+        version_key = str(version_id)
+        stmt = stmt.where(
+            or_(
+                CellValue.version_id == version_id,
+                CellValue.dimension_key.contains(version_key),
+            )
+        )
+
+    result = await db.execute(stmt)
     cells = list(result.scalars().all())
 
     if dimension_filters:

@@ -166,6 +166,7 @@ async def spread_top_down(
             db,
             line_item_id=line_item_id,
             dimension_members=[child.id],
+            version_id=None,
             value=value,
         )
         cells_updated.append(MemberValue(member_id=child.id, value=value))
@@ -232,6 +233,7 @@ async def aggregate_bottom_up(
         db,
         line_item_id=line_item_id,
         dimension_members=[parent_dimension_member_id],
+        version_id=None,
         value=parent_value,
     )
 
@@ -429,6 +431,7 @@ async def recalculate_hierarchy(
             db,
             line_item_id=line_item_id,
             dimension_members=[parent_id],
+            version_id=None,
             value=parent_value,
         )
         members_updated += 1

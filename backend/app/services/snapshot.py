@@ -109,6 +109,7 @@ async def _serialize_model(db: AsyncSession, model_id: uuid.UUID) -> Dict[str, A
             cell_dicts.append({
                 "id": str(c.id),
                 "line_item_id": str(c.line_item_id),
+                "version_id": str(c.version_id) if c.version_id else None,
                 "dimension_key": c.dimension_key,
                 "value_number": c.value_number,
                 "value_text": c.value_text,
@@ -402,6 +403,7 @@ async def restore_snapshot(
         new_cell = CellValue(
             id=uuid.uuid4(),
             line_item_id=new_li_id,
+            version_id=id_map.get(c["version_id"]) if c.get("version_id") else None,
             dimension_key=new_dimension_key,
             value_number=c.get("value_number"),
             value_text=c.get("value_text"),

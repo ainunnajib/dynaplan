@@ -13,6 +13,7 @@ from app.schemas.whatif import (
     ScenarioEvalResult,
     ScenarioResponse,
 )
+from app.services.cell_versioning import migrate_legacy_cell_versions
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────────
@@ -213,11 +214,12 @@ async def evaluate_scenario(
     cells: List[EvaluatedCell] = []
 
     if scenario.base_version_id is not None:
+        await migrate_legacy_cell_versions(db, model_id=scenario.model_id)
+
         # Fetch all cells that have the base_version_id embedded in their dimension_key
-        version_str = str(scenario.base_version_id)
         result = await db.execute(
             select(CellValue).where(
-                CellValue.dimension_key.contains(version_str)
+                CellValue.version_id == scenario.base_version_id
             )
         )
         base_cells = list(result.scalars().all())
@@ -320,6 +322,13 @@ async def promote_scenario(
         else:
             target_dim_key = assumption.dimension_key
 
+        if target_str not in target_dim_key:
+            if target_dim_key:
+                target_dim_key = f"{target_dim_key}|{target_str}"
+            else:
+                target_dim_key = target_str
+        target_dim_key = "|".join(sorted(part for part in target_dim_key.split("|") if part))
+
         # Parse modified_value to number or text
         modified_str = assumption.modified_value
         try:
@@ -341,9 +350,11 @@ async def promote_scenario(
             existing.value_number = value_number
             existing.value_text = value_text
             existing.value_boolean = None
+            existing.version_id = target_version_id
         else:
             new_cell = CellValue(
                 line_item_id=assumption.line_item_id,
+                version_id=target_version_id,
                 dimension_key=target_dim_key,
                 value_number=value_number,
                 value_text=value_text,

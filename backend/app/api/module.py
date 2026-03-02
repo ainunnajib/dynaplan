@@ -86,7 +86,15 @@ def _cell_value(cell: CellValue):
 def _dimension_member_ids(dimension_key: str) -> List[uuid.UUID]:
     if not dimension_key:
         return []
-    return [uuid.UUID(part) for part in dimension_key.split("|") if part]
+    members: List[uuid.UUID] = []
+    for part in dimension_key.split("|"):
+        if not part:
+            continue
+        try:
+            members.append(uuid.UUID(part))
+        except ValueError:
+            continue
+    return members
 
 
 # ── Module endpoints ───────────────────────────────────────────────────────────
@@ -215,6 +223,7 @@ async def write_module_cell_endpoint(
             db,
             line_item_id=data.line_item_id,
             dimension_members=data.dimension_member_ids,
+            version_id=None,
             value=data.value,
         )
     except WorkspaceQuotaExceededError as exc:

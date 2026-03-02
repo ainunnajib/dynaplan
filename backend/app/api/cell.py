@@ -35,6 +35,7 @@ async def write_cell_endpoint(
             db,
             line_item_id=data.line_item_id,
             dimension_members=data.dimension_members,
+            version_id=data.version_id,
             value=data.value,
         )
     except WorkspaceQuotaExceededError as exc:
@@ -88,6 +89,7 @@ async def query_cells_endpoint(
     return await read_cells_for_line_item(
         db,
         line_item_id=data.line_item_id,
+        version_id=data.version_id,
         dimension_filters=data.dimension_filters,
     )
 
