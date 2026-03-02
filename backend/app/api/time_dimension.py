@@ -40,6 +40,8 @@ async def create_time_dimension_endpoint(
     fiscal_calendar = FiscalCalendar(
         fiscal_year_start_month=data.fiscal_calendar.fiscal_year_start_month,
         week_start_day=data.fiscal_calendar.week_start_day,
+        week_pattern=data.fiscal_calendar.week_pattern,
+        retail_pattern=data.fiscal_calendar.retail_pattern,
     )
     try:
         dimension = await create_time_dimension(

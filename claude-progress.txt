@@ -1,7 +1,7 @@
 # Dynaplan Development Progress
 
-## Current Status: 61 features complete + F045/F048/F049/F050 implemented (pending Rust toolchain validation)
-Last updated: 2026-03-02 (F058 completed: backend `1553 passed`; frontend `bun tsc --noEmit` clean)
+## Current Status: 62 features complete + F045/F048/F049/F050 implemented (pending Rust toolchain validation)
+Last updated: 2026-03-02 (F061 completed: backend `1572 passed, 1 skipped, 1 xfailed, 1 xpassed`; frontend `bun tsc --noEmit` clean)
 
 ## Completed
 - [x] F001: User authentication & authorization (11 tests)
@@ -57,6 +57,7 @@ Last updated: 2026-03-02 (F058 completed: backend `1553 passed`; frontend `bun t
 - [x] F058: Saved Views (new `SavedView` model/service/schema/API with user-scoped CRUD, per-user-per-module default enforcement, and module-grid saved-view toolbar for save/load/update/default/delete actions) (4 backend tests in `test_saved_view.py` + full backend regression + frontend type-check)
 - [x] F059: Applies-To Normalization (line-item/dimension junction table, snapshot + cell integration, dimension query endpoint) (3 backend tests + full regression pass)
 - [x] F060: Version Dimension Integration (`CellValue.version_id` FK + migration/backfill utility, version-aware cell write/query paths, version compare/scenario compare/rolling forecast/what-if integration updates, switchover resolver in `version.py`, snapshot serialization support for version context) (4 backend tests added in `test_version_dimension_integration.py` + full backend regression + frontend type-check)
+- [x] F061: Model Calendar Enhancements (time-calendar engine now supports ISO/custom week patterns and retail 4-4-5/4-5-4/5-4-4 generation, `TimeRange` now persists fiscal/week/retail config + optional calendar period payloads with new `week`/`half_year` granularities, and formula evaluator adds calendar-aware `PERIODOFFSET` plus metadata-backed `INPERIOD` resolution) (26 backend tests added/updated across `test_time_calendar.py`, `test_time_dimension.py`, `test_time_range.py`, and `test_formula_engine.py`; full backend regression + frontend type-check passed)
 - [x] F069: Workspace Quotas & Cell Limits (workspace quota model + CRUD/usage API, enforcement on model/dimension/time-dimension/cell writes, frontend usage dashboard) (11 backend tests + full regression pass + frontend type-check)
 - [x] F072: PostgreSQL Migration (Alembic runtime + revision baseline, asyncpg pool/read-replica database wiring, PostgreSQL test-container fallback in `conftest.py`) (11 backend tests + full regression pass + frontend type-check)
 - [x] F066: ALM Promotion Engine (deep structural diff + change detection, last-sync conflict detection, additive/replace/manual merge strategy execution, structural promotion runtime with cell copy and rollback restore path, revision tags now auto-capture model snapshots) (15 ALM tests, 55 ALM total, full backend regression + frontend type-check)
@@ -72,9 +73,8 @@ Last updated: 2026-03-02 (F058 completed: backend `1553 passed`; frontend `bun t
 - [~] F049: PyO3 Bridge — Rust Engine ↔ Python FastAPI (`engine/dynaplan-py` crate added with PyO3 surface (`load_model`, `write_cell`, `write_cells_bulk`, `read_cell`, `read_cells`, `evaluate_formula`, `get_recalc_order`, `spread_top_down`, `aggregate_bottom_up`), Python fallback bridge at `backend/app/engine/rust_bridge.py`, and `cell.py` engine-selection integration; full backend regression + frontend type-check passed; native Rust extension build/test still pending due unavailable Rust toolchain)
 - [~] F050: Spread & Aggregation in Rust (`engine/dynaplan-core/src/spread/` added with top-down spread methods, summary aggregation, and bottom-up hierarchy aggregation; PyO3 + Python bridge wiring added and `backend/app/services/planning.py` now routes spread/aggregate/recalc calculations through the bridge; backend regression + frontend type-check passed, `cargo test` pending because Rust toolchain is unavailable in this environment)
 
-## Next Up: F045 validation + F046-F047, F061, F067-F068, F070-F071, F073-F077 (see ROADMAP.md)
+## Next Up: F045 validation + F046-F047, F067-F068, F070-F071, F073-F077 (see ROADMAP.md)
 - Phase 1: Rust calculation engine (F045-F050) — Hyperblock replacement via PyO3
-- Phase 3: Model structure gaps (F061) — model calendar enhancements
 - Phase 5: Data Hub & CLI (F067-F068)
 - Phase 6: Scale & security (F070-F071) — encryption, allowlisting
 - Phase 7: Advanced UX (F073-F075) — app builder, conditional formatting, grid scale
@@ -86,8 +86,8 @@ Last updated: 2026-03-02 (F058 completed: backend `1553 passed`; frontend `bun t
 - smoke.test.ts has pre-existing bun:test import error (not in our code)
 
 ## Architecture
-- Backend: FastAPI, 1553 tests (latest run: 1553 passed), file-backed SQLite with NullPool for tests (+ optional PostgreSQL test-container path)
-- Engine: Pure Python formula engine in production now includes F051 time functions, F052 lookup/cross-module functions, F053 text/conversion functions, and F054 advanced aggregation/statistical functions (SUMIF/COUNTIF/AVERAGEIF, MEDIAN/STDEV/VARIANCE, PERCENTILE/LARGE/SMALL, GROWTH) with matching Rust formula-module implementation (`engine/dynaplan-core/src/formula/functions.rs`) pending Rust toolchain validation
+- Backend: FastAPI, 1572 tests (latest run: 1572 passed, 1 skipped, 1 xfailed, 1 xpassed), file-backed SQLite with NullPool for tests (+ optional PostgreSQL test-container path)
+- Engine: Pure Python formula engine in production now includes F051 time functions, F052 lookup/cross-module functions, F053 text/conversion functions, F054 advanced aggregation/statistical functions (SUMIF/COUNTIF/AVERAGEIF, MEDIAN/STDEV/VARIANCE, PERCENTILE/LARGE/SMALL, GROWTH), and F061 calendar enhancements (`PERIODOFFSET`, context-backed retail period bounds) with matching Rust formula-module implementation (`engine/dynaplan-core/src/formula/functions.rs`) pending Rust toolchain validation
 - Quotas: Workspace-level quota controls (max models, max cells/model, max dimensions/model, storage MB) with API usage reporting + enforced create/write guards
 - Database infra: Alembic runtime + revision chain in `backend/alembic`, asyncpg pool controls, optional read-replica session dependency
 - Execution runtime foundation: async background executor (`job_executor`), scheduler wrapper (`job_scheduler`), active job registry (`job_registry`), CloudWorks connector SDK (`app/connectors`), activated CloudWorks cron runtime + webhook notifications, and pipeline execution runtime (`app/engine/pipeline_runtime`) with `/pipeline-runs/{run_id}/execute`

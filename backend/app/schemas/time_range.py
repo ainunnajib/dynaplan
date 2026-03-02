@@ -1,10 +1,10 @@
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel
 
-from app.models.time_range import TimeGranularity
+from app.models.time_range import RetailCalendarPattern, TimeGranularity, WeekPattern
 
 
 # ── TimeRange schemas ─────────────────────────────────────────────────────────
@@ -14,6 +14,11 @@ class TimeRangeCreate(BaseModel):
     start_period: str
     end_period: str
     granularity: TimeGranularity = TimeGranularity.month
+    fiscal_year_start_month: int = 1
+    week_start_day: int = 0
+    week_pattern: WeekPattern = WeekPattern.iso
+    retail_pattern: RetailCalendarPattern = RetailCalendarPattern.standard
+    calendar_periods: Optional[List[dict]] = None
     is_model_default: bool = False
 
 
@@ -22,6 +27,11 @@ class TimeRangeUpdate(BaseModel):
     start_period: Optional[str] = None
     end_period: Optional[str] = None
     granularity: Optional[TimeGranularity] = None
+    fiscal_year_start_month: Optional[int] = None
+    week_start_day: Optional[int] = None
+    week_pattern: Optional[WeekPattern] = None
+    retail_pattern: Optional[RetailCalendarPattern] = None
+    calendar_periods: Optional[List[dict]] = None
     is_model_default: Optional[bool] = None
 
 
@@ -32,6 +42,11 @@ class TimeRangeResponse(BaseModel):
     start_period: str
     end_period: str
     granularity: TimeGranularity
+    fiscal_year_start_month: int
+    week_start_day: int
+    week_pattern: WeekPattern
+    retail_pattern: RetailCalendarPattern
+    calendar_periods: Optional[List[dict]]
     is_model_default: bool
     created_at: datetime
     updated_at: datetime

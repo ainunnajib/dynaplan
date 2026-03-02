@@ -1,18 +1,42 @@
 import enum
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, Uuid, func
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    JSON,
+    String,
+    Uuid,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
 
 
 class TimeGranularity(str, enum.Enum):
+    week = "week"
     month = "month"
     quarter = "quarter"
+    half_year = "half_year"
     year = "year"
+
+
+class WeekPattern(str, enum.Enum):
+    iso = "iso"
+    custom = "custom"
+
+
+class RetailCalendarPattern(str, enum.Enum):
+    standard = "standard"
+    four_four_five = "4-4-5"
+    four_five_four = "4-5-4"
+    five_four_four = "5-4-4"
 
 
 class TimeRange(Base):
@@ -29,6 +53,23 @@ class TimeRange(Base):
     end_period: Mapped[str] = mapped_column(String(20), nullable=False)
     granularity: Mapped[TimeGranularity] = mapped_column(
         Enum(TimeGranularity), nullable=False, default=TimeGranularity.month
+    )
+    fiscal_year_start_month: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1
+    )
+    week_start_day: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0
+    )
+    week_pattern: Mapped[WeekPattern] = mapped_column(
+        Enum(WeekPattern), nullable=False, default=WeekPattern.iso
+    )
+    retail_pattern: Mapped[RetailCalendarPattern] = mapped_column(
+        Enum(RetailCalendarPattern),
+        nullable=False,
+        default=RetailCalendarPattern.standard,
+    )
+    calendar_periods: Mapped[Optional[List[Dict[str, Any]]]] = mapped_column(
+        JSON, nullable=True, default=list
     )
     is_model_default: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False

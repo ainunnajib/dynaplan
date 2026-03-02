@@ -139,6 +139,45 @@ async def test_create_time_dimension_quarter_granularity(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_create_time_dimension_retail_calendar(client: AsyncClient):
+    """Retail calendar settings generate fiscal periods and weeks."""
+    token = await register_and_login(client, "td_retail@example.com")
+    ws_id = await create_workspace(client, token)
+    model_id = await create_model(client, token, ws_id)
+
+    create_resp = await client.post(
+        f"/models/{model_id}/time-dimensions",
+        json={
+            "name": "Retail Time",
+            "start_year": 2024,
+            "end_year": 2024,
+            "granularity": "week",
+            "fiscal_calendar": {
+                "fiscal_year_start_month": 1,
+                "week_start_day": 6,
+                "week_pattern": "custom",
+                "retail_pattern": "4-4-5",
+            },
+        },
+        headers=auth_headers(token),
+    )
+    assert create_resp.status_code == 201
+    dim_id = create_resp.json()["id"]
+
+    list_resp = await client.get(
+        f"/dimensions/{dim_id}/time-periods",
+        headers=auth_headers(token),
+    )
+    assert list_resp.status_code == 200
+    periods = list_resp.json()
+    months = [p for p in periods if p["period_type"] == "month"]
+    weeks = [p for p in periods if p["period_type"] == "week"]
+    assert len(months) == 12
+    assert len(weeks) == 52
+    assert months[0]["code"].startswith("FY2024-P")
+
+
+@pytest.mark.asyncio
 async def test_create_time_dimension_multi_year(client: AsyncClient):
     """Can create a time dimension spanning multiple years."""
     token = await register_and_login(client, "td_multiyear@example.com")

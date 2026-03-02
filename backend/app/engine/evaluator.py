@@ -17,6 +17,7 @@ Built-in functions (case-insensitive, stored upper-case):
                   CURRENTPERIODSTART, CURRENTPERIODEND, PERIODSTART, PERIODEND,
                   TIMESUM, TIMEAVERAGE, TIMECOUNT, LAG, LEAD, OFFSET,
                   MOVINGSUM, MOVINGAVERAGE, CUMULATE, PREVIOUS, NEXT, INPERIOD,
+                  PERIODOFFSET,
                   YEARTODATE, MONTHTODATE, DATE, DATEVALUE, TODAY
     Math (extra): CEILING, FLOOR, MOD, SIGN
 """
@@ -763,6 +764,11 @@ class Evaluator:
             target_date = self._coerce_date(args[0], name)
             start, end = self._period_bounds(args[1], name)
             return start <= target_date <= end
+
+        if name == "PERIODOFFSET":
+            self._check_arity_range(name, args, 2, 3)
+            target_periods = self._resolve_time_periods(args[2] if len(args) == 3 else None)
+            return self._period_offset(args[0], int(self._num(args[1], name)), target_periods, name)
 
         raise FormulaError(f"Unknown function: {name!r}")
 
@@ -2023,6 +2029,10 @@ class Evaluator:
             except FormulaError:
                 pass
 
+            context_bounds = self._period_bounds_from_context(text, context_label)
+            if context_bounds is not None:
+                return context_bounds
+
             # FY year: FY2024
             m = re.match(r"^FY(\d{4})$", text, flags=re.IGNORECASE)
             if m:
@@ -2092,6 +2102,14 @@ class Evaluator:
                 end = min(start + timedelta(days=6), month_end)
                 return start, end
 
+            # Retail period code (requires persisted calendar metadata in context):
+            # FY2024-P01 or FY2024-W01
+            if re.match(r"^FY\d{4}-(?:P\d{2}|W\d{1,2})$", text, flags=re.IGNORECASE):
+                raise FormulaError(
+                    f"{context_label or 'Period'} '{text}' requires TIME_PERIODS "
+                    "context entries with start_date and end_date"
+                )
+
         raise FormulaError(
             f"Expected a recognizable period{' in ' + context_label if context_label else ''}, "
             f"got {type(value).__name__}: {value!r}"
@@ -2128,3 +2146,195 @@ class Evaluator:
         if unit == "half_year":
             return 1 if start.month <= 6 else 2
         raise FormulaError(f"Unknown period unit: {unit}")
+
+    def _period_bounds_from_context(
+        self,
+        period_code: str,
+        context_label: str,
+    ) -> Optional[Tuple[date, date]]:
+        normalized_code = period_code.strip().upper()
+        for period in self._resolve_time_periods():
+            if not isinstance(period, dict):
+                continue
+            candidate = None
+            for key in ("code", "id", "name"):
+                raw_candidate = period.get(key)
+                if raw_candidate is not None:
+                    candidate = str(raw_candidate).strip().upper()
+                    break
+            if candidate != normalized_code:
+                continue
+            if "start_date" in period and "end_date" in period:
+                start = self._coerce_date(period.get("start_date"), context_label)
+                end = self._coerce_date(period.get("end_date"), context_label)
+                if start > end:
+                    raise FormulaError("Period start_date must be <= end_date")
+                return start, end
+            if "start" in period and "end" in period:
+                start = self._coerce_date(period.get("start"), context_label)
+                end = self._coerce_date(period.get("end"), context_label)
+                if start > end:
+                    raise FormulaError("Period start must be <= end")
+                return start, end
+        return None
+
+    def _period_identity(self, period: Any) -> Optional[str]:
+        if isinstance(period, dict):
+            for key in ("code", "id", "name"):
+                value = period.get(key)
+                if value is not None:
+                    return str(value)
+            return None
+        if isinstance(period, datetime):
+            return period.date().isoformat()
+        if isinstance(period, date):
+            return period.isoformat()
+        if isinstance(period, (str, int, float)) and not isinstance(period, bool):
+            return str(period)
+        return None
+
+    def _normalized_period_identity(self, period: Any) -> Optional[str]:
+        raw = self._period_identity(period)
+        if raw is None:
+            return None
+        return raw.strip().upper()
+
+    def _period_offset(
+        self,
+        period: Any,
+        offset: int,
+        periods: List[Any],
+        context_label: str,
+    ) -> Any:
+        if len(periods) > 0:
+            source_id = self._normalized_period_identity(period)
+            if source_id is None:
+                raise FormulaError(
+                    f"{context_label} period argument is not a recognizable period identifier"
+                )
+            source_index: Optional[int] = None
+            for idx, candidate in enumerate(periods):
+                candidate_id = self._normalized_period_identity(candidate)
+                if candidate_id == source_id:
+                    source_index = idx
+                    break
+            if source_index is None:
+                raise FormulaError(
+                    f"{context_label} could not find period {self._period_identity(period)!r} "
+                    "inside TIME_PERIODS"
+                )
+            target_index = source_index + offset
+            if target_index < 0 or target_index >= len(periods):
+                raise FormulaError(f"{context_label} offset moved outside available periods")
+            resolved = self._period_identity(periods[target_index])
+            if resolved is None:
+                raise FormulaError(f"{context_label} target period has no usable code/id/name")
+            return resolved
+
+        if isinstance(period, (datetime, date)):
+            d = self._coerce_date(period, context_label)
+            return (d + timedelta(days=offset)).isoformat()
+
+        if isinstance(period, (int, float)) and not isinstance(period, bool):
+            year = int(period)
+            shifted_year = year + offset
+            if shifted_year < 1:
+                raise FormulaError(f"{context_label} produced an invalid year")
+            return shifted_year
+
+        if not isinstance(period, str):
+            raise FormulaError(
+                f"{context_label} expects a period string when TIME_PERIODS is not provided"
+            )
+
+        text = period.strip()
+        if len(text) == 0:
+            raise FormulaError(f"{context_label} period cannot be empty")
+
+        match = re.match(r"^FY(\d{4})$", text, flags=re.IGNORECASE)
+        if match:
+            return f"FY{int(match.group(1)) + offset:04d}"
+
+        match = re.match(r"^(\d{4})$", text)
+        if match:
+            return f"{int(match.group(1)) + offset:04d}"
+
+        match = re.match(r"^(FY)?(\d{4})-Q([1-4])$", text, flags=re.IGNORECASE)
+        if match:
+            has_fy = match.group(1) is not None
+            year = int(match.group(2))
+            quarter = int(match.group(3))
+            ordinal = (year * 4) + (quarter - 1) + offset
+            if ordinal < 0:
+                raise FormulaError(f"{context_label} produced an invalid quarter")
+            target_year = ordinal // 4
+            target_quarter = (ordinal % 4) + 1
+            prefix = "FY" if has_fy else ""
+            return f"{prefix}{target_year:04d}-Q{target_quarter}"
+
+        match = re.match(r"^(FY)?(\d{4})-H([12])$", text, flags=re.IGNORECASE)
+        if match:
+            has_fy = match.group(1) is not None
+            year = int(match.group(2))
+            half = int(match.group(3))
+            ordinal = (year * 2) + (half - 1) + offset
+            if ordinal < 0:
+                raise FormulaError(f"{context_label} produced an invalid half-year")
+            target_year = ordinal // 2
+            target_half = (ordinal % 2) + 1
+            prefix = "FY" if has_fy else ""
+            return f"{prefix}{target_year:04d}-H{target_half}"
+
+        match = re.match(r"^(\d{4})-(\d{2})$", text)
+        if match:
+            year = int(match.group(1))
+            month = int(match.group(2))
+            ordinal = (year * 12) + (month - 1) + offset
+            if ordinal < 0:
+                raise FormulaError(f"{context_label} produced an invalid month")
+            target_year = ordinal // 12
+            target_month = (ordinal % 12) + 1
+            return f"{target_year:04d}-{target_month:02d}"
+
+        match = re.match(r"^(\d{4})-W(\d{1,2})$", text, flags=re.IGNORECASE)
+        if match:
+            year = int(match.group(1))
+            week = int(match.group(2))
+            try:
+                start = date.fromisocalendar(year, week, 1)
+            except ValueError:
+                raise FormulaError(f"Invalid ISO week in {context_label}: {text!r}")
+            shifted = start + timedelta(days=offset * 7)
+            iso_year, iso_week, _ = shifted.isocalendar()
+            return f"{iso_year:04d}-W{iso_week:02d}"
+
+        match = re.match(r"^FY(\d{4})-P(\d{2})$", text, flags=re.IGNORECASE)
+        if match:
+            year = int(match.group(1))
+            period_number = int(match.group(2))
+            if period_number < 1 or period_number > 12:
+                raise FormulaError(f"Invalid retail period in {context_label}: {text!r}")
+            ordinal = (year * 12) + (period_number - 1) + offset
+            if ordinal < 0:
+                raise FormulaError(f"{context_label} produced an invalid retail period")
+            target_year = ordinal // 12
+            target_period = (ordinal % 12) + 1
+            return f"FY{target_year:04d}-P{target_period:02d}"
+
+        match = re.match(r"^FY(\d{4})-W(\d{1,2})$", text, flags=re.IGNORECASE)
+        if match:
+            year = int(match.group(1))
+            week = int(match.group(2))
+            if week < 1 or week > 53:
+                raise FormulaError(f"Invalid retail week in {context_label}: {text!r}")
+            ordinal = (year * 53) + (week - 1) + offset
+            if ordinal < 0:
+                raise FormulaError(f"{context_label} produced an invalid retail week")
+            target_year = ordinal // 53
+            target_week = (ordinal % 53) + 1
+            return f"FY{target_year:04d}-W{target_week:02d}"
+
+        raise FormulaError(
+            f"{context_label} does not support offset for period format {text!r} "
+            "without TIME_PERIODS context"
+        )

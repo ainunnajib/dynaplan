@@ -12,13 +12,17 @@ from app.schemas.time_range import TimeRangeCreate, TimeRangeUpdate
 
 # ── Period validation ─────────────────────────────────────────────────────────
 
-_MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")       # 2024-01
-_QUARTER_RE = re.compile(r"^\d{4}-Q[1-4]$")                # 2024-Q1
-_YEAR_RE = re.compile(r"^\d{4}$")                           # 2024
+_MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")  # 2024-01
+_QUARTER_RE = re.compile(r"^\d{4}-Q[1-4]$", flags=re.IGNORECASE)  # 2024-Q1
+_WEEK_RE = re.compile(r"^\d{4}-W(0[1-9]|[1-4][0-9]|5[0-3])$", flags=re.IGNORECASE)
+_HALF_YEAR_RE = re.compile(r"^(?:FY)?\d{4}-H[12]$", flags=re.IGNORECASE)
+_YEAR_RE = re.compile(r"^\d{4}$")  # 2024
 
 _PERIOD_PATTERNS = {
+    TimeGranularity.week: _WEEK_RE,
     TimeGranularity.month: _MONTH_RE,
     TimeGranularity.quarter: _QUARTER_RE,
+    TimeGranularity.half_year: _HALF_YEAR_RE,
     TimeGranularity.year: _YEAR_RE,
 }
 
@@ -28,11 +32,15 @@ def _period_sort_key(period: str, granularity: TimeGranularity) -> str:
     if granularity == TimeGranularity.month:
         # Already in YYYY-MM format, lexicographic comparison works
         return period
-    elif granularity == TimeGranularity.quarter:
+    if granularity == TimeGranularity.quarter:
         # 2024-Q1 -> 2024-1, etc.
-        return period.replace("-Q", "-")
-    else:
-        return period
+        return period.upper().replace("-Q", "-")
+    if granularity == TimeGranularity.half_year:
+        normalized = period.upper()
+        if normalized.startswith("FY"):
+            normalized = normalized[2:]
+        return normalized.replace("-H", "-")
+    return period.upper()
 
 
 def validate_period_format(period: str, granularity: TimeGranularity) -> None:
@@ -40,8 +48,10 @@ def validate_period_format(period: str, granularity: TimeGranularity) -> None:
     pattern = _PERIOD_PATTERNS[granularity]
     if not pattern.match(period):
         expected = {
+            TimeGranularity.week: "YYYY-WNN (e.g. 2024-W05)",
             TimeGranularity.month: "YYYY-MM (e.g. 2024-01)",
             TimeGranularity.quarter: "YYYY-QN (e.g. 2024-Q1)",
+            TimeGranularity.half_year: "YYYY-HN or FYYYYY-HN (e.g. 2024-H1, FY2024-H2)",
             TimeGranularity.year: "YYYY (e.g. 2024)",
         }
         raise HTTPException(
@@ -63,6 +73,22 @@ def validate_period_order(
         )
 
 
+def validate_calendar_config(
+    fiscal_year_start_month: int,
+    week_start_day: int,
+) -> None:
+    if fiscal_year_start_month < 1 or fiscal_year_start_month > 12:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="fiscal_year_start_month must be between 1 and 12",
+        )
+    if week_start_day < 0 or week_start_day > 6:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="week_start_day must be between 0 and 6",
+        )
+
+
 # ── TimeRange CRUD ────────────────────────────────────────────────────────────
 
 async def create_time_range(
@@ -71,6 +97,7 @@ async def create_time_range(
     validate_period_format(data.start_period, data.granularity)
     validate_period_format(data.end_period, data.granularity)
     validate_period_order(data.start_period, data.end_period, data.granularity)
+    validate_calendar_config(data.fiscal_year_start_month, data.week_start_day)
 
     # If marking as default, unset any existing default for this model
     if data.is_model_default:
@@ -82,6 +109,11 @@ async def create_time_range(
         start_period=data.start_period,
         end_period=data.end_period,
         granularity=data.granularity,
+        fiscal_year_start_month=data.fiscal_year_start_month,
+        week_start_day=data.week_start_day,
+        week_pattern=data.week_pattern,
+        retail_pattern=data.retail_pattern,
+        calendar_periods=data.calendar_periods,
         is_model_default=data.is_model_default,
     )
     db.add(time_range)
@@ -115,12 +147,24 @@ async def update_time_range(
     granularity = data.granularity if data.granularity is not None else time_range.granularity
     start_period = data.start_period if data.start_period is not None else time_range.start_period
     end_period = data.end_period if data.end_period is not None else time_range.end_period
+    fiscal_year_start_month = (
+        data.fiscal_year_start_month
+        if data.fiscal_year_start_month is not None
+        else time_range.fiscal_year_start_month
+    )
+    week_start_day = (
+        data.week_start_day
+        if data.week_start_day is not None
+        else time_range.week_start_day
+    )
 
     # Validate if any period-related field changed
     if data.start_period is not None or data.end_period is not None or data.granularity is not None:
         validate_period_format(start_period, granularity)
         validate_period_format(end_period, granularity)
         validate_period_order(start_period, end_period, granularity)
+    if data.fiscal_year_start_month is not None or data.week_start_day is not None:
+        validate_calendar_config(fiscal_year_start_month, week_start_day)
 
     if data.name is not None:
         time_range.name = data.name
@@ -130,6 +174,16 @@ async def update_time_range(
         time_range.end_period = data.end_period
     if data.granularity is not None:
         time_range.granularity = data.granularity
+    if data.fiscal_year_start_month is not None:
+        time_range.fiscal_year_start_month = data.fiscal_year_start_month
+    if data.week_start_day is not None:
+        time_range.week_start_day = data.week_start_day
+    if data.week_pattern is not None:
+        time_range.week_pattern = data.week_pattern
+    if data.retail_pattern is not None:
+        time_range.retail_pattern = data.retail_pattern
+    if data.calendar_periods is not None:
+        time_range.calendar_periods = data.calendar_periods
     if data.is_model_default is not None:
         if data.is_model_default and not time_range.is_model_default:
             await _unset_model_default(db, time_range.model_id)

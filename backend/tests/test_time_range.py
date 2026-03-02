@@ -1,4 +1,5 @@
 import uuid
+from typing import List, Optional
 
 import pytest
 from httpx import AsyncClient
@@ -64,17 +65,29 @@ async def create_time_range(
     start_period: str = "2024-01",
     end_period: str = "2024-12",
     granularity: str = "month",
+    fiscal_year_start_month: int = 1,
+    week_start_day: int = 0,
+    week_pattern: str = "iso",
+    retail_pattern: str = "standard",
+    calendar_periods: Optional[List[dict]] = None,
     is_model_default: bool = False,
 ) -> dict:
+    payload = {
+        "name": name,
+        "start_period": start_period,
+        "end_period": end_period,
+        "granularity": granularity,
+        "fiscal_year_start_month": fiscal_year_start_month,
+        "week_start_day": week_start_day,
+        "week_pattern": week_pattern,
+        "retail_pattern": retail_pattern,
+        "is_model_default": is_model_default,
+    }
+    if calendar_periods is not None:
+        payload["calendar_periods"] = calendar_periods
     resp = await client.post(
         f"/models/{model_id}/time-ranges",
-        json={
-            "name": name,
-            "start_period": start_period,
-            "end_period": end_period,
-            "granularity": granularity,
-            "is_model_default": is_model_default,
-        },
+        json=payload,
         headers=auth_headers(token),
     )
     assert resp.status_code == 201
@@ -130,6 +143,30 @@ async def test_create_time_range_year(client: AsyncClient):
     )
     assert tr["granularity"] == "year"
     assert tr["start_period"] == "2020"
+
+
+@pytest.mark.asyncio
+async def test_create_time_range_week(client: AsyncClient):
+    token, model_id = await _setup(client, "tr_create_w@example.com")
+    tr = await create_time_range(
+        client, token, model_id,
+        name="Weekly", start_period="2024-W01", end_period="2024-W10",
+        granularity="week",
+    )
+    assert tr["granularity"] == "week"
+    assert tr["start_period"] == "2024-W01"
+
+
+@pytest.mark.asyncio
+async def test_create_time_range_half_year(client: AsyncClient):
+    token, model_id = await _setup(client, "tr_create_h@example.com")
+    tr = await create_time_range(
+        client, token, model_id,
+        name="Half Years", start_period="FY2024-H1", end_period="FY2025-H2",
+        granularity="half_year",
+    )
+    assert tr["granularity"] == "half_year"
+    assert tr["start_period"] == "FY2024-H1"
 
 
 @pytest.mark.asyncio
@@ -189,6 +226,38 @@ async def test_create_time_range_invalid_year_format(client: AsyncClient):
             "start_period": "20",
             "end_period": "2025",
             "granularity": "year",
+        },
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_time_range_invalid_week_format(client: AsyncClient):
+    token, model_id = await _setup(client, "tr_bad_w@example.com")
+    resp = await client.post(
+        f"/models/{model_id}/time-ranges",
+        json={
+            "name": "Bad Week",
+            "start_period": "2024-W54",
+            "end_period": "2024-W10",
+            "granularity": "week",
+        },
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_time_range_invalid_half_year_format(client: AsyncClient):
+    token, model_id = await _setup(client, "tr_bad_h@example.com")
+    resp = await client.post(
+        f"/models/{model_id}/time-ranges",
+        json={
+            "name": "Bad Half",
+            "start_period": "2024-H3",
+            "end_period": "2025-H1",
+            "granularity": "half_year",
         },
         headers=auth_headers(token),
     )
@@ -312,6 +381,53 @@ async def test_update_time_range_invalid_period(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_update_time_range_calendar_settings(client: AsyncClient):
+    token, model_id = await _setup(client, "tr_upd_cal@example.com")
+    tr = await create_time_range(
+        client, token, model_id,
+        granularity="week",
+        start_period="2024-W01",
+        end_period="2024-W52",
+    )
+    resp = await client.put(
+        f"/time-ranges/{tr['id']}",
+        json={
+            "fiscal_year_start_month": 7,
+            "week_start_day": 6,
+            "week_pattern": "custom",
+            "retail_pattern": "4-4-5",
+            "calendar_periods": [
+                {
+                    "code": "FY2024-P01",
+                    "start_date": "2024-01-01",
+                    "end_date": "2024-01-28",
+                }
+            ],
+        },
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["fiscal_year_start_month"] == 7
+    assert body["week_start_day"] == 6
+    assert body["week_pattern"] == "custom"
+    assert body["retail_pattern"] == "4-4-5"
+    assert len(body["calendar_periods"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_update_time_range_invalid_calendar_settings(client: AsyncClient):
+    token, model_id = await _setup(client, "tr_upd_cal_bad@example.com")
+    tr = await create_time_range(client, token, model_id)
+    resp = await client.put(
+        f"/time-ranges/{tr['id']}",
+        json={"week_start_day": 8},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_update_time_range_not_found(client: AsyncClient):
     token, _ = await _setup(client, "tr_upd_nf@example.com")
     fake_id = str(uuid.uuid4())
@@ -370,6 +486,36 @@ async def test_set_model_default(client: AsyncClient):
         client, token, model_id, is_model_default=True,
     )
     assert tr["is_model_default"] is True
+
+
+@pytest.mark.asyncio
+async def test_create_time_range_persists_calendar_settings(client: AsyncClient):
+    token, model_id = await _setup(client, "tr_cal_persist@example.com")
+    tr = await create_time_range(
+        client,
+        token,
+        model_id,
+        name="Retail",
+        start_period="2024-01",
+        end_period="2024-12",
+        granularity="month",
+        fiscal_year_start_month=2,
+        week_start_day=6,
+        week_pattern="custom",
+        retail_pattern="4-4-5",
+        calendar_periods=[
+            {
+                "code": "FY2024-P01",
+                "start_date": "2024-02-01",
+                "end_date": "2024-02-28",
+            }
+        ],
+    )
+    assert tr["fiscal_year_start_month"] == 2
+    assert tr["week_start_day"] == 6
+    assert tr["week_pattern"] == "custom"
+    assert tr["retail_pattern"] == "4-4-5"
+    assert len(tr["calendar_periods"]) == 1
 
 
 @pytest.mark.asyncio

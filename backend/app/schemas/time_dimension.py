@@ -4,7 +4,11 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, field_validator
 
-from app.engine.time_calendar import TimePeriodType
+from app.engine.time_calendar import (
+    RetailCalendarPattern,
+    TimePeriodType,
+    WeekPattern,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -15,6 +19,8 @@ class FiscalCalendarConfig(BaseModel):
     """Fiscal calendar configuration embedded in the create request."""
     fiscal_year_start_month: int = 1
     week_start_day: int = 0
+    week_pattern: WeekPattern = WeekPattern.iso
+    retail_pattern: RetailCalendarPattern = RetailCalendarPattern.standard
 
     @field_validator("fiscal_year_start_month")
     @classmethod

@@ -662,6 +662,48 @@ class TestTimeFunctions:
             {"InputDate": date(2024, 4, 1), "Period": "FY2024-Q1"},
         ) is False
 
+    def test_inperiod_uses_time_period_metadata(self):
+        assert evaluate_formula(
+            'INPERIOD("2024-02-15", "FY2024-P02")',
+            {
+                "TIME_PERIODS": [
+                    {"code": "FY2024-P01", "start_date": "2024-01-01", "end_date": "2024-01-28"},
+                    {"code": "FY2024-P02", "start_date": "2024-01-29", "end_date": "2024-02-25"},
+                ]
+            },
+        ) is True
+
+    def test_periodoffset_with_context_period_sequence(self):
+        result = evaluate_formula(
+            'PERIODOFFSET("2024-02", 2)',
+            {"TIME_PERIODS": ["2024-01", "2024-02", "2024-03", "2024-04"]},
+        )
+        assert result == "2024-04"
+
+    def test_periodoffset_with_dict_period_sequence(self):
+        result = evaluate_formula(
+            'PERIODOFFSET("FY2024-P02", 1)',
+            {
+                "TIME_PERIODS": [
+                    {"code": "FY2024-P01", "start_date": "2024-01-01", "end_date": "2024-01-28"},
+                    {"code": "FY2024-P02", "start_date": "2024-01-29", "end_date": "2024-02-25"},
+                    {"code": "FY2024-P03", "start_date": "2024-02-26", "end_date": "2024-03-31"},
+                ]
+            },
+        )
+        assert result == "FY2024-P03"
+
+    def test_periodoffset_without_context_uses_format_math(self):
+        assert evaluate_formula('PERIODOFFSET("2024-02", -1)') == "2024-01"
+        assert evaluate_formula('PERIODOFFSET("FY2024-Q4", 1)') == "FY2025-Q1"
+
+    def test_periodoffset_out_of_range_raises(self):
+        with pytest.raises(FormulaError, match="outside available periods"):
+            evaluate_formula(
+                'PERIODOFFSET("2024-01", -1)',
+                {"TIME_PERIODS": ["2024-01", "2024-02"]},
+            )
+
     def test_currentperiodstart_requires_context_or_arg(self):
         with pytest.raises(FormulaError, match="CURRENTPERIODSTART"):
             evaluate_formula("CURRENTPERIODSTART()")

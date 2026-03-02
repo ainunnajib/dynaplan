@@ -1,0 +1,20 @@
+Implemented F061 end-to-end.
+
+Key changes:
+- Extended calendar engine for ISO/custom weekly generation and retail patterns (`4-4-5`, `4-5-4`, `5-4-4`) in [time_calendar.py](/Users/ainunnajib/dynaplan/backend/app/engine/time_calendar.py).
+- Added persisted fiscal/calendar config on `TimeRange` (including `week` + `half_year` granularity support) in [time_range.py](/Users/ainunnajib/dynaplan/backend/app/models/time_range.py), [time_range.py](/Users/ainunnajib/dynaplan/backend/app/schemas/time_range.py), and [time_range.py](/Users/ainunnajib/dynaplan/backend/app/services/time_range.py).
+- Wired new fiscal calendar fields through time-dimension API/schema in [time_dimension.py](/Users/ainunnajib/dynaplan/backend/app/schemas/time_dimension.py) and [time_dimension.py](/Users/ainunnajib/dynaplan/backend/app/api/time_dimension.py).
+- Added `PERIODOFFSET` and calendar-metadata-backed period resolution for `INPERIOD` in [evaluator.py](/Users/ainunnajib/dynaplan/backend/app/engine/evaluator.py) and function registry update in [formula.py](/Users/ainunnajib/dynaplan/backend/app/engine/formula.py).
+- Updated frontend time-range granularity options in [TimeRangeManager.tsx](/Users/ainunnajib/dynaplan/frontend/src/components/time-range/TimeRangeManager.tsx).
+- Added/updated F061 coverage in:
+  - [test_time_calendar.py](/Users/ainunnajib/dynaplan/backend/tests/test_time_calendar.py)
+  - [test_time_dimension.py](/Users/ainunnajib/dynaplan/backend/tests/test_time_dimension.py)
+  - [test_time_range.py](/Users/ainunnajib/dynaplan/backend/tests/test_time_range.py)
+  - [test_formula_engine.py](/Users/ainunnajib/dynaplan/backend/tests/test_formula_engine.py)
+- Updated progress log in [claude-progress.txt](/Users/ainunnajib/dynaplan/claude-progress.txt).
+
+Verification run:
+- `cd backend && .venv/bin/python -m pytest -x --tb=short -q`  
+  Result: `1572 passed, 1 skipped, 1 xfailed, 1 xpassed`
+- `cd frontend && bun tsc --noEmit`  
+  Result: clean (exit 0)

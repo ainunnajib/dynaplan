@@ -5,7 +5,7 @@ import { fetchApi } from "@/lib/api";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-type Granularity = "month" | "quarter" | "year";
+type Granularity = "week" | "month" | "quarter" | "half_year" | "year";
 
 interface TimeRange {
   id: string;
@@ -141,10 +141,14 @@ export default function TimeRangeManager({ modelId }: TimeRangeManagerProps) {
 
   function placeholderForGranularity(granularity: Granularity): string {
     switch (granularity) {
+      case "week":
+        return "YYYY-WNN";
       case "month":
         return "YYYY-MM";
       case "quarter":
         return "YYYY-QN";
+      case "half_year":
+        return "YYYY-HN or FYYYYY-HN";
       case "year":
         return "YYYY";
     }
@@ -229,6 +233,8 @@ export default function TimeRangeManager({ modelId }: TimeRangeManagerProps) {
               >
                 <option value="month">Month</option>
                 <option value="quarter">Quarter</option>
+                <option value="week">Week</option>
+                <option value="half_year">Half Year</option>
                 <option value="year">Year</option>
               </select>
             </div>

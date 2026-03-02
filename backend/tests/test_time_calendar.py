@@ -10,7 +10,9 @@ import pytest
 
 from app.engine.time_calendar import (
     FiscalCalendar,
+    RetailCalendarPattern,
     TimePeriodType,
+    WeekPattern,
     generate_time_periods,
     get_period_for_date,
     spread_value,
@@ -33,12 +35,21 @@ def test_fiscal_calendar_defaults():
     cal = FiscalCalendar()
     assert cal.fiscal_year_start_month == 1
     assert cal.week_start_day == 0
+    assert cal.week_pattern == WeekPattern.iso
+    assert cal.retail_pattern == RetailCalendarPattern.standard
 
 
 def test_fiscal_calendar_custom():
-    cal = FiscalCalendar(fiscal_year_start_month=7, week_start_day=6)
+    cal = FiscalCalendar(
+        fiscal_year_start_month=7,
+        week_start_day=6,
+        week_pattern=WeekPattern.custom,
+        retail_pattern=RetailCalendarPattern.four_four_five,
+    )
     assert cal.fiscal_year_start_month == 7
     assert cal.week_start_day == 6
+    assert cal.week_pattern == WeekPattern.custom
+    assert cal.retail_pattern == RetailCalendarPattern.four_four_five
 
 
 def test_fiscal_calendar_invalid_month():
@@ -49,6 +60,11 @@ def test_fiscal_calendar_invalid_month():
 def test_fiscal_calendar_invalid_week_day():
     with pytest.raises(ValueError):
         FiscalCalendar(week_start_day=7)
+
+
+def test_fiscal_calendar_invalid_week_pattern():
+    with pytest.raises(ValueError):
+        FiscalCalendar(week_pattern="bad")  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------
@@ -271,6 +287,60 @@ def test_week_dates_within_year():
         we = date.fromisoformat(w["end_date"])
         assert ws <= we
         assert ws.year in (2023, 2024, 2025)  # weeks can slightly overflow
+
+
+def test_iso_weeks_are_full_7_day_ranges():
+    periods = generate_time_periods(2024, 2024, TimePeriodType.week)
+    weeks = periods_of_type(periods, TimePeriodType.week)
+    assert all((date.fromisoformat(w["end_date"]) - date.fromisoformat(w["start_date"])).days == 6 for w in weeks)
+
+
+def test_custom_week_pattern_allows_partial_month_weeks():
+    periods = generate_time_periods(
+        2024,
+        2024,
+        TimePeriodType.week,
+        FiscalCalendar(week_start_day=6, week_pattern=WeekPattern.custom),
+    )
+    weeks = periods_of_type(periods, TimePeriodType.week)
+    assert any(
+        (date.fromisoformat(w["end_date"]) - date.fromisoformat(w["start_date"])).days < 6
+        for w in weeks
+    )
+
+
+def test_retail_445_month_lengths():
+    cal = FiscalCalendar(retail_pattern=RetailCalendarPattern.four_four_five)
+    periods = generate_time_periods(2024, 2024, TimePeriodType.month, cal)
+    months = periods_of_type(periods, TimePeriodType.month)
+    assert len(months) == 12
+    assert months[0]["code"] == "FY2024-P01"
+    assert months[1]["code"] == "FY2024-P02"
+    assert months[2]["code"] == "FY2024-P03"
+    first_len = (date.fromisoformat(months[0]["end_date"]) - date.fromisoformat(months[0]["start_date"])).days + 1
+    second_len = (date.fromisoformat(months[1]["end_date"]) - date.fromisoformat(months[1]["start_date"])).days + 1
+    third_len = (date.fromisoformat(months[2]["end_date"]) - date.fromisoformat(months[2]["start_date"])).days + 1
+    assert (first_len, second_len, third_len) == (28, 28, 35)
+
+
+def test_retail_454_pattern():
+    cal = FiscalCalendar(retail_pattern=RetailCalendarPattern.four_five_four)
+    periods = generate_time_periods(2024, 2024, TimePeriodType.month, cal)
+    months = periods_of_type(periods, TimePeriodType.month)
+    first_len = (date.fromisoformat(months[0]["end_date"]) - date.fromisoformat(months[0]["start_date"])).days + 1
+    second_len = (date.fromisoformat(months[1]["end_date"]) - date.fromisoformat(months[1]["start_date"])).days + 1
+    third_len = (date.fromisoformat(months[2]["end_date"]) - date.fromisoformat(months[2]["start_date"])).days + 1
+    assert (first_len, second_len, third_len) == (28, 35, 28)
+
+
+def test_retail_544_pattern():
+    cal = FiscalCalendar(retail_pattern=RetailCalendarPattern.five_four_four)
+    periods = generate_time_periods(2024, 2024, TimePeriodType.month, cal)
+    months = periods_of_type(periods, TimePeriodType.month)
+    first_len = (date.fromisoformat(months[0]["end_date"]) - date.fromisoformat(months[0]["start_date"])).days + 1
+    second_len = (date.fromisoformat(months[1]["end_date"]) - date.fromisoformat(months[1]["start_date"])).days + 1
+    third_len = (date.fromisoformat(months[2]["end_date"]) - date.fromisoformat(months[2]["start_date"])).days + 1
+    assert (first_len, second_len, third_len) == (35, 28, 28)
 
 
 # ---------------------------------------------------------------------------
