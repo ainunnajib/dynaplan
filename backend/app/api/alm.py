@@ -191,6 +191,11 @@ async def initiate_promotion(
     tag = await get_revision_tag_by_id(db, data.revision_tag_id)
     if tag is None:
         raise HTTPException(status_code=404, detail="Revision tag not found")
+    if tag.environment_id != env_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Revision tag does not belong to source environment",
+        )
     record = await svc_initiate_promotion(db, env_id, current_user.id, data)
     return PromotionResponse.model_validate(record)
 

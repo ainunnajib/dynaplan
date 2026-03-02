@@ -106,6 +106,107 @@ async def create_tag(
     return resp.json()
 
 
+async def create_dimension(
+    client: AsyncClient,
+    token: str,
+    model_id: str,
+    name: str = "Products",
+    dimension_type: str = "custom",
+) -> dict:
+    resp = await client.post(
+        f"/models/{model_id}/dimensions",
+        json={"name": name, "dimension_type": dimension_type},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 201
+    return resp.json()
+
+
+async def create_dimension_item(
+    client: AsyncClient,
+    token: str,
+    dimension_id: str,
+    name: str,
+    code: str,
+    parent_id: str = None,
+    sort_order: int = 0,
+) -> dict:
+    body = {
+        "name": name,
+        "code": code,
+        "sort_order": sort_order,
+    }
+    if parent_id is not None:
+        body["parent_id"] = parent_id
+    resp = await client.post(
+        f"/dimensions/{dimension_id}/items",
+        json=body,
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 201
+    return resp.json()
+
+
+async def create_module(
+    client: AsyncClient,
+    token: str,
+    model_id: str,
+    name: str = "Revenue",
+) -> dict:
+    resp = await client.post(
+        f"/models/{model_id}/modules",
+        json={"name": name},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 201
+    return resp.json()
+
+
+async def create_line_item(
+    client: AsyncClient,
+    token: str,
+    module_id: str,
+    name: str,
+    applies_to_dimensions: list = None,
+    formula: str = None,
+) -> dict:
+    body = {
+        "name": name,
+        "format": "number",
+    }
+    if applies_to_dimensions is not None:
+        body["applies_to_dimensions"] = applies_to_dimensions
+    if formula is not None:
+        body["formula"] = formula
+    resp = await client.post(
+        f"/modules/{module_id}/line-items",
+        json=body,
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 201
+    return resp.json()
+
+
+async def write_cell(
+    client: AsyncClient,
+    token: str,
+    line_item_id: str,
+    dimension_members: list,
+    value,
+) -> dict:
+    resp = await client.post(
+        "/cells",
+        json={
+            "line_item_id": line_item_id,
+            "dimension_members": dimension_members,
+            "value": value,
+        },
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 200
+    return resp.json()
+
+
 # ---------------------------------------------------------------------------
 # Environment CRUD
 # ---------------------------------------------------------------------------
@@ -295,7 +396,13 @@ async def test_create_tag_no_snapshot(client: AsyncClient):
     env = await create_alm_environment(client, token, model_id)
     tag = await create_tag(client, token, env["id"], "v0.1")
     assert tag["tag_name"] == "v0.1"
-    assert tag["snapshot_data"] == {}
+    snapshot_data = tag["snapshot_data"]
+    assert isinstance(snapshot_data, dict)
+    assert "dimensions" in snapshot_data
+    assert "dimension_items" in snapshot_data
+    assert "modules" in snapshot_data
+    assert "line_items" in snapshot_data
+    assert "cell_values" in snapshot_data
 
 
 @pytest.mark.asyncio
@@ -581,6 +688,314 @@ async def test_fail_promotion_not_found(client: AsyncClient):
         headers=auth_headers(token),
     )
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# F066 Promotion runtime
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_initiate_promotion_includes_structural_diff(client: AsyncClient):
+    token = await register_and_login(client, "alm43@test.com")
+    source_ws = await create_workspace(client, token, "Source WS")
+    target_ws = await create_workspace(client, token, "Target WS")
+    source_model_id = await create_model(client, token, source_ws, "Source Model")
+    target_model_id = await create_model(client, token, target_ws, "Target Model")
+
+    source_dim = await create_dimension(client, token, source_model_id, "Products")
+    await create_dimension_item(
+        client, token, source_dim["id"], name="Widget A", code="WA"
+    )
+    source_module = await create_module(client, token, source_model_id, "Revenue")
+    await create_line_item(
+        client,
+        token,
+        source_module["id"],
+        name="Sales",
+        applies_to_dimensions=[source_dim["id"]],
+        formula="1+1",
+    )
+
+    source_env = await create_alm_environment(client, token, source_model_id, "dev", "Dev")
+    target_env = await create_alm_environment(client, token, target_model_id, "prod", "Prod")
+    tag = await create_tag(client, token, source_env["id"], "v1.0")
+
+    resp = await client.post(
+        f"/environments/{source_env['id']}/promote",
+        json={
+            "target_env_id": target_env["id"],
+            "revision_tag_id": tag["id"],
+            "merge_strategy": "additive",
+        },
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 201
+    summary = resp.json()["change_summary"]
+    assert summary["structural_diff"]["has_changes"] is True
+    assert summary["structural_diff"]["dimensions"]["counts"]["added"] >= 1
+    assert summary["structural_diff"]["modules"]["counts"]["added"] >= 1
+    assert summary["structural_diff"]["line_items"]["counts"]["added"] >= 1
+    assert summary["conflicts"]["has_conflicts"] is False
+
+
+@pytest.mark.asyncio
+async def test_complete_promotion_additive_applies_structures_and_cells(client: AsyncClient):
+    token = await register_and_login(client, "alm44@test.com")
+    source_ws = await create_workspace(client, token, "Source WS")
+    target_ws = await create_workspace(client, token, "Target WS")
+    source_model_id = await create_model(client, token, source_ws, "Source Model")
+    target_model_id = await create_model(client, token, target_ws, "Target Model")
+
+    source_dim = await create_dimension(client, token, source_model_id, "Products")
+    source_item = await create_dimension_item(
+        client, token, source_dim["id"], name="Widget A", code="WA"
+    )
+    source_module = await create_module(client, token, source_model_id, "Revenue")
+    source_sales = await create_line_item(
+        client,
+        token,
+        source_module["id"],
+        name="Sales",
+        applies_to_dimensions=[source_dim["id"]],
+    )
+    await write_cell(
+        client,
+        token,
+        line_item_id=source_sales["id"],
+        dimension_members=[source_item["id"]],
+        value=123.0,
+    )
+
+    target_module = await create_module(client, token, target_model_id, "Revenue")
+    await create_line_item(client, token, target_module["id"], name="Keep Existing")
+
+    source_env = await create_alm_environment(client, token, source_model_id, "dev", "Dev")
+    target_env = await create_alm_environment(client, token, target_model_id, "prod", "Prod")
+    tag = await create_tag(client, token, source_env["id"], "v1.0")
+
+    promote_resp = await client.post(
+        f"/environments/{source_env['id']}/promote",
+        json={
+            "target_env_id": target_env["id"],
+            "revision_tag_id": tag["id"],
+            "merge_strategy": "additive",
+        },
+        headers=auth_headers(token),
+    )
+    assert promote_resp.status_code == 201
+    promo_id = promote_resp.json()["id"]
+
+    complete_resp = await client.post(
+        f"/promotions/{promo_id}/complete",
+        headers=auth_headers(token),
+    )
+    assert complete_resp.status_code == 200
+    assert complete_resp.json()["status"] == "completed"
+
+    line_items_resp = await client.get(
+        f"/modules/{target_module['id']}/line-items",
+        headers=auth_headers(token),
+    )
+    assert line_items_resp.status_code == 200
+    line_items = line_items_resp.json()
+    line_item_names = {line_item["name"] for line_item in line_items}
+    assert "Keep Existing" in line_item_names
+    assert "Sales" in line_item_names
+    sales_line_item_id = next(
+        line_item["id"] for line_item in line_items if line_item["name"] == "Sales"
+    )
+
+    cells_resp = await client.get(
+        f"/modules/{target_module['id']}/cells",
+        headers=auth_headers(token),
+    )
+    assert cells_resp.status_code == 200
+    sales_cells = [
+        cell for cell in cells_resp.json() if cell["line_item_id"] == sales_line_item_id
+    ]
+    assert len(sales_cells) == 1
+    assert sales_cells[0]["value"] == 123.0
+
+    target_dims_resp = await client.get(
+        f"/models/{target_model_id}/dimensions",
+        headers=auth_headers(token),
+    )
+    assert target_dims_resp.status_code == 200
+    target_dim_names = {dimension["name"] for dimension in target_dims_resp.json()}
+    assert "Products" in target_dim_names
+
+
+@pytest.mark.asyncio
+async def test_complete_promotion_replace_overwrites_target_structure(client: AsyncClient):
+    token = await register_and_login(client, "alm45@test.com")
+    source_ws = await create_workspace(client, token, "Source WS")
+    target_ws = await create_workspace(client, token, "Target WS")
+    source_model_id = await create_model(client, token, source_ws, "Source Model")
+    target_model_id = await create_model(client, token, target_ws, "Target Model")
+
+    source_module = await create_module(client, token, source_model_id, "Forecast")
+    await create_line_item(client, token, source_module["id"], name="Revenue")
+    await create_module(client, token, target_model_id, "Legacy")
+
+    source_env = await create_alm_environment(client, token, source_model_id, "dev", "Dev")
+    target_env = await create_alm_environment(client, token, target_model_id, "prod", "Prod")
+    tag = await create_tag(client, token, source_env["id"], "v1.0")
+
+    promote_resp = await client.post(
+        f"/environments/{source_env['id']}/promote",
+        json={
+            "target_env_id": target_env["id"],
+            "revision_tag_id": tag["id"],
+            "merge_strategy": "replace",
+        },
+        headers=auth_headers(token),
+    )
+    assert promote_resp.status_code == 201
+    promo_id = promote_resp.json()["id"]
+
+    complete_resp = await client.post(
+        f"/promotions/{promo_id}/complete",
+        headers=auth_headers(token),
+    )
+    assert complete_resp.status_code == 200
+    assert complete_resp.json()["status"] == "completed"
+
+    modules_resp = await client.get(
+        f"/models/{target_model_id}/modules",
+        headers=auth_headers(token),
+    )
+    assert modules_resp.status_code == 200
+    module_names = {module["name"] for module in modules_resp.json()}
+    assert "Forecast" in module_names
+    assert "Legacy" not in module_names
+
+
+@pytest.mark.asyncio
+async def test_manual_promotion_blocks_when_target_has_conflicts(client: AsyncClient):
+    token = await register_and_login(client, "alm46@test.com")
+    source_ws = await create_workspace(client, token, "Source WS")
+    target_ws = await create_workspace(client, token, "Target WS")
+    source_model_id = await create_model(client, token, source_ws, "Source Model")
+    target_model_id = await create_model(client, token, target_ws, "Target Model")
+
+    source_module = await create_module(client, token, source_model_id, "Revenue")
+    await create_line_item(client, token, source_module["id"], name="Sales")
+
+    source_env = await create_alm_environment(client, token, source_model_id, "dev", "Dev")
+    target_env = await create_alm_environment(client, token, target_model_id, "prod", "Prod")
+    tag_v1 = await create_tag(client, token, source_env["id"], "v1.0")
+
+    first_promote_resp = await client.post(
+        f"/environments/{source_env['id']}/promote",
+        json={
+            "target_env_id": target_env["id"],
+            "revision_tag_id": tag_v1["id"],
+            "merge_strategy": "replace",
+        },
+        headers=auth_headers(token),
+    )
+    assert first_promote_resp.status_code == 201
+    first_promo_id = first_promote_resp.json()["id"]
+
+    first_complete_resp = await client.post(
+        f"/promotions/{first_promo_id}/complete",
+        headers=auth_headers(token),
+    )
+    assert first_complete_resp.status_code == 200
+    assert first_complete_resp.json()["status"] == "completed"
+
+    await create_module(client, token, target_model_id, "Target Hotfix")
+    tag_v2 = await create_tag(client, token, source_env["id"], "v2.0")
+
+    second_promote_resp = await client.post(
+        f"/environments/{source_env['id']}/promote",
+        json={
+            "target_env_id": target_env["id"],
+            "revision_tag_id": tag_v2["id"],
+            "merge_strategy": "manual",
+        },
+        headers=auth_headers(token),
+    )
+    assert second_promote_resp.status_code == 201
+    second_promo = second_promote_resp.json()
+    assert second_promo["change_summary"]["conflicts"]["has_conflicts"] is True
+
+    blocked_complete_resp = await client.post(
+        f"/promotions/{second_promo['id']}/complete",
+        headers=auth_headers(token),
+    )
+    assert blocked_complete_resp.status_code == 400
+
+    promotion_detail_resp = await client.get(
+        f"/promotions/{second_promo['id']}",
+        headers=auth_headers(token),
+    )
+    assert promotion_detail_resp.status_code == 200
+    assert promotion_detail_resp.json()["status"] == "pending"
+
+
+@pytest.mark.asyncio
+async def test_promotion_rollback_restores_target_on_failure(client: AsyncClient):
+    token = await register_and_login(client, "alm47@test.com")
+    source_ws = await create_workspace(client, token, "Source WS")
+    target_ws = await create_workspace(client, token, "Target WS")
+    source_model_id = await create_model(client, token, source_ws, "Source Model")
+    target_model_id = await create_model(client, token, target_ws, "Target Model")
+
+    await create_module(client, token, target_model_id, "Stable")
+
+    source_env = await create_alm_environment(client, token, source_model_id, "dev", "Dev")
+    target_env = await create_alm_environment(client, token, target_model_id, "prod", "Prod")
+    broken_tag = await create_tag(
+        client,
+        token,
+        source_env["id"],
+        "broken",
+        snapshot_data={
+            "dimensions": [
+                {
+                    "id": str(uuid.uuid4()),
+                    "name": "Broken Dimension",
+                    "dimension_type": "invalid_dimension_type",
+                    "max_items": None,
+                }
+            ],
+            "dimension_items": [],
+            "modules": [],
+            "line_items": [],
+            "cell_values": [],
+        },
+    )
+
+    promote_resp = await client.post(
+        f"/environments/{source_env['id']}/promote",
+        json={
+            "target_env_id": target_env["id"],
+            "revision_tag_id": broken_tag["id"],
+            "merge_strategy": "replace",
+        },
+        headers=auth_headers(token),
+    )
+    assert promote_resp.status_code == 201
+    promo_id = promote_resp.json()["id"]
+
+    complete_resp = await client.post(
+        f"/promotions/{promo_id}/complete",
+        headers=auth_headers(token),
+    )
+    assert complete_resp.status_code == 200
+    complete_data = complete_resp.json()
+    assert complete_data["status"] == "rolled_back"
+    assert complete_data["change_summary"]["rollback"]["performed"] is True
+
+    target_modules_resp = await client.get(
+        f"/models/{target_model_id}/modules",
+        headers=auth_headers(token),
+    )
+    assert target_modules_resp.status_code == 200
+    module_names = [module["name"] for module in target_modules_resp.json()]
+    assert module_names == ["Stable"]
 
 
 # ---------------------------------------------------------------------------

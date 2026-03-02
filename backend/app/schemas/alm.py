@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel
 
@@ -71,6 +71,7 @@ class RevisionTagResponse(BaseModel):
 class PromotionCreate(BaseModel):
     target_env_id: uuid.UUID
     revision_tag_id: uuid.UUID
+    merge_strategy: Literal["additive", "replace", "manual"] = "additive"
     change_summary: Optional[dict] = None
 
 

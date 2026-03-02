@@ -1,0 +1,22 @@
+Implemented F066 with real ALM promotion runtime and coverage.
+
+- Added merge strategy input (`additive`/`replace`/`manual`) in [backend/app/schemas/alm.py](/Users/ainunnajib/dynaplan/backend/app/schemas/alm.py:71).
+- Added source-tag ownership validation in [backend/app/api/alm.py](/Users/ainunnajib/dynaplan/backend/app/api/alm.py:197).
+- Reworked ALM service in [backend/app/services/alm.py](/Users/ainunnajib/dynaplan/backend/app/services/alm.py:73):
+  - model snapshot serialization for promotion execution
+  - deep structural diff (dimensions/items/modules/line-items/formulas/applies-to) at [backend/app/services/alm.py](/Users/ainunnajib/dynaplan/backend/app/services/alm.py:308)
+  - conflict detection vs last completed sync
+  - additive and replace execution engines at [backend/app/services/alm.py](/Users/ainunnajib/dynaplan/backend/app/services/alm.py:652) and [backend/app/services/alm.py](/Users/ainunnajib/dynaplan/backend/app/services/alm.py:851)
+  - manual strategy block when conflicts exist
+  - cell-copy for new structures
+  - rollback restore on execution failure in complete flow at [backend/app/services/alm.py](/Users/ainunnajib/dynaplan/backend/app/services/alm.py:1408)
+  - revision tags now auto-capture model snapshot if none provided at [backend/app/services/alm.py](/Users/ainunnajib/dynaplan/backend/app/services/alm.py:1267)
+- Expanded ALM tests in [backend/tests/test_alm.py](/Users/ainunnajib/dynaplan/backend/tests/test_alm.py:699), including additive, replace, manual-conflict blocking, rollback, and snapshot behavior updates.
+
+Validation run:
+- `cd backend && .venv/bin/python -m pytest -x --tb=short -q` -> `1437 passed, 1 skipped, 1 xfailed, 1 xpassed`
+- `cd frontend && bun tsc --noEmit` -> passed
+
+Progress file updated for this feature in [claude-progress.txt](/Users/ainunnajib/dynaplan/claude-progress.txt:3).
+
+Note: runtime log files also changed by test execution (`codex-run.log` and `codex-logs/...`).
