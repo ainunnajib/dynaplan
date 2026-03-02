@@ -1,7 +1,7 @@
 import uuid
-from typing import Dict, List, Optional
+from typing import Awaitable, Callable, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,8 +23,25 @@ from app.services.dimension import list_dimensions_for_model
 from app.services.import_export import export_module_to_csv, export_module_to_excel, import_to_dimension, import_to_module, parse_csv, parse_excel
 from app.services.pipeline import execute_run, get_pipeline_by_id, get_run_by_id, trigger_pipeline_run
 from app.services.planning_model import get_model_by_id, list_models_for_workspace
+from app.services.workspace_security import (
+    ApiKeyRateLimitExceededError,
+    WorkspaceClientCertificateAuthError,
+    WorkspaceIPAddressNotAllowedError,
+    WorkspaceSecurityValidationError,
+    enforce_api_key_rate_limit,
+    enforce_workspace_request_security,
+    resolve_workspace_id_for_dimension,
+    resolve_workspace_id_for_line_item,
+    resolve_workspace_id_for_model,
+    resolve_workspace_id_for_module,
+    resolve_workspace_id_for_pipeline,
+    resolve_workspace_id_for_pipeline_run,
+    resolve_workspace_id_for_process,
+    resolve_workspace_ids_for_line_items,
+)
 
 router = APIRouter(prefix="/api/v1", tags=["public-api"])
+WorkspaceResolver = Callable[[Request, AsyncSession], Awaitable[List[uuid.UUID]]]
 
 
 # ── Auth dependency ─────────────────────────────────────────────────────────────
@@ -47,19 +64,194 @@ async def get_api_key(
             detail="Invalid or revoked API key",
             headers={"WWW-Authenticate": "X-API-Key"},
         )
+    try:
+        enforce_api_key_rate_limit(api_key)
+    except ApiKeyRateLimitExceededError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=str(exc),
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc
     return api_key
 
 
-def require_scope(required_scope: str):
+def require_scope(
+    required_scope: str,
+    workspace_resolver: Optional[WorkspaceResolver] = None,
+):
     """Return a FastAPI dependency that enforces a specific scope on the API key."""
-    async def _check(api_key: ApiKey = Depends(get_api_key)) -> ApiKey:
+    async def _check(
+        request: Request,
+        db: AsyncSession = Depends(get_db),
+        api_key: ApiKey = Depends(get_api_key),
+    ) -> ApiKey:
         if not check_scope(api_key, required_scope):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"API key missing required scope: '{required_scope}'",
             )
+        if workspace_resolver is not None:
+            workspace_ids = await workspace_resolver(request, db)
+            for workspace_id in workspace_ids:
+                try:
+                    await enforce_workspace_request_security(db, workspace_id, request)
+                except WorkspaceIPAddressNotAllowedError as exc:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=str(exc),
+                    ) from exc
+                except WorkspaceClientCertificateAuthError as exc:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail=str(exc),
+                    ) from exc
+                except WorkspaceSecurityValidationError as exc:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=str(exc),
+                    ) from exc
         return api_key
     return _check
+
+
+def _try_parse_uuid(raw_value: Optional[str]) -> Optional[uuid.UUID]:
+    if not raw_value:
+        return None
+    try:
+        return uuid.UUID(str(raw_value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _dedupe_workspace_ids(workspace_ids: List[uuid.UUID]) -> List[uuid.UUID]:
+    deduped: List[uuid.UUID] = []
+    seen = set()
+    for workspace_id in workspace_ids:
+        if workspace_id in seen:
+            continue
+        seen.add(workspace_id)
+        deduped.append(workspace_id)
+    return deduped
+
+
+async def _resolve_workspace_from_workspace_query(
+    request: Request,
+    db: AsyncSession,
+) -> List[uuid.UUID]:
+    del db
+    workspace_id = _try_parse_uuid(request.query_params.get("workspace_id"))
+    if workspace_id is None:
+        return []
+    return [workspace_id]
+
+
+async def _resolve_workspace_from_model_path(
+    request: Request,
+    db: AsyncSession,
+) -> List[uuid.UUID]:
+    model_id = _try_parse_uuid(request.path_params.get("model_id"))
+    if model_id is None:
+        return []
+    workspace_id = await resolve_workspace_id_for_model(db, model_id)
+    return [workspace_id] if workspace_id is not None else []
+
+
+async def _resolve_workspace_from_dimension_path(
+    request: Request,
+    db: AsyncSession,
+) -> List[uuid.UUID]:
+    dimension_id = _try_parse_uuid(request.path_params.get("dimension_id"))
+    if dimension_id is None:
+        return []
+    workspace_id = await resolve_workspace_id_for_dimension(db, dimension_id)
+    return [workspace_id] if workspace_id is not None else []
+
+
+async def _resolve_workspace_from_module_path(
+    request: Request,
+    db: AsyncSession,
+) -> List[uuid.UUID]:
+    module_id = _try_parse_uuid(request.path_params.get("module_id"))
+    if module_id is None:
+        return []
+    workspace_id = await resolve_workspace_id_for_module(db, module_id)
+    return [workspace_id] if workspace_id is not None else []
+
+
+async def _resolve_workspace_from_process_path(
+    request: Request,
+    db: AsyncSession,
+) -> List[uuid.UUID]:
+    process_id = _try_parse_uuid(request.path_params.get("process_id"))
+    if process_id is None:
+        return []
+    workspace_id = await resolve_workspace_id_for_process(db, process_id)
+    return [workspace_id] if workspace_id is not None else []
+
+
+async def _resolve_workspace_from_pipeline_path(
+    request: Request,
+    db: AsyncSession,
+) -> List[uuid.UUID]:
+    pipeline_id = _try_parse_uuid(request.path_params.get("pipeline_id"))
+    if pipeline_id is None:
+        return []
+    workspace_id = await resolve_workspace_id_for_pipeline(db, pipeline_id)
+    return [workspace_id] if workspace_id is not None else []
+
+
+async def _resolve_workspace_from_pipeline_run_path(
+    request: Request,
+    db: AsyncSession,
+) -> List[uuid.UUID]:
+    run_id = _try_parse_uuid(request.path_params.get("run_id"))
+    if run_id is None:
+        return []
+    workspace_id = await resolve_workspace_id_for_pipeline_run(db, run_id)
+    return [workspace_id] if workspace_id is not None else []
+
+
+async def _resolve_workspace_from_line_item_body(
+    request: Request,
+    db: AsyncSession,
+) -> List[uuid.UUID]:
+    try:
+        payload = await request.json()
+    except Exception:  # noqa: BLE001
+        return []
+    if not isinstance(payload, dict):
+        return []
+    line_item_id = _try_parse_uuid(payload.get("line_item_id"))
+    if line_item_id is None:
+        return []
+    workspace_id = await resolve_workspace_id_for_line_item(db, line_item_id)
+    return [workspace_id] if workspace_id is not None else []
+
+
+async def _resolve_workspace_from_bulk_cells_body(
+    request: Request,
+    db: AsyncSession,
+) -> List[uuid.UUID]:
+    try:
+        payload = await request.json()
+    except Exception:  # noqa: BLE001
+        return []
+    if not isinstance(payload, dict):
+        return []
+    raw_cells = payload.get("cells")
+    if not isinstance(raw_cells, list):
+        return []
+
+    line_item_ids: List[uuid.UUID] = []
+    for raw_cell in raw_cells:
+        if not isinstance(raw_cell, dict):
+            continue
+        line_item_id = _try_parse_uuid(raw_cell.get("line_item_id"))
+        if line_item_id is not None:
+            line_item_ids.append(line_item_id)
+
+    workspace_ids = await resolve_workspace_ids_for_line_items(db, line_item_ids)
+    return _dedupe_workspace_ids(workspace_ids)
 
 
 # ── Import/Export helpers ─────────────────────────────────────────────────────
@@ -108,7 +300,9 @@ async def _parse_upload_file(file: UploadFile):
 async def public_list_models(
     workspace_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(require_scope("read:models")),
+    api_key: ApiKey = Depends(
+        require_scope("read:models", _resolve_workspace_from_workspace_query)
+    ),
 ):
     """List all models in a workspace using an API key with read:models scope."""
     models = await list_models_for_workspace(db, workspace_id=workspace_id)
@@ -123,7 +317,9 @@ async def public_list_models(
 async def public_get_model(
     model_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(require_scope("read:models")),
+    api_key: ApiKey = Depends(
+        require_scope("read:models", _resolve_workspace_from_model_path)
+    ),
 ):
     """Get a single model by ID using an API key with read:models scope."""
     model = await get_model_by_id(db, model_id=model_id)
@@ -145,7 +341,9 @@ async def public_get_model(
 async def public_list_dimensions(
     model_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(require_scope("read:dimensions")),
+    api_key: ApiKey = Depends(
+        require_scope("read:dimensions", _resolve_workspace_from_model_path)
+    ),
 ):
     """List all dimensions for a model using an API key with read:dimensions scope."""
     model = await get_model_by_id(db, model_id=model_id)
@@ -168,7 +366,9 @@ async def public_list_dimensions(
 async def public_query_cells(
     data: CellQuery,
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(require_scope("read:cells")),
+    api_key: ApiKey = Depends(
+        require_scope("read:cells", _resolve_workspace_from_line_item_body)
+    ),
 ):
     """Query cells for a line item using an API key with read:cells scope."""
     return await read_cells_for_line_item(
@@ -188,7 +388,9 @@ async def public_query_cells(
 async def public_write_cell(
     data: CellWrite,
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(require_scope("write:cells")),
+    api_key: ApiKey = Depends(
+        require_scope("write:cells", _resolve_workspace_from_line_item_body)
+    ),
 ):
     """Write (upsert) a single cell value using an API key with write:cells scope."""
     return await write_cell(
@@ -209,7 +411,9 @@ async def public_write_cell(
 async def public_write_cells_bulk(
     data: CellBulkWrite,
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(require_scope("write:cells")),
+    api_key: ApiKey = Depends(
+        require_scope("write:cells", _resolve_workspace_from_bulk_cells_body)
+    ),
 ):
     """Bulk write (upsert) multiple cell values using an API key with write:cells scope."""
     return await write_cells_bulk(db, cells=data.cells)
@@ -229,7 +433,9 @@ async def public_import_dimension_items(
     name_column: str = Query("name", description="Column that contains item names"),
     parent_column: Optional[str] = Query(None, description="Column that contains parent item names"),
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(require_scope("write:models")),
+    api_key: ApiKey = Depends(
+        require_scope("write:models", _resolve_workspace_from_dimension_path)
+    ),
 ):
     del api_key
     result = await db.execute(select(Dimension).where(Dimension.id == dimension_id))
@@ -270,7 +476,9 @@ async def public_import_module_cells(
     module_id: uuid.UUID,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(require_scope("write:models")),
+    api_key: ApiKey = Depends(
+        require_scope("write:models", _resolve_workspace_from_module_path)
+    ),
 ):
     del api_key
     mod_result = await db.execute(select(Module).where(Module.id == module_id))
@@ -321,7 +529,9 @@ async def public_export_module(
     module_id: uuid.UUID,
     format: ExportFormat = Query(ExportFormat.csv, description="Export format: csv or xlsx"),
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(require_scope("read:models")),
+    api_key: ApiKey = Depends(
+        require_scope("read:models", _resolve_workspace_from_module_path)
+    ),
 ):
     del api_key
     mod_result = await db.execute(select(Module).where(Module.id == module_id))
@@ -356,7 +566,9 @@ async def public_export_module(
 async def public_run_process(
     process_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(require_scope("write:models")),
+    api_key: ApiKey = Depends(
+        require_scope("write:models", _resolve_workspace_from_process_path)
+    ),
 ):
     process = await get_process_by_id(db, process_id)
     if process is None:
@@ -372,7 +584,9 @@ async def public_run_process(
 async def public_list_process_runs(
     process_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(require_scope("read:models")),
+    api_key: ApiKey = Depends(
+        require_scope("read:models", _resolve_workspace_from_process_path)
+    ),
 ):
     del api_key
     process = await get_process_by_id(db, process_id)
@@ -390,7 +604,9 @@ async def public_list_process_runs(
 async def public_trigger_pipeline_run(
     pipeline_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(require_scope("write:models")),
+    api_key: ApiKey = Depends(
+        require_scope("write:models", _resolve_workspace_from_pipeline_path)
+    ),
 ):
     pipeline = await get_pipeline_by_id(db, pipeline_id)
     if pipeline is None:
@@ -410,7 +626,9 @@ async def public_trigger_pipeline_run(
 async def public_execute_pipeline_run(
     run_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(require_scope("write:models")),
+    api_key: ApiKey = Depends(
+        require_scope("write:models", _resolve_workspace_from_pipeline_run_path)
+    ),
 ):
     del api_key
     run = await get_run_by_id(db, run_id)
@@ -431,7 +649,9 @@ async def public_execute_pipeline_run(
 async def public_get_pipeline_run(
     run_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(require_scope("read:models")),
+    api_key: ApiKey = Depends(
+        require_scope("read:models", _resolve_workspace_from_pipeline_run_path)
+    ),
 ):
     del api_key
     run = await get_run_by_id(db, run_id)
@@ -451,7 +671,9 @@ async def public_get_pipeline_run(
 async def public_run_pipeline(
     pipeline_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    api_key: ApiKey = Depends(require_scope("write:models")),
+    api_key: ApiKey = Depends(
+        require_scope("write:models", _resolve_workspace_from_pipeline_path)
+    ),
 ):
     pipeline = await get_pipeline_by_id(db, pipeline_id)
     if pipeline is None:

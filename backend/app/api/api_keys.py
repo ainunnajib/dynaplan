@@ -41,6 +41,7 @@ async def create_key(
         user_id=current_user.id,
         name=data.name,
         scopes=data.scopes,
+        rate_limit_per_minute=data.rate_limit_per_minute,
     )
     return ApiKeyCreatedResponse(
         id=api_key.id,
@@ -48,6 +49,7 @@ async def create_key(
         user_id=api_key.user_id,
         scopes=api_key.scopes,
         is_active=api_key.is_active,
+        rate_limit_per_minute=api_key.rate_limit_per_minute,
         last_used_at=api_key.last_used_at,
         created_at=api_key.created_at,
         updated_at=api_key.updated_at,

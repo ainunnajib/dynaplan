@@ -45,6 +45,7 @@ from app.api.model_encryption import router as model_encryption_router
 from app.api.time_dimension import router as time_dimension_router
 from app.api.version import router as version_router
 from app.api.workspace import router as workspace_router
+from app.api.workspace_security import router as workspace_security_router
 from app.api.workspace_quota import router as workspace_quota_router
 from app.core.config import settings
 from app.core.database import dispose_engines, engine
@@ -71,6 +72,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(workspace_router)
 app.include_router(workspace_quota_router)
+app.include_router(workspace_security_router)
 app.include_router(planning_model_router)
 app.include_router(dimension_router)
 app.include_router(composite_dimension_router)
@@ -128,6 +130,19 @@ async def _ensure_schema_compatibility(conn) -> None:
             "ALTER TABLE cell_values ADD COLUMN IF NOT EXISTS encryption_key_id UUID"
         )
         await conn.exec_driver_sql(
+            "ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS rate_limit_per_minute INTEGER"
+        )
+        await conn.exec_driver_sql(
+            "UPDATE api_keys SET rate_limit_per_minute = 120 "
+            "WHERE rate_limit_per_minute IS NULL"
+        )
+        await conn.exec_driver_sql(
+            "ALTER TABLE api_keys ALTER COLUMN rate_limit_per_minute SET DEFAULT 120"
+        )
+        await conn.exec_driver_sql(
+            "ALTER TABLE api_keys ALTER COLUMN rate_limit_per_minute SET NOT NULL"
+        )
+        await conn.exec_driver_sql(
             "CREATE INDEX IF NOT EXISTS ix_cell_values_encryption_key_id "
             "ON cell_values (encryption_key_id)"
         )
@@ -151,6 +166,17 @@ async def _ensure_schema_compatibility(conn) -> None:
             await conn.exec_driver_sql(
                 "ALTER TABLE cell_values ADD COLUMN encryption_key_id CHAR(32)"
             )
+
+        api_key_info = await conn.exec_driver_sql("PRAGMA table_info(api_keys)")
+        api_key_columns = {row[1] for row in api_key_info.fetchall()}
+        if "rate_limit_per_minute" not in api_key_columns:
+            await conn.exec_driver_sql(
+                "ALTER TABLE api_keys ADD COLUMN rate_limit_per_minute INTEGER DEFAULT 120"
+            )
+        await conn.exec_driver_sql(
+            "UPDATE api_keys SET rate_limit_per_minute = 120 "
+            "WHERE rate_limit_per_minute IS NULL"
+        )
 
 
 @app.on_event("startup")

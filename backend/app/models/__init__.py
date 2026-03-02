@@ -45,5 +45,6 @@ from app.models.pipeline import Pipeline, PipelineStep, PipelineRun, PipelineSte
 from app.models.scim import SCIMConfig, SCIMGroup, SCIMGroupMember, SCIMProvisioningLog
 from app.models.saved_view import SavedView
 from app.models.workspace_quota import WorkspaceQuota
+from app.models.workspace_security import WorkspaceSecurityPolicy, WorkspaceClientCertificate
 from app.models.data_hub import DataHubColumnType, DataHubTable, DataHubRow, DataHubLineage
 from app.models.model_encryption import ModelEncryptionKey

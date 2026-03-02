@@ -1,0 +1,36 @@
+Implemented F071 end-to-end.
+
+**What I changed**
+- Added workspace security data models for policy + client certificates:
+  - [workspace_security.py](/Users/ainunnajib/dynaplan/backend/app/models/workspace_security.py)
+  - Registered in [models `__init__`](/Users/ainunnajib/dynaplan/backend/app/models/__init__.py)
+- Added workspace security service layer (IP allowlist validation/enforcement, certificate parsing/fingerprint auth, workspace resolution helpers, per-key rate-limit engine):
+  - [workspace_security.py](/Users/ainunnajib/dynaplan/backend/app/services/workspace_security.py)
+- Added workspace security API endpoints (owner-scoped):
+  - `GET/PUT /workspaces/{workspace_id}/security`
+  - `GET/POST/DELETE /workspaces/{workspace_id}/security/certificates...`
+  - [workspace_security router](/Users/ainunnajib/dynaplan/backend/app/api/workspace_security.py)
+- Wired router + schema compatibility updates:
+  - [main.py](/Users/ainunnajib/dynaplan/backend/app/main.py)
+- Integrated `/api/v1` enforcement for:
+  - workspace IP allowlist
+  - workspace certificate auth (fingerprint or PEM header path)
+  - API key request rate limiting (429 + `Retry-After`)
+  - [public_api.py](/Users/ainunnajib/dynaplan/backend/app/api/public_api.py)
+- Added per-key rate-limit config on API keys (`rate_limit_per_minute`) across model/schema/create flow:
+  - [api_key model](/Users/ainunnajib/dynaplan/backend/app/models/api_key.py)
+  - [api_key schema](/Users/ainunnajib/dynaplan/backend/app/schemas/api_key.py)
+  - [api_keys API](/Users/ainunnajib/dynaplan/backend/app/api/api_keys.py)
+  - [api_key service](/Users/ainunnajib/dynaplan/backend/app/services/api_key.py)
+- Ensured default security policy creation with workspace creation:
+  - [workspace service](/Users/ainunnajib/dynaplan/backend/app/services/workspace.py)
+- Added F071 backend tests (15):
+  - [test_workspace_security.py](/Users/ainunnajib/dynaplan/backend/tests/test_workspace_security.py)
+- Updated progress tracking:
+  - [claude-progress.txt](/Users/ainunnajib/dynaplan/claude-progress.txt)
+
+**Validation**
+- `cd backend && .venv/bin/python -m pytest -x --tb=short -q`  
+  Result: `1615 passed, 1 skipped, 1 xfailed, 1 xpassed`
+- `cd frontend && bun tsc --noEmit`  
+  Result: clean (no errors)

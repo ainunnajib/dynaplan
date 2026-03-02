@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.workspace import Workspace
 from app.schemas.workspace import WorkspaceCreate, WorkspaceUpdate
+from app.services.workspace_security import ensure_workspace_security_policy
 from app.services.workspace_quota import ensure_workspace_quota
 
 
@@ -21,6 +22,7 @@ async def create_workspace(
     await db.commit()
     await db.refresh(workspace)
     await ensure_workspace_quota(db, workspace.id)
+    await ensure_workspace_security_policy(db, workspace.id)
     return workspace
 
 

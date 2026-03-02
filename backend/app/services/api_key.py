@@ -27,6 +27,7 @@ async def create_api_key(
     user_id: uuid.UUID,
     name: str,
     scopes: List[str],
+    rate_limit_per_minute: Optional[int] = 120,
 ) -> Tuple[ApiKey, str]:
     """Create a new API key for a user.
 
@@ -40,6 +41,7 @@ async def create_api_key(
         user_id=user_id,
         scopes=scopes,
         is_active=True,
+        rate_limit_per_minute=rate_limit_per_minute or 120,
     )
     db.add(api_key)
     await db.commit()
