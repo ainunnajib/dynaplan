@@ -91,7 +91,8 @@ def aggregate_values(values: List[float], method: str) -> float:
 
     Args:
         values: List of numeric values to aggregate.
-        method: One of 'sum', 'average', 'min', 'max', 'count', 'first', 'last'.
+        method: One of 'sum', 'average', 'min', 'max', 'count', 'first', 'last',
+            'opening_balance', 'closing_balance', 'weighted_average'.
 
     Returns:
         The aggregated scalar value.
@@ -99,24 +100,26 @@ def aggregate_values(values: List[float], method: str) -> float:
     Raises:
         ValueError: On unsupported method.
     """
+    normalized_method = (method or "sum").strip().lower()
+
     if not values:
-        if method == "count":
+        if normalized_method == "count":
             return 0.0
         return 0.0
 
-    if method == "sum":
+    if normalized_method == "sum":
         return sum(values)
-    if method == "average":
+    if normalized_method in {"average", "weighted_average"}:
         return sum(values) / len(values)
-    if method == "min":
+    if normalized_method == "min":
         return min(values)
-    if method == "max":
+    if normalized_method == "max":
         return max(values)
-    if method == "count":
+    if normalized_method == "count":
         return float(len(values))
-    if method == "first":
+    if normalized_method in {"first", "opening_balance"}:
         return values[0]
-    if method == "last":
+    if normalized_method in {"last", "closing_balance"}:
         return values[-1]
 
     raise ValueError(f"Unknown aggregation method: {method}")

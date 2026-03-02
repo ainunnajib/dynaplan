@@ -8,6 +8,7 @@ import {
   type DimensionItem,
   type CellValue,
   getLineItemDimensionIds,
+  getCells,
 } from "@/lib/api";
 import { useCellData, type DimensionMember } from "@/hooks/useCellData";
 import EditableCell from "./EditableCell";
@@ -26,6 +27,8 @@ export interface DataGridProps {
 const ROW_HEIGHT = 36;
 const ROW_HEADER_WIDTH = 220;
 const COL_WIDTH = 130;
+const MAX_COLUMNS = 250;
+const MAX_ITEMS_PER_DIMENSION = 40;
 
 // ── Cartesian product ─────────────────────────────────────────────────────────
 
@@ -43,6 +46,37 @@ function cartesianProduct<T>(arrays: T[][]): T[][] {
     },
     [[]]
   );
+}
+
+function estimateCartesianSize(arrays: unknown[][]): number {
+  return arrays.reduce((acc, curr) => acc * Math.max(curr.length, 1), 1);
+}
+
+function capDimensionArrays<T>(arrays: T[][], maxColumns: number): T[][] {
+  const capped = arrays.map((items) =>
+    items.slice(0, Math.max(1, Math.min(items.length, MAX_ITEMS_PER_DIMENSION)))
+  );
+
+  let estimated = estimateCartesianSize(capped);
+  if (estimated <= maxColumns) return capped;
+
+  // Reduce the widest dimension first until the cartesian product fits.
+  while (estimated > maxColumns) {
+    let largestIndex = 0;
+    for (let i = 1; i < capped.length; i++) {
+      if (capped[i].length > capped[largestIndex].length) {
+        largestIndex = i;
+      }
+    }
+
+    const currentLen = capped[largestIndex].length;
+    if (currentLen <= 1) break;
+    const nextLen = Math.max(1, Math.floor(currentLen / 2));
+    capped[largestIndex] = capped[largestIndex].slice(0, nextLen);
+    estimated = estimateCartesianSize(capped);
+  }
+
+  return capped;
 }
 
 // ── Column builder ─────────────────────────────────────────────────────────────
@@ -75,7 +109,8 @@ function buildColumns(
     );
   }
 
-  const dimArrays = usedDimensions.map((d) => itemsByDim.get(d.id) ?? []);
+  const rawDimArrays = usedDimensions.map((d) => itemsByDim.get(d.id) ?? []);
+  const dimArrays = capDimensionArrays(rawDimArrays, MAX_COLUMNS);
   const combos = cartesianProduct(dimArrays);
 
   return combos.map((combo) => ({
@@ -114,24 +149,47 @@ export default function DataGrid({
 }: DataGridProps) {
   const { writeCell, getCachedValue, isLoading, error, initCache } = useCellData(moduleId);
 
+  const hydrateCache = useCallback(
+    (cells: CellValue[]) => {
+      if (!cells || cells.length === 0) return;
+      const converted = cells.map((cell) => ({
+        line_item_id: cell.line_item_id,
+        dimension_members: cell.dimension_member_ids.map((memberId) => {
+          const item = dimensionItems.find((i) => i.id === memberId);
+          return { dimension_id: item?.dimension_id ?? "", member_id: memberId };
+        }),
+        value: cell.value,
+      }));
+      initCache(converted);
+    },
+    [dimensionItems, initCache]
+  );
+
   // Hydrate cache with server-side pre-fetched cells (no API writes triggered)
   const hydratedRef = useRef(false);
   useEffect(() => {
-    if (hydratedRef.current || !initialCells || initialCells.length === 0) return;
+    if (hydratedRef.current) return;
     hydratedRef.current = true;
-    // Convert api.ts CellValue (dimension_member_ids: string[]) to
-    // useCellData CellValue (dimension_members: DimensionMember[])
-    const converted = initialCells.map((cell) => ({
-      line_item_id: cell.line_item_id,
-      dimension_members: cell.dimension_member_ids.map((memberId) => {
-        const item = dimensionItems.find((i) => i.id === memberId);
-        return { dimension_id: item?.dimension_id ?? "", member_id: memberId };
-      }),
-      value: cell.value,
-    }));
-    initCache(converted);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (initialCells && initialCells.length > 0) {
+      hydrateCache(initialCells);
+      return;
+    }
+
+    // Large modules skip SSR cell hydration. Load values client-side instead.
+    let cancelled = false;
+    void (async () => {
+      try {
+        const cells = await getCells(moduleId);
+        if (cancelled) return;
+        hydrateCache(cells);
+      } catch {
+        // Grid remains editable even if initial cell prefetch fails.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrateCache, initialCells, moduleId]);
 
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");

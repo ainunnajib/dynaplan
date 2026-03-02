@@ -101,19 +101,20 @@ echo "Started: $(date)" | tee -a "$LOG_DIR/progress.log"
 echo "Logs: $LOG_DIR" | tee -a "$LOG_DIR/progress.log"
 
 # ══════════════════════════════════════════════════════════════
-# WAVE 1 — Foundation (no dependencies)
+# WAVE 1 — SKIPPED (already completed and pushed)
 # ══════════════════════════════════════════════════════════════
-run_wave 1 F045 F046 F047 F056 F059 F062 F069 F072
+echo "" | tee -a "$LOG_DIR/progress.log"
+echo "WAVE 1 — SKIPPED (already completed)" | tee -a "$LOG_DIR/progress.log"
 
 # ══════════════════════════════════════════════════════════════
-# WAVE 2 — Depends on Wave 1
+# WAVE 2 — SKIPPED (already completed and pushed)
 # ══════════════════════════════════════════════════════════════
-run_wave 2 F048 F049 F050 F063 F066
+echo "WAVE 2 — SKIPPED (already completed)" | tee -a "$LOG_DIR/progress.log"
 
 # ══════════════════════════════════════════════════════════════
-# WAVE 3 — Depends on Wave 2
+# WAVE 3 — Resume from F055 (F051-F054 already done)
 # ══════════════════════════════════════════════════════════════
-run_wave 3 F051 F052 F053 F054 F055 F060 F064 F065
+run_wave 3 F055 F060 F064 F065
 
 # ══════════════════════════════════════════════════════════════
 # WAVE 4 — Final features

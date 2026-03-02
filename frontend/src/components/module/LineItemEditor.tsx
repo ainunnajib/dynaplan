@@ -6,7 +6,18 @@ import type { LineItem, LineItemFormat, Dimension } from "@/lib/api";
 import FormulaInput from "./FormulaInput";
 import DimensionSelector from "./DimensionSelector";
 
-type SummaryMethod = "sum" | "average" | "min" | "max" | "none" | "formula";
+type SummaryMethod =
+  | "sum"
+  | "average"
+  | "min"
+  | "max"
+  | "none"
+  | "formula"
+  | "first"
+  | "last"
+  | "opening_balance"
+  | "closing_balance"
+  | "weighted_average";
 
 interface LineItemEditorProps {
   lineItem: LineItem;
@@ -29,8 +40,13 @@ const FORMAT_OPTIONS: { value: LineItemFormat; label: string }[] = [
 const SUMMARY_OPTIONS: { value: SummaryMethod; label: string }[] = [
   { value: "sum", label: "Sum" },
   { value: "average", label: "Average" },
+  { value: "weighted_average", label: "Weighted Average" },
   { value: "min", label: "Min" },
   { value: "max", label: "Max" },
+  { value: "first", label: "First" },
+  { value: "last", label: "Last" },
+  { value: "opening_balance", label: "Opening Balance" },
+  { value: "closing_balance", label: "Closing Balance" },
   { value: "none", label: "None" },
   { value: "formula", label: "Formula" },
 ];
@@ -97,7 +113,7 @@ export default function LineItemEditor({
             name: effectiveName.trim(),
             format: effectiveFormat,
             formula: effectiveFormula.trim() || null,
-            summary_method: effectiveSummary === "none" ? null : effectiveSummary,
+            summary_method: effectiveSummary,
             applies_to_dimensions: effectiveAppliesTo,
           }),
         }

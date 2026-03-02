@@ -93,6 +93,9 @@ def test_aggregate_bottom_up_python_fallback_normalizes_none_and_formula():
     assert rust_bridge.aggregate_bottom_up(None, values, "none") == 60.0
     assert rust_bridge.aggregate_bottom_up(None, values, "formula") == 60.0
     assert rust_bridge.aggregate_bottom_up(None, values, "average") == 20.0
+    assert rust_bridge.aggregate_bottom_up(None, values, "weighted_average") == 20.0
+    assert rust_bridge.aggregate_bottom_up(None, values, "opening_balance") == 10.0
+    assert rust_bridge.aggregate_bottom_up(None, values, "closing_balance") == 30.0
 
 
 def test_f050_bridge_methods_delegate_to_native_module_when_available(monkeypatch):

@@ -319,6 +319,18 @@ def test_aggregate_last():
     assert aggregate_values([7.0, 2.0, 9.0], "last") == 9.0
 
 
+def test_aggregate_opening_balance():
+    assert aggregate_values([7.0, 2.0, 9.0], "opening_balance") == 7.0
+
+
+def test_aggregate_closing_balance():
+    assert aggregate_values([7.0, 2.0, 9.0], "closing_balance") == 9.0
+
+
+def test_aggregate_weighted_average_defaults_to_average():
+    assert abs(aggregate_values([10.0, 20.0, 30.0], "weighted_average") - 20.0) < 1e-9
+
+
 def test_aggregate_empty_list():
     assert aggregate_values([], "sum") == 0.0
     assert aggregate_values([], "count") == 0.0
@@ -465,6 +477,92 @@ async def test_aggregate_bottom_up_average(client: AsyncClient):
             "line_item_id": line_item_id,
             "parent_member_id": parent["id"],
         },
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 200
+    assert abs(resp.json()["parent_value"] - 50.0) < 1e-9
+
+
+@pytest.mark.asyncio
+async def test_aggregate_bottom_up_first(client: AsyncClient):
+    token, line_item_id, dim_id, parent, child1, child2 = await setup_hierarchy(
+        client, "agg_first", summary_method="first"
+    )
+    await write_cell(client, token, line_item_id, child1["id"], 15.0)
+    await write_cell(client, token, line_item_id, child2["id"], 85.0)
+
+    resp = await client.post(
+        "/planning/aggregate",
+        json={"line_item_id": line_item_id, "parent_member_id": parent["id"]},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 200
+    # Children are ordered by (sort_order, name): Canada before USA.
+    assert abs(resp.json()["parent_value"] - 85.0) < 1e-9
+
+
+@pytest.mark.asyncio
+async def test_aggregate_bottom_up_last(client: AsyncClient):
+    token, line_item_id, dim_id, parent, child1, child2 = await setup_hierarchy(
+        client, "agg_last", summary_method="last"
+    )
+    await write_cell(client, token, line_item_id, child1["id"], 15.0)
+    await write_cell(client, token, line_item_id, child2["id"], 85.0)
+
+    resp = await client.post(
+        "/planning/aggregate",
+        json={"line_item_id": line_item_id, "parent_member_id": parent["id"]},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 200
+    assert abs(resp.json()["parent_value"] - 15.0) < 1e-9
+
+
+@pytest.mark.asyncio
+async def test_aggregate_bottom_up_opening_balance(client: AsyncClient):
+    token, line_item_id, dim_id, parent, child1, child2 = await setup_hierarchy(
+        client, "agg_opening", summary_method="opening_balance"
+    )
+    await write_cell(client, token, line_item_id, child1["id"], 12.0)
+    await write_cell(client, token, line_item_id, child2["id"], 88.0)
+
+    resp = await client.post(
+        "/planning/aggregate",
+        json={"line_item_id": line_item_id, "parent_member_id": parent["id"]},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 200
+    assert abs(resp.json()["parent_value"] - 88.0) < 1e-9
+
+
+@pytest.mark.asyncio
+async def test_aggregate_bottom_up_closing_balance(client: AsyncClient):
+    token, line_item_id, dim_id, parent, child1, child2 = await setup_hierarchy(
+        client, "agg_closing", summary_method="closing_balance"
+    )
+    await write_cell(client, token, line_item_id, child1["id"], 12.0)
+    await write_cell(client, token, line_item_id, child2["id"], 88.0)
+
+    resp = await client.post(
+        "/planning/aggregate",
+        json={"line_item_id": line_item_id, "parent_member_id": parent["id"]},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 200
+    assert abs(resp.json()["parent_value"] - 12.0) < 1e-9
+
+
+@pytest.mark.asyncio
+async def test_aggregate_bottom_up_weighted_average_defaults_to_average(client: AsyncClient):
+    token, line_item_id, dim_id, parent, child1, child2 = await setup_hierarchy(
+        client, "agg_weighted_average", summary_method="weighted_average"
+    )
+    await write_cell(client, token, line_item_id, child1["id"], 20.0)
+    await write_cell(client, token, line_item_id, child2["id"], 80.0)
+
+    resp = await client.post(
+        "/planning/aggregate",
+        json={"line_item_id": line_item_id, "parent_member_id": parent["id"]},
         headers=auth_headers(token),
     )
     assert resp.status_code == 200

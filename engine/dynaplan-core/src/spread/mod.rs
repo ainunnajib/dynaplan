@@ -33,11 +33,14 @@ impl SpreadMethod {
 pub enum SummaryMethod {
     Sum,
     Average,
+    WeightedAverage,
     Min,
     Max,
     Count,
     First,
     Last,
+    OpeningBalance,
+    ClosingBalance,
     None,
     Formula,
 }
@@ -47,11 +50,14 @@ impl SummaryMethod {
         match value.trim().to_ascii_lowercase().as_str() {
             "sum" => Ok(Self::Sum),
             "average" => Ok(Self::Average),
+            "weighted_average" => Ok(Self::WeightedAverage),
             "min" => Ok(Self::Min),
             "max" => Ok(Self::Max),
             "count" => Ok(Self::Count),
             "first" => Ok(Self::First),
             "last" => Ok(Self::Last),
+            "opening_balance" => Ok(Self::OpeningBalance),
+            "closing_balance" => Ok(Self::ClosingBalance),
             "none" => Ok(Self::None),
             "formula" => Ok(Self::Formula),
             other => Err(SpreadError::UnknownSummaryMethod(other.to_string())),
@@ -95,3 +101,24 @@ impl fmt::Display for SpreadError {
 }
 
 impl Error for SpreadError {}
+
+#[cfg(test)]
+mod tests {
+    use super::SummaryMethod;
+
+    #[test]
+    fn summary_method_parse_supports_f055_methods() {
+        assert_eq!(
+            SummaryMethod::parse("opening_balance").unwrap(),
+            SummaryMethod::OpeningBalance
+        );
+        assert_eq!(
+            SummaryMethod::parse("closing_balance").unwrap(),
+            SummaryMethod::ClosingBalance
+        );
+        assert_eq!(
+            SummaryMethod::parse("weighted_average").unwrap(),
+            SummaryMethod::WeightedAverage
+        );
+    }
+}

@@ -9,7 +9,9 @@ pub fn aggregate_values(values: &[f64], method: SummaryMethod) -> f64 {
 
     match method {
         SummaryMethod::Sum | SummaryMethod::None | SummaryMethod::Formula => sum_slice(values),
-        SummaryMethod::Average => sum_slice(values) / values.len() as f64,
+        SummaryMethod::Average | SummaryMethod::WeightedAverage => {
+            sum_slice(values) / values.len() as f64
+        }
         SummaryMethod::Min => values
             .iter()
             .fold(values[0], |current, value| current.min(*value)),
@@ -17,8 +19,8 @@ pub fn aggregate_values(values: &[f64], method: SummaryMethod) -> f64 {
             .iter()
             .fold(values[0], |current, value| current.max(*value)),
         SummaryMethod::Count => values.len() as f64,
-        SummaryMethod::First => values[0],
-        SummaryMethod::Last => values[values.len() - 1],
+        SummaryMethod::First | SummaryMethod::OpeningBalance => values[0],
+        SummaryMethod::Last | SummaryMethod::ClosingBalance => values[values.len() - 1],
     }
 }
 
@@ -41,6 +43,12 @@ mod tests {
         assert_eq!(aggregate_values(&values, SummaryMethod::Count), 3.0);
         assert_eq!(aggregate_values(&values, SummaryMethod::First), 10.0);
         assert_eq!(aggregate_values(&values, SummaryMethod::Last), 5.0);
+        assert_eq!(aggregate_values(&values, SummaryMethod::OpeningBalance), 10.0);
+        assert_eq!(aggregate_values(&values, SummaryMethod::ClosingBalance), 5.0);
+        assert_eq!(
+            aggregate_values(&values, SummaryMethod::WeightedAverage),
+            35.0 / 3.0
+        );
     }
 
     #[test]

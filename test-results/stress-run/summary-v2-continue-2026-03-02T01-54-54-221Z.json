@@ -1,0 +1,44 @@
+{
+  "generated_at": "2026-03-02T03:40:07.191Z",
+  "duration_seconds": 6313,
+  "workspace_id": "17bbb395-db30-490f-a8a0-5974aeacb3de",
+  "model_id": "956fc17d-05f2-4704-9bf3-e94f773526c4",
+  "dashboard_id": "79933be3-eee1-4dba-a834-bb487cf5089b",
+  "write_operations_this_run": 49106,
+  "target_total_combos": {
+    "revenueCombos": 10000,
+    "opexCombos": 8000,
+    "supplyCombos": 6000
+  },
+  "usage": {
+    "workspace_id": "17bbb395-db30-490f-a8a0-5974aeacb3de",
+    "max_models": 30,
+    "max_cells_per_model": 1500000,
+    "max_dimensions_per_model": 300,
+    "storage_limit_mb": 4096,
+    "model_count": 1,
+    "total_dimension_count": 5,
+    "total_cell_count": 81922,
+    "storage_used_bytes": 10479020,
+    "storage_used_mb": 9.9936,
+    "models": [
+      {
+        "model_id": "956fc17d-05f2-4704-9bf3-e94f773526c4",
+        "model_name": "Global CPG Enterprise Integrated Plan V2 2026-03-02T01-03-19-999Z",
+        "dimension_count": 5,
+        "cell_count": 81922,
+        "storage_used_bytes": 10479020,
+        "storage_used_mb": 9.9936
+      }
+    ]
+  },
+  "urls": {
+    "workspace": "https://dynaplan-frontend-7qlyqseapa-uc.a.run.app/workspaces/17bbb395-db30-490f-a8a0-5974aeacb3de",
+    "model": "https://dynaplan-frontend-7qlyqseapa-uc.a.run.app/models/956fc17d-05f2-4704-9bf3-e94f773526c4",
+    "dashboard": "https://dynaplan-frontend-7qlyqseapa-uc.a.run.app/models/956fc17d-05f2-4704-9bf3-e94f773526c4/dashboards/79933be3-eee1-4dba-a834-bb487cf5089b"
+  },
+  "screenshots": {
+    "model_mobile": "/Users/ainunnajib/dynaplan/test-results/stress-run/model-mobile-v2-continue-2026-03-02T01-54-54-221Z.png",
+    "dashboard_mobile": "/Users/ainunnajib/dynaplan/test-results/stress-run/dashboard-mobile-v2-continue-2026-03-02T01-54-54-221Z.png"
+  }
+}

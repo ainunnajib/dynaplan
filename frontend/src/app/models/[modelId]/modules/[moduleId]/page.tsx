@@ -4,7 +4,6 @@ import {
   getLineItems,
   getDimensions,
   getDimensionItems,
-  getCells,
   type DimensionItem,
 } from "@/lib/api";
 import ModuleGridClient from "./ModuleGridClient";
@@ -28,12 +27,12 @@ export async function generateMetadata({
 export default async function ModulePage({ params }: ModulePageProps) {
   const { modelId, moduleId } = await params;
 
-  // Fetch all data in parallel
-  const [mod, lineItems, dimensions, cells] = await Promise.all([
+  // Keep SSR payload small to avoid Cloud Run memory pressure on large modules.
+  // Cell values are hydrated client-side in the grid.
+  const [mod, lineItems, dimensions] = await Promise.all([
     getModule(moduleId),
     getLineItems(moduleId),
     getDimensions(modelId),
-    getCells(moduleId),
   ]);
 
   // Fetch dimension items for all dimensions
@@ -68,7 +67,7 @@ export default async function ModulePage({ params }: ModulePageProps) {
         <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-400">
           <span>{lineItems.length} line items</span>
           <span>{dimensions.length} dimensions</span>
-          <span>{cells.length} cells</span>
+          <span>cells loaded on demand</span>
         </div>
       </div>
 
@@ -78,7 +77,7 @@ export default async function ModulePage({ params }: ModulePageProps) {
         lineItems={lineItems}
         dimensions={dimensions}
         dimensionItems={dimensionItems}
-        initialCells={cells}
+        initialCells={[]}
       />
     </div>
   );

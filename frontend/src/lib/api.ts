@@ -161,7 +161,19 @@ export interface LineItem {
   // Keep legacy field for compatibility with older payloads.
   applies_to_dimensions?: string[];
   applies_to_dimension_ids?: string[];
-  summary_method: "sum" | "average" | "min" | "max" | "none" | null;
+  summary_method:
+    | "sum"
+    | "average"
+    | "min"
+    | "max"
+    | "none"
+    | "formula"
+    | "first"
+    | "last"
+    | "opening_balance"
+    | "closing_balance"
+    | "weighted_average"
+    | null;
   created_at: string;
   updated_at: string;
 }

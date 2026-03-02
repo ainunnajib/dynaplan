@@ -1,7 +1,7 @@
 # Dynaplan Development Progress
 
-## Current Status: 55 features complete + F045/F048/F049/F050 implemented (pending Rust toolchain validation)
-Last updated: 2026-03-02
+## Current Status: 56 features complete + F045/F048/F049/F050 implemented (pending Rust toolchain validation)
+Last updated: 2026-03-02 (F055 re-validated: backend `1526 passed, 1 skipped, 1 xfailed, 1 xpassed`; frontend `bun tsc --noEmit` clean)
 
 ## Completed
 - [x] F001: User authentication & authorization (11 tests)
@@ -59,6 +59,7 @@ Last updated: 2026-03-02
 - [x] F052: Lookup & Cross-Module Functions (FINDITEM, ITEM, PARENT/CHILDREN/ISLEAF/ISANCESTOR, SELECT, mapped SUM/LOOKUP, NAME/CODE, RANK/RANKLIST, COLLECT, POST) implemented in Python formula evaluator + Rust formula module parity with new backend and Rust tests (23 backend formula tests added; full backend regression `1486 passed, 1 skipped, 1 xfailed, 1 xpassed` + frontend type-check passed; `cargo test` still pending due unavailable Rust toolchain)
 - [x] F053: Text & Conversion Functions (MID, FIND, SUBSTITUTE, TEXT, VALUE, TEXTLIST, MAKETEXT, YEARTODATE, MONTHTODATE, DATE, DATEVALUE, TODAY, CEILING, FLOOR, MOD, SIGN; existing ROUND retained) implemented in Python formula evaluator + Rust formula module parity with new backend and Rust tests (19 backend formula tests + Rust formula tests added; full backend regression `1504 passed, 1 skipped, 1 xfailed, 1 xpassed` + frontend type-check passed; `cargo test` still pending due unavailable Rust toolchain)
 - [x] F054: Advanced Aggregation & Statistical Functions (SUMIF, COUNTIF, AVERAGEIF, MEDIAN, STDEV, VARIANCE, PERCENTILE, LARGE, SMALL, GROWTH with criteria parsing, percentile interpolation, and linear-regression growth) implemented in Python formula evaluator + Rust formula module parity with new backend and Rust tests (14 backend formula tests + 14 Rust formula tests added; full backend regression `1518 passed, 1 skipped, 1 xfailed, 1 xpassed` + frontend type-check passed; `cargo test` still pending due unavailable Rust toolchain)
+- [x] F055: Summary Method Expansion (`SummaryMethod` now includes `opening_balance`, `closing_balance`, `weighted_average`, `first`, `last` end-to-end in backend model/schema/API + frontend editor/API types; Python and Rust spread aggregation map opening/closing to first/last and weighted_average to average pending future weight-line binding; added backend/Rust bridge/spread tests; full backend regression `1526 passed, 1 skipped, 1 xfailed, 1 xpassed` + frontend type-check passed)
 
 ## In Progress
 - [~] F045: Rust Engine Core — Sparse Block Storage (workspace + `dynaplan-core` modules + 100K sparse write/read Rust tests added; `cargo test` pending because Rust toolchain is unavailable in this environment)
@@ -66,9 +67,8 @@ Last updated: 2026-03-02
 - [~] F049: PyO3 Bridge — Rust Engine ↔ Python FastAPI (`engine/dynaplan-py` crate added with PyO3 surface (`load_model`, `write_cell`, `write_cells_bulk`, `read_cell`, `read_cells`, `evaluate_formula`, `get_recalc_order`, `spread_top_down`, `aggregate_bottom_up`), Python fallback bridge at `backend/app/engine/rust_bridge.py`, and `cell.py` engine-selection integration; full backend regression + frontend type-check passed; native Rust extension build/test still pending due unavailable Rust toolchain)
 - [~] F050: Spread & Aggregation in Rust (`engine/dynaplan-core/src/spread/` added with top-down spread methods, summary aggregation, and bottom-up hierarchy aggregation; PyO3 + Python bridge wiring added and `backend/app/services/planning.py` now routes spread/aggregate/recalc calculations through the bridge; backend regression + frontend type-check passed, `cargo test` pending because Rust toolchain is unavailable in this environment)
 
-## Next Up: F045 validation + F046-F047, F055, F057-F061, F064-F065, F067-F068, F070-F071, F073-F077 (see ROADMAP.md)
+## Next Up: F045 validation + F046-F047, F057-F061, F064-F065, F067-F068, F070-F071, F073-F077 (see ROADMAP.md)
 - Phase 1: Rust calculation engine (F045-F050) — Hyperblock replacement via PyO3
-- Phase 2: Complete formula language (F055) — remaining summary methods
 - Phase 3: Model structure gaps (F057-F061) — composite dims, saved views, version integration
 - Phase 4: Execution runtimes (F064-F065) — scheduler activation + pipeline execution engines
 - Phase 5: Data Hub & CLI (F067-F068)

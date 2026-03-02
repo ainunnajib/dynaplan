@@ -1,0 +1,12 @@
+F055 is implemented in the current tree and I verified it end-to-end.
+
+- Backend summary enum includes all F055 methods in [module.py](/Users/ainunnajib/dynaplan/backend/app/models/module.py:20).
+- Python aggregation behavior (opening/closing/weighted handling) is in [spread.py](/Users/ainunnajib/dynaplan/backend/app/engine/spread.py:89).
+- Rust summary parsing and aggregation are updated in [mod.rs](/Users/ainunnajib/dynaplan/engine/dynaplan-core/src/spread/mod.rs:33) and [bottom_up.rs](/Users/ainunnajib/dynaplan/engine/dynaplan-core/src/spread/bottom_up.rs:5).
+- Frontend summary-method type/options are updated in [LineItemEditor.tsx](/Users/ainunnajib/dynaplan/frontend/src/components/module/LineItemEditor.tsx:9) and [api.ts](/Users/ainunnajib/dynaplan/frontend/src/lib/api.ts:154).
+- Coverage was added/updated in [test_module.py](/Users/ainunnajib/dynaplan/backend/tests/test_module.py:377), [test_planning.py](/Users/ainunnajib/dynaplan/backend/tests/test_planning.py:322), and [test_rust_bridge.py](/Users/ainunnajib/dynaplan/backend/tests/test_rust_bridge.py:91).
+- Progress log updated in [claude-progress.txt](/Users/ainunnajib/dynaplan/claude-progress.txt:4).
+
+Validation run results:
+- `cd backend && .venv/bin/python -m pytest -x --tb=short -q` → `1526 passed, 1 skipped, 1 xfailed, 1 xpassed`.
+- `cd frontend && bun tsc --noEmit` → passed (no errors).

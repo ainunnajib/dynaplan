@@ -381,7 +381,19 @@ async def test_create_line_item_all_summary_methods(client: AsyncClient):
     module = await create_module(client, token, model_id)
     module_id = module["id"]
 
-    for method in ["sum", "average", "min", "max", "none", "formula"]:
+    for method in [
+        "sum",
+        "average",
+        "weighted_average",
+        "min",
+        "max",
+        "first",
+        "last",
+        "opening_balance",
+        "closing_balance",
+        "none",
+        "formula",
+    ]:
         resp = await client.post(
             f"/modules/{module_id}/line-items",
             json={"name": f"Item {method}", "summary_method": method},

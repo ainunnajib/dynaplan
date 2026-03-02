@@ -22,6 +22,11 @@ class SummaryMethod(str, enum.Enum):
     average = "average"
     min = "min"
     max = "max"
+    first = "first"
+    last = "last"
+    opening_balance = "opening_balance"
+    closing_balance = "closing_balance"
+    weighted_average = "weighted_average"
     none = "none"
     formula = "formula"
 

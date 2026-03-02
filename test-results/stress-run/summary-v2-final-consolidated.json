@@ -1,0 +1,45 @@
+{
+  "generated_at": "2026-03-02T03:54:30Z",
+  "workspace": {
+    "id": "17bbb395-db30-490f-a8a0-5974aeacb3de",
+    "name": "RustEngine Stress Lab V2 2026-03-02T01-03-19-999Z",
+    "url": "https://dynaplan-frontend-7qlyqseapa-uc.a.run.app/workspaces/17bbb395-db30-490f-a8a0-5974aeacb3de"
+  },
+  "model": {
+    "id": "956fc17d-05f2-4704-9bf3-e94f773526c4",
+    "name": "Global CPG Enterprise Integrated Plan V2 2026-03-02T01-03-19-999Z",
+    "url": "https://dynaplan-frontend-7qlyqseapa-uc.a.run.app/models/956fc17d-05f2-4704-9bf3-e94f773526c4"
+  },
+  "dashboard": {
+    "id": "79933be3-eee1-4dba-a834-bb487cf5089b",
+    "url": "https://dynaplan-frontend-7qlyqseapa-uc.a.run.app/models/956fc17d-05f2-4704-9bf3-e94f773526c4/dashboards/79933be3-eee1-4dba-a834-bb487cf5089b"
+  },
+  "scale": {
+    "dimensions": {
+      "product_items": 372,
+      "region_items": 25,
+      "month_items": 24,
+      "channel_items": 6,
+      "cost_center_items": 80
+    },
+    "line_item_cell_counts": {
+      "Units_Input": 9988,
+      "Opex_Base_Input": 7990,
+      "Beginning_Inventory_Input": 6000
+    },
+    "total_cells_in_model": 81922,
+    "storage_used_mb": 9.9936,
+    "write_operations_continuation_run": 49106
+  },
+  "deployment": {
+    "frontend_revision": "dynaplan-frontend-00016-vz2",
+    "frontend_url": "https://dynaplan-frontend-7qlyqseapa-uc.a.run.app",
+    "backend_url": "https://dynaplan-backend-7qlyqseapa-uc.a.run.app"
+  },
+  "screenshots": {
+    "model_mobile": "/Users/ainunnajib/dynaplan/test-results/stress-run/model-mobile-v2-final-2026-03-02T03-53-50-109Z.png",
+    "dashboard_mobile": "/Users/ainunnajib/dynaplan/test-results/stress-run/dashboard-mobile-v2-final-2026-03-02T03-53-50-109Z.png",
+    "revenue_grid_mobile": "/Users/ainunnajib/dynaplan/test-results/stress-run/revenue-grid-mobile-v2-final-2026-03-02T03-53-50-109Z.png",
+    "model_desktop": "/Users/ainunnajib/dynaplan/test-results/stress-run/model-desktop-v2-final-2026-03-02T03-53-50-109Z.png"
+  }
+}
