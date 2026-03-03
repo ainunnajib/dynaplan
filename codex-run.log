@@ -383,3 +383,40 @@ After doing this, you may fix the identity used for this commit with:
  create mode 100644 frontend/src/components/observability/HealthDashboard.tsx
 [18:38:14] Starting F077
 [19:10:40] ✓ F077 completed (32m)
+[main a35f640] Implement F077
+ Committer: Ainun Najib <ainunnajib@Ainuns-Mac-mini.local>
+Your name and email address were configured automatically based
+on your username and hostname. Please check that they are accurate.
+You can suppress this message by setting them explicitly. Run the
+following command and follow the instructions in your editor to edit
+your configuration file:
+
+    git config --global --edit
+
+After doing this, you may fix the identity used for this commit with:
+
+    git commit --amend --reset-author
+
+ 16 files changed, 244508 insertions(+), 6 deletions(-)
+ create mode 100644 backend/app/api/horizontal_scaling.py
+ create mode 100644 backend/app/schemas/horizontal_scaling.py
+ create mode 100644 backend/app/services/horizontal_scaling.py
+ create mode 100644 backend/deploy/kubernetes/api-deployment.yaml
+ create mode 100644 backend/deploy/kubernetes/api-hpa.yaml
+ create mode 100644 backend/deploy/kubernetes/api-service.yaml
+ create mode 100644 backend/deploy/kubernetes/ingress.yaml
+ create mode 100644 backend/deploy/kubernetes/redis-deployment.yaml
+ create mode 100644 backend/deploy/kubernetes/redis-service.yaml
+ create mode 100644 backend/tests/test_horizontal_scaling.py
+ create mode 100644 codex-logs/20260302-115317/F077-result.txt
+ create mode 100644 codex-logs/20260302-115317/F077-stdout.log
+To https://github.com/ainunnajib/dynaplan.git
+   d49acc9..a35f640  main -> main
+[19:10:46] Wave 4 pushed to remote
+
+═══════════════════════════════════════
+  ALL WAVES COMPLETE
+  Finished: Mon  2 Mar 2026 19:10:46 +08
+═══════════════════════════════════════
+Results: 16 succeeded, 0 failed
+Detailed logs: codex-logs/20260302-115317
