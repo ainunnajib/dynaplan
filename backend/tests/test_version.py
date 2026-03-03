@@ -344,7 +344,7 @@ async def test_same_name_different_models_allowed(client: AsyncClient):
     )
     model_id_2 = await create_model(client, token, ws_id, name="Model 2")
 
-    v1 = await create_version(client, token, model_id_1, name="Shared Name")
+    await create_version(client, token, model_id_1, name="Shared Name")
     resp = await client.post(
         f"/models/{model_id_2}/versions",
         json={"name": "Shared Name", "version_type": "actuals"},

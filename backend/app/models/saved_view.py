@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import uuid
 from datetime import datetime
-from typing import Any, Dict
+from typing import TYPE_CHECKING, Any, Dict
 
 from sqlalchemy import (
     Boolean,
@@ -16,6 +18,10 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
+
+if TYPE_CHECKING:
+    from app.models.module import Module
+    from app.models.user import User
 
 
 class SavedView(Base):

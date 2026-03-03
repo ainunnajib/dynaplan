@@ -46,6 +46,43 @@ bun install
 bun dev
 ```
 
+## Stress + Touchpoint Automation
+
+Two scripts are included for large-scale simulation and browser journey auditing.
+
+### Seed Apple-Style FP&A Scenario Data
+
+Creates a realistic global planning workspace/model with multi-dimension data, versions, module line items, dashboard widgets, and bulk cell writes.
+
+```bash
+DYNAPLAN_API_URL=https://dynaplan-backend-7qlyqseapa-uc.a.run.app \
+DYNAPLAN_FRONTEND_URL=https://dynaplan-frontend-7qlyqseapa-uc.a.run.app \
+DYNAPLAN_EMAIL=you@example.com \
+DYNAPLAN_PASSWORD='your-password' \
+DYNAPLAN_SCALE=large \
+node scripts/seed_apple_fpa_scenario.js
+```
+
+Scale options: `small`, `large`, `massive`  
+Output summary: `test-results/data-seed/apple-fpa-<timestamp>.json`
+
+### Browser Touchpoint Matrix
+
+Simulates public + authenticated branches across key UI touchpoints and writes a JSON report + recorded video.
+
+```bash
+NODE_PATH=/tmp/pwrunner/node_modules \
+DYNAPLAN_FRONTEND_URL=https://dynaplan-frontend-7qlyqseapa-uc.a.run.app \
+DYNAPLAN_EMAIL=you@example.com \
+DYNAPLAN_PASSWORD='your-password' \
+node scripts/browser_touchpoint_matrix.js
+```
+
+Output artifacts:
+
+- `test-results/browser-audit/touchpoint-matrix-<timestamp>.json`
+- `test-results/browser-audit/touchpoint-matrix-<timestamp>.webm`
+
 ## Deploy to Google Cloud (Artifact Registry)
 
 This repo includes a deployment script that builds images in **Artifact Registry** and deploys backend/frontend to **Cloud Run**.

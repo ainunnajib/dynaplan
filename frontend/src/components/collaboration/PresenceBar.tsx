@@ -85,11 +85,16 @@ export function PresenceBar({
   }, [token, modelId, moduleId]);
 
   useEffect(() => {
-    void fetchPresence();
+    const initialFetchTimeout = window.setTimeout(() => {
+      void fetchPresence();
+    }, 0);
     const interval = setInterval(() => {
       void fetchPresence();
     }, pollIntervalMs);
-    return () => clearInterval(interval);
+    return () => {
+      window.clearTimeout(initialFetchTimeout);
+      clearInterval(interval);
+    };
   }, [fetchPresence, pollIntervalMs]);
 
   if (users.length === 0) return null;

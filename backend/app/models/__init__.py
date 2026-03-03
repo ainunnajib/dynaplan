@@ -1,3 +1,5 @@
+# ruff: noqa: F401
+
 from app.models.base import Base
 from app.models.planning_model import PlanningModel
 from app.models.user import User

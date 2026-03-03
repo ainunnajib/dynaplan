@@ -1,10 +1,27 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 
 export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-zinc-50 px-4">
+          <p className="text-sm text-zinc-600">Loading...</p>
+        </div>
+      }
+    >
+      <LoginPageContent />
+    </Suspense>
+  );
+}
+
+function LoginPageContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -22,7 +39,9 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       await login(email, password);
-      // login() redirects to / on success — no further action needed here
+      const requestedNext = searchParams.get("next");
+      const safeNext = requestedNext && requestedNext.startsWith("/") ? requestedNext : "/";
+      router.replace(safeNext);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {

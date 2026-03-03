@@ -41,11 +41,10 @@ function formatNumber(value: number): string {
 interface ChildRowProps {
   member: HierarchyMemberValue;
   maxAbsValue: number;
-  lineItemId: string;
   onInlineEdit: (memberId: string, value: number) => Promise<void>;
 }
 
-function ChildRow({ member, maxAbsValue, lineItemId, onInlineEdit }: ChildRowProps) {
+function ChildRow({ member, maxAbsValue, onInlineEdit }: ChildRowProps) {
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(String(member.value));
   const [isSaving, setIsSaving] = useState(false);
@@ -227,7 +226,7 @@ export default function HierarchyView({
                 lineItemId={lineItemId}
                 parentMemberId={parentMemberId}
                 parentMemberName={parentMemberName}
-                children={children.map((c) => ({
+                childMembers={children.map((c) => ({
                   id: c.member_id,
                   name: c.member_name,
                   currentValue: c.value,
@@ -295,7 +294,6 @@ export default function HierarchyView({
               key={member.member_id}
               member={member}
               maxAbsValue={maxAbsValue}
-              lineItemId={lineItemId}
               onInlineEdit={handleInlineEdit}
             />
           ))}

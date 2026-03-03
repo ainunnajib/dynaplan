@@ -80,7 +80,7 @@ export default function SnapshotManager({ modelId }: SnapshotManagerProps) {
         <div>
           <h2 className="text-lg font-semibold text-zinc-900">Model Snapshots</h2>
           <p className="text-sm text-zinc-500">
-            Create and manage named snapshots of this model's state.
+            Create and manage named snapshots of this model&apos;s state.
           </p>
         </div>
         <button

@@ -13,7 +13,6 @@ from app.models.engine_profile import (
 )
 from app.schemas.engine_profile import (
     EngineProfileCreate,
-    EngineProfileUpdate,
     GuidanceCreate,
     MetricCreate,
     ModelEvaluationResult,

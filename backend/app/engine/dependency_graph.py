@@ -8,7 +8,7 @@ Pure Python — no database, no FastAPI, no external dependencies.
 """
 
 from collections import defaultdict, deque
-from typing import Callable, Dict, List, Optional, Set
+from typing import Callable, Dict, List, Set
 
 
 class DependencyGraph:

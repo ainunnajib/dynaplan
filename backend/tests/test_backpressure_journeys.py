@@ -88,6 +88,53 @@ async def create_line_item(
     return resp.json()["id"]
 
 
+async def create_dimension(
+    client: AsyncClient,
+    token: str,
+    model_id: str,
+    name: str,
+) -> str:
+    resp = await client.post(
+        f"/models/{model_id}/dimensions",
+        json={"name": name, "dimension_type": "custom"},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 201
+    return resp.json()["id"]
+
+
+async def create_dimension_item(
+    client: AsyncClient,
+    token: str,
+    dimension_id: str,
+    name: str,
+    code: str,
+) -> str:
+    resp = await client.post(
+        f"/dimensions/{dimension_id}/items",
+        json={"name": name, "code": code, "sort_order": 0},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 201
+    return resp.json()["id"]
+
+
+async def create_version(
+    client: AsyncClient,
+    token: str,
+    model_id: str,
+    name: str,
+    version_type: str,
+) -> str:
+    resp = await client.post(
+        f"/models/{model_id}/versions",
+        json={"name": name, "version_type": version_type},
+        headers=auth_headers(token),
+    )
+    assert resp.status_code == 201
+    return resp.json()["id"]
+
+
 async def run_concurrent(limit: int, coroutines: list[Any]) -> list[Any]:
     semaphore = asyncio.Semaphore(limit)
 
@@ -347,3 +394,228 @@ async def test_module_grid_cells_read_write_burst_stays_healthy(client: AsyncCli
     )
     assert final_read.status_code == 200
     assert len(final_read.json()) >= len(line_item_ids)
+
+
+@pytest.mark.asyncio
+@pytest.mark.backpressure
+async def test_blueprint_line_item_burst_then_grid_edits_remain_stable(client: AsyncClient):
+    token = await register_and_login(client, "bp_blueprint_grid@example.com")
+
+    workspace_id = await create_workspace(client, token, "BP Blueprint WS")
+    model_id = await create_model(client, token, workspace_id, "BP Blueprint Model")
+    module_id = await create_module(client, token, model_id, "BP Blueprint Module")
+
+    line_item_create_calls = [
+        client.post(
+            f"/modules/{module_id}/line-items",
+            json={
+                "name": f"Line Item {i}",
+                "format": "number",
+                "summary_method": "sum",
+                "applies_to_dimensions": [],
+            },
+            headers=auth_headers(token),
+        )
+        for i in range(40)
+    ]
+    line_item_responses: list[Response] = await run_concurrent(12, line_item_create_calls)
+    assert all(r.status_code == 201 for r in line_item_responses)
+    line_item_ids = [r.json()["id"] for r in line_item_responses]
+
+    grid_write_calls = [
+        client.put(
+            f"/modules/{module_id}/cells",
+            json={
+                "line_item_id": line_item_ids[i % len(line_item_ids)],
+                "dimension_member_ids": [],
+                "value": float(i),
+            },
+            headers=auth_headers(token),
+        )
+        for i in range(400)
+    ]
+    grid_read_calls = [
+        client.get(
+            f"/modules/{module_id}/cells",
+            headers=auth_headers(token),
+        )
+        for _ in range(120)
+    ]
+
+    responses: list[Response] = await run_concurrent(30, grid_write_calls + grid_read_calls)
+    assert all(r.status_code < 500 for r in responses)
+    assert all(r.status_code not in {401, 403} for r in responses)
+
+    write_responses = [r for r in responses if r.request.method == "PUT"]
+    read_responses = [r for r in responses if r.request.method == "GET"]
+    assert all(r.status_code == 200 for r in write_responses)
+    assert all(r.status_code == 200 for r in read_responses)
+
+    final_cells = await client.get(
+        f"/modules/{module_id}/cells",
+        headers=auth_headers(token),
+    )
+    assert final_cells.status_code == 200
+    assert len(final_cells.json()) == len(line_item_ids)
+
+
+@pytest.mark.asyncio
+@pytest.mark.backpressure
+async def test_apple_fpa_multidimension_bulk_write_and_query_burst(client: AsyncClient):
+    token = await register_and_login(client, "bp_apple_fpa_burst@example.com")
+
+    workspace_id = await create_workspace(client, token, "BP Apple FP&A WS")
+    model_id = await create_model(client, token, workspace_id, "BP Apple FP&A Model")
+    module_id = await create_module(client, token, model_id, "Global Revenue Planning")
+
+    region_dim = await create_dimension(client, token, model_id, "Region")
+    product_dim = await create_dimension(client, token, model_id, "Product Family")
+    channel_dim = await create_dimension(client, token, model_id, "Channel")
+    period_dim = await create_dimension(client, token, model_id, "Month")
+
+    region_ids = [
+        await create_dimension_item(client, token, region_dim, name, code)
+        for name, code in [
+            ("Americas", "AMER"),
+            ("EMEA", "EMEA"),
+            ("APAC", "APAC"),
+        ]
+    ]
+    product_ids = [
+        await create_dimension_item(client, token, product_dim, name, code)
+        for name, code in [
+            ("iPhone", "IPH"),
+            ("Mac", "MAC"),
+            ("iPad", "IPD"),
+            ("Services", "SVC"),
+        ]
+    ]
+    channel_ids = [
+        await create_dimension_item(client, token, channel_dim, name, code)
+        for name, code in [
+            ("Retail", "RTL"),
+            ("Online", "ONL"),
+            ("Carrier", "CAR"),
+        ]
+    ]
+    period_ids = [
+        await create_dimension_item(client, token, period_dim, name, code)
+        for name, code in [
+            ("Jan", "2026-01"),
+            ("Feb", "2026-02"),
+            ("Mar", "2026-03"),
+            ("Apr", "2026-04"),
+        ]
+    ]
+
+    revenue_line_item_resp = await client.post(
+        f"/modules/{module_id}/line-items",
+        json={
+            "name": "Net Revenue",
+            "format": "number",
+            "summary_method": "sum",
+            "applies_to_dimensions": [region_dim, product_dim, channel_dim, period_dim],
+        },
+        headers=auth_headers(token),
+    )
+    assert revenue_line_item_resp.status_code == 201
+    revenue_line_item_id = revenue_line_item_resp.json()["id"]
+
+    actuals_version_id = await create_version(
+        client,
+        token,
+        model_id,
+        "Actuals FY26",
+        "actuals",
+    )
+    forecast_version_id = await create_version(
+        client,
+        token,
+        model_id,
+        "Forecast FY26",
+        "forecast",
+    )
+
+    base_cells: list[dict[str, Any]] = []
+    index = 1
+    for region_id in region_ids:
+        for product_id in product_ids:
+            for channel_id in channel_ids:
+                for period_id in period_ids:
+                    base_cells.append(
+                        {
+                            "dimension_members": [
+                                region_id,
+                                product_id,
+                                channel_id,
+                                period_id,
+                            ],
+                            "value": float(index * 1000),
+                        }
+                    )
+                    index += 1
+
+    all_cells: list[dict[str, Any]] = []
+    for version_id in (actuals_version_id, forecast_version_id):
+        for cell in base_cells:
+            all_cells.append(
+                {
+                    "line_item_id": revenue_line_item_id,
+                    "dimension_members": cell["dimension_members"],
+                    "version_id": version_id,
+                    "value": cell["value"],
+                }
+            )
+
+    chunk_size = 48
+    chunks = [all_cells[i:i + chunk_size] for i in range(0, len(all_cells), chunk_size)]
+    bulk_write_calls = [
+        client.post(
+            "/cells/bulk",
+            json={"cells": chunk},
+            headers=auth_headers(token),
+        )
+        for chunk in chunks
+    ]
+    query_calls = [
+        client.post(
+            "/cells/query",
+            json={
+                "line_item_id": revenue_line_item_id,
+                "version_id": actuals_version_id if i % 2 == 0 else forecast_version_id,
+            },
+            headers=auth_headers(token),
+        )
+        for i in range(60)
+    ]
+
+    responses: list[Response] = await run_concurrent(12, bulk_write_calls + query_calls)
+    assert all(r.status_code < 500 for r in responses)
+    assert all(r.status_code not in {401, 403} for r in responses)
+
+    write_responses = [r for r in responses if r.request.url.path.endswith("/cells/bulk")]
+    query_responses = [r for r in responses if r.request.url.path.endswith("/cells/query")]
+    assert all(r.status_code == 200 for r in write_responses)
+    assert all(r.status_code == 200 for r in query_responses)
+
+    expected_per_version = len(base_cells)
+    actuals_cells = await client.post(
+        "/cells/query",
+        json={
+            "line_item_id": revenue_line_item_id,
+            "version_id": actuals_version_id,
+        },
+        headers=auth_headers(token),
+    )
+    forecast_cells = await client.post(
+        "/cells/query",
+        json={
+            "line_item_id": revenue_line_item_id,
+            "version_id": forecast_version_id,
+        },
+        headers=auth_headers(token),
+    )
+    assert actuals_cells.status_code == 200
+    assert forecast_cells.status_code == 200
+    assert len(actuals_cells.json()) == expected_per_version
+    assert len(forecast_cells.json()) == expected_per_version

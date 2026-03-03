@@ -61,7 +61,7 @@ async def get_db_session() -> AsyncSession:
 @pytest.mark.asyncio
 async def test_log_event_cell_update(client: AsyncClient):
     """Test logging a cell_update audit event via service."""
-    from app.services.audit import log_event, get_audit_log
+    from app.services.audit import log_event
     from app.models.audit import AuditEventType
 
     model_id = uuid.uuid4()

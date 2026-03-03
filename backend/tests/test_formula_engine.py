@@ -5,11 +5,10 @@ All tests are self-contained — no database, no HTTP client, no fixtures.
 Run with:  cd backend && pytest tests/test_formula_engine.py -v
 """
 
-import math
 from datetime import date
 import pytest
 
-from app.engine.tokenizer import tokenize, Token, TokenType, TokenizerError
+from app.engine.tokenizer import tokenize, TokenType, TokenizerError
 from app.engine.parser import (
     parse,
     ParseError,
@@ -22,9 +21,8 @@ from app.engine.parser import (
     FunctionCall,
     Comparison,
 )
-from app.engine.evaluator import Evaluator, FormulaError
+from app.engine.evaluator import FormulaError
 from app.engine.formula import (
-    parse_formula,
     evaluate_formula,
     validate_formula,
     get_references,

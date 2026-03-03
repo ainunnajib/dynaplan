@@ -1,7 +1,7 @@
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Header, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Header, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.auth import get_current_user
@@ -18,12 +18,10 @@ from app.schemas.scim import (
     SCIMUserCreate,
 )
 from app.services.scim import (
-    add_group_member,
     create_scim_config,
     create_scim_group,
     create_scim_user,
     deactivate_scim_user,
-    delete_scim_config,
     delete_scim_group,
     get_provisioning_logs,
     get_scim_config,
@@ -32,7 +30,6 @@ from app.services.scim import (
     group_to_scim_resource,
     list_scim_groups,
     list_scim_users,
-    remove_group_member,
     update_scim_config,
     update_scim_group,
     update_scim_user,

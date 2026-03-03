@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.auth import get_current_user
 from app.core.database import get_db
-from app.models.chunked_upload import BatchStatus, UploadStatus
 from app.models.planning_model import PlanningModel
 from app.schemas.chunked_upload import (
     BatchOperationRequest,
@@ -18,7 +17,6 @@ from app.schemas.chunked_upload import (
     ChunkUploadRequest,
     ImportTaskCreate,
     ImportTaskResponse,
-    TransactionalBatchCreate,
     TransactionalBatchResponse,
 )
 from app.services.chunked_upload import (

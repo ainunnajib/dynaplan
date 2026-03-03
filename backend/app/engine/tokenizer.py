@@ -5,7 +5,7 @@ Converts a raw formula string into a flat list of typed tokens.
 Anaplan-compatible syntax: identifiers may contain dots (e.g. Product.Price).
 """
 
-from typing import List, Optional
+from typing import List
 from dataclasses import dataclass, field
 import re
 

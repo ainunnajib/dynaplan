@@ -23,7 +23,6 @@ from app.services.action import (
     create_action,
     create_process,
     delete_action,
-    delete_process,
     get_action_by_id,
     get_process_by_id,
     get_process_runs,

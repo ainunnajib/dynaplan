@@ -23,7 +23,7 @@ if eval "$CMD" > "$TMP" 2>&1; then
 
     # pytest: "5 passed in 0.12s"
     if grep -q "passed" "$TMP"; then
-        SUMMARY=$(grep -oE '[0-9]+ passed' "$TMP" | tail -1)
+        SUMMARY=$(grep -oE '[0-9]+ passed' "$TMP" | tail -1 || true)
     fi
 
     # vitest/jest: "Tests: X passed, X total"

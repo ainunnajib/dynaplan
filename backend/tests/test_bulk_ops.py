@@ -230,7 +230,6 @@ async def test_bulk_read_line_item_filter(client: AsyncClient):
     token, model_id, line_item_id = await full_setup(client, "read_filter")
 
     # Create a second line item in the same module
-    ws_id = None  # already created, need module_id
     # Re-create module for second line item
     module_id = await create_module(client, token, model_id, name="Filter Module")
     line_item_b = await create_line_item(client, token, module_id, name="Cost")
@@ -436,7 +435,7 @@ async def test_cannot_cancel_completed_job(client: AsyncClient):
 async def test_list_jobs_with_status_filter(client: AsyncClient):
     """List endpoint respects the status query parameter."""
     token, model_id, line_item_id = await full_setup(client, "list_jobs")
-    dim = str(uuid.uuid4())
+    str(uuid.uuid4())
 
     # Create some completed jobs
     for i in range(3):

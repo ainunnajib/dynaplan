@@ -156,7 +156,7 @@ async def test_list_models_excludes_archived_by_default(client: AsyncClient):
     token = await register_and_login(client, "m_list_arch@example.com")
     ws_id = await create_workspace(client, token)
 
-    active = await create_model(client, token, ws_id, name="Active Model")
+    await create_model(client, token, ws_id, name="Active Model")
     archived_data = await create_model(client, token, ws_id, name="Archived Model")
     model_id = archived_data["id"]
 

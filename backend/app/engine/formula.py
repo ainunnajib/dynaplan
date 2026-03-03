@@ -25,7 +25,7 @@ from .parser import (
     Parser,
     ParseError,
 )
-from .evaluator import Evaluator, FormulaError
+from .evaluator import Evaluator
 
 
 # ---------------------------------------------------------------------------

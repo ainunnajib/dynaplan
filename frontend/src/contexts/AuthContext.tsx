@@ -99,8 +99,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const fromCookie = readTokenCookie();
     const stored = fromStorage ?? fromCookie;
     if (!stored) {
-      setIsLoading(false);
-      return;
+      const timeoutId = window.setTimeout(() => {
+        setIsLoading(false);
+      }, 0);
+      return () => {
+        window.clearTimeout(timeoutId);
+      };
     }
 
     // Keep both storage locations in sync so SSR and CSR share one session token.
@@ -167,9 +171,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (me && me !== "transient") {
         setUser(me);
       }
-      router.push("/");
     },
-    [router, validateToken]
+    [validateToken]
   );
 
   const logout = useCallback(() => {

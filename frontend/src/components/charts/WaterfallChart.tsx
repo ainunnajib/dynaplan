@@ -129,23 +129,16 @@ export function WaterfallChart({
             borderRadius: "6px",
             fontSize: 12,
           }}
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          formatter={((value: number, name: string): [string, string] | null => {
+          formatter={(value, name) => {
             if (name === "offset") return null;
-            return [value.toLocaleString(), name];
-          }) as any}
+            const numericValue =
+              typeof value === "number" ? value : Number(value ?? 0);
+            return [numericValue.toLocaleString(), String(name)];
+          }}
         />
 
         {showLegend && (
-          <Legend
-            wrapperStyle={{ fontSize: 12 }}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            {...({ payload: [
-              { value: "Increase", type: "square" as const, color: positiveColor },
-              { value: "Decrease", type: "square" as const, color: negativeColor },
-              { value: "Total", type: "square" as const, color: totalColor },
-            ] } as any)}
-          />
+          <Legend wrapperStyle={{ fontSize: 12 }} />
         )}
 
         <ReferenceLine y={0} stroke="#9ca3af" />

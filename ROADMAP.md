@@ -8,6 +8,38 @@ This roadmap is designed for **Codex 5.3 AI Agents** to implement autonomously. 
 
 ---
 
+## March 2026 Stabilization Addendum (Touchpoint + Scale Testing)
+
+Based on recent end-to-end browser simulation and high-volume synthetic data seeding, these are the next highest-impact production-hardening priorities:
+
+### P0: Route Protection + Auth UX
+- Enforce auth guards on all protected app routes at the edge layer (`/models/*`, `/workspaces/*`, and future protected prefixes).
+- Preserve post-login redirect targets (`?next=`) for direct deep-links from shared URLs.
+- Add explicit regression coverage for unauthenticated route access in browser automation.
+
+### P0: Browser Journey Matrix in CI
+- Add a deterministic Playwright touchpoint matrix job covering:
+  - public pages (`/`, `/login`, `/register`)
+  - authenticated navigation and CRUD flows
+  - blueprint/grid/dashboard branch paths
+  - logout/session recovery
+- Persist artifacts (JSON route report + video) for every CI run and deploy candidate.
+
+### P1: Large-Scale FP&A Scenario Harness
+- Maintain a reusable synthetic enterprise scenario seeder (global dimensions, versions, modules, dashboards, large cell payloads).
+- Run seeded scenarios as pre-release smoke for performance and UX stability.
+- Add scale tiers (`small`, `large`, `massive`) and record write throughput and error budgets.
+
+### P1: Backpressure Coverage Expansion
+- Keep backpressure suites aligned with real user branches (blueprint line-item burst, module grid concurrent writes/reads, multi-dimension versioned bulk writes).
+- Include assertions for auth integrity and absence of 5xx under mixed read/write load.
+
+### P2: Frontend Quality Debt Cleanup
+- Burn down remaining non-blocking ESLint warnings (hook deps, unused variables, stale directives) to reduce regression risk.
+- Add mobile-specific interaction checks to browser matrix for key pages (model list, grid view, dashboards, forms).
+
+---
+
 ## Phase 1: Rust Calculation Engine (Hyperblock Replacement)
 
 **Goal**: Replace the Python formula evaluator with a Rust-based in-memory calculation engine exposed via PyO3 FFI, achieving 100-1000x speedup.

@@ -25,7 +25,7 @@ interface SpreadDialogProps {
   lineItemId: string;
   parentMemberId: string;
   parentMemberName: string;
-  children: ChildMember[];
+  childMembers: ChildMember[];
   onSpread?: (updatedCells: MemberValue[]) => void;
   /** Optional trigger button label */
   triggerLabel?: string;
@@ -47,7 +47,7 @@ export default function SpreadDialog({
   lineItemId,
   parentMemberId,
   parentMemberName,
-  children,
+  childMembers,
   onSpread,
   triggerLabel = "Spread",
 }: SpreadDialogProps) {
@@ -55,7 +55,7 @@ export default function SpreadDialog({
   const [targetValue, setTargetValue] = useState("");
   const [method, setMethod] = useState<SpreadMethod>("even");
   const [weights, setWeights] = useState<string[]>(
-    children.map(() => "1")
+    childMembers.map(() => "1")
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,7 +65,7 @@ export default function SpreadDialog({
     setIsOpen(true);
     setTargetValue("");
     setMethod("even");
-    setWeights(children.map(() => "1"));
+    setWeights(childMembers.map(() => "1"));
     setError(null);
     setPreview(null);
   }
@@ -77,23 +77,23 @@ export default function SpreadDialog({
 
   function computePreview(): MemberValue[] | null {
     const total = parseFloat(targetValue);
-    if (isNaN(total) || children.length === 0) return null;
+    if (isNaN(total) || childMembers.length === 0) return null;
 
-    const count = children.length;
+    const count = childMembers.length;
 
     if (method === "even") {
       const share = total / count;
-      return children.map((c) => ({ member_id: c.id, value: share }));
+      return childMembers.map((c) => ({ member_id: c.id, value: share }));
     }
 
     if (method === "proportional") {
-      const existing = children.map((c) => c.currentValue ?? 0);
+      const existing = childMembers.map((c) => c.currentValue ?? 0);
       const sum = existing.reduce((a, b) => a + Math.abs(b), 0);
       if (sum === 0) {
         const share = total / count;
-        return children.map((c) => ({ member_id: c.id, value: share }));
+        return childMembers.map((c) => ({ member_id: c.id, value: share }));
       }
-      return children.map((c, i) => ({
+      return childMembers.map((c, i) => ({
         member_id: c.id,
         value: total * (Math.abs(existing[i]) / sum),
       }));
@@ -104,9 +104,9 @@ export default function SpreadDialog({
       const weightSum = parsedWeights.reduce((a, b) => a + b, 0);
       if (weightSum === 0) {
         const share = total / count;
-        return children.map((c) => ({ member_id: c.id, value: share }));
+        return childMembers.map((c) => ({ member_id: c.id, value: share }));
       }
-      return children.map((c, i) => ({
+      return childMembers.map((c, i) => ({
         member_id: c.id,
         value: total * (parsedWeights[i] / weightSum),
       }));
@@ -261,13 +261,13 @@ export default function SpreadDialog({
               </div>
 
               {/* Weighted inputs */}
-              {method === "weighted" && children.length > 0 && (
+              {method === "weighted" && childMembers.length > 0 && (
                 <div>
                   <label className="block text-sm font-medium text-zinc-700">
                     Weights
                   </label>
                   <div className="mt-2 space-y-2">
-                    {children.map((child, i) => (
+                    {childMembers.map((child, i) => (
                       <div key={child.id} className="flex items-center gap-2">
                         <span className="w-32 truncate text-sm text-zinc-600">
                           {child.name}
@@ -293,7 +293,7 @@ export default function SpreadDialog({
               )}
 
               {/* Preview */}
-              {isValidTotal && children.length > 0 && (
+              {isValidTotal && childMembers.length > 0 && (
                 <div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-zinc-700">
@@ -325,7 +325,7 @@ export default function SpreadDialog({
                         </thead>
                         <tbody className="divide-y divide-zinc-100">
                           {previewData.map((item) => {
-                            const child = children.find(
+                            const child = childMembers.find(
                               (c) => c.id === item.member_id
                             );
                             const share =
@@ -394,7 +394,7 @@ export default function SpreadDialog({
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting || !isValidTotal || children.length === 0}
+                  disabled={isSubmitting || !isValidTotal || childMembers.length === 0}
                   className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
                 >
                   {isSubmitting ? "Applying..." : "Apply Spread"}

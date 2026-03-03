@@ -15,7 +15,6 @@ from app.schemas.rolling_forecast import (
     RollResult,
 )
 from app.services.rolling_forecast import (
-    auto_roll_if_due,
     create_forecast_config,
     get_forecast_config,
     get_forecast_status,

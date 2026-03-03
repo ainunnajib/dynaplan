@@ -30,10 +30,10 @@ Operator precedence (highest to lowest):
     OR
 """
 
-from typing import List, Optional, Any
+from typing import List, Optional
 from dataclasses import dataclass, field
 
-from .tokenizer import Token, TokenType, tokenize, TokenizerError
+from .tokenizer import Token, TokenType, tokenize
 
 
 # ---------------------------------------------------------------------------

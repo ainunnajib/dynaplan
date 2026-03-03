@@ -1,11 +1,12 @@
+from __future__ import annotations
+
 import enum
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from sqlalchemy import (
     DateTime,
-    Enum,
     ForeignKey,
     Index,
     Integer,
@@ -19,6 +20,11 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
+
+if TYPE_CHECKING:
+    from app.models.module import Module
+    from app.models.planning_model import PlanningModel
+    from app.models.user import User
 
 
 class DataHubColumnType(str, enum.Enum):

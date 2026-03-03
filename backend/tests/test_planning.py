@@ -631,8 +631,8 @@ async def test_bulk_spread(client: AsyncClient):
     )
     # Add a second parent with children
     parent2 = await create_item(client, token, dim_id, "Europe", "EUR")
-    child3 = await create_item(client, token, dim_id, "Germany", "DE", parent_id=parent2["id"])
-    child4 = await create_item(client, token, dim_id, "France", "FR", parent_id=parent2["id"])
+    await create_item(client, token, dim_id, "Germany", "DE", parent_id=parent2["id"])
+    await create_item(client, token, dim_id, "France", "FR", parent_id=parent2["id"])
 
     resp = await client.post(
         "/planning/bulk-spread",

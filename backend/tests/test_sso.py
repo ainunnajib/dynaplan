@@ -17,14 +17,10 @@ Covers:
 - Default role assignment on provision
 """
 import uuid
-from datetime import datetime, timedelta, timezone
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.sso import SSOProvider, SSOSession
-from app.services.auth import hash_password
 
 
 # ---------------------------------------------------------------------------

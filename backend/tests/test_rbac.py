@@ -2,7 +2,6 @@
 Tests for F028: Role-based access control.
 """
 import uuid
-from typing import Optional
 
 import pytest
 from httpx import AsyncClient
@@ -65,7 +64,7 @@ async def create_model(
 async def test_add_workspace_member(client: AsyncClient):
     """Owner can add a member to their workspace."""
     owner_token = await register_and_login(client, "rbac_owner1@example.com")
-    member_token = await register_and_login(client, "rbac_member1@example.com")
+    await register_and_login(client, "rbac_member1@example.com")
 
     ws_id = await create_workspace(client, owner_token)
 
@@ -126,7 +125,7 @@ async def test_add_workspace_member_unauthorized(client: AsyncClient):
     """Non-admin cannot add members."""
     owner_token = await register_and_login(client, "rbac_owner_deny@example.com")
     viewer_token = await register_and_login(client, "rbac_viewer_deny@example.com")
-    other_token = await register_and_login(client, "rbac_other_deny@example.com")
+    await register_and_login(client, "rbac_other_deny@example.com")
 
     ws_id = await create_workspace(client, owner_token)
     # Add viewer_deny as a viewer
@@ -153,8 +152,8 @@ async def test_add_workspace_member_unauthorized(client: AsyncClient):
 async def test_list_workspace_members(client: AsyncClient):
     """Owner can list all workspace members."""
     owner_token = await register_and_login(client, "rbac_list_owner@example.com")
-    mem1_token = await register_and_login(client, "rbac_list_m1@example.com")
-    mem2_token = await register_and_login(client, "rbac_list_m2@example.com")
+    await register_and_login(client, "rbac_list_m1@example.com")
+    await register_and_login(client, "rbac_list_m2@example.com")
 
     ws_id = await create_workspace(client, owner_token)
     await client.post(
@@ -199,7 +198,7 @@ async def test_list_workspace_members_nonexistent_workspace(client: AsyncClient)
 async def test_update_workspace_member_role(client: AsyncClient):
     """Owner can change a member's role."""
     owner_token = await register_and_login(client, "rbac_upd_owner@example.com")
-    mem_token = await register_and_login(client, "rbac_upd_mem@example.com")
+    await register_and_login(client, "rbac_upd_mem@example.com")
 
     ws_id = await create_workspace(client, owner_token)
     add_resp = await client.post(
@@ -222,7 +221,7 @@ async def test_update_workspace_member_role(client: AsyncClient):
 async def test_update_workspace_member_role_duplicate_add(client: AsyncClient):
     """Adding the same member twice updates their role."""
     owner_token = await register_and_login(client, "rbac_dup_owner@example.com")
-    mem_token = await register_and_login(client, "rbac_dup_mem@example.com")
+    await register_and_login(client, "rbac_dup_mem@example.com")
 
     ws_id = await create_workspace(client, owner_token)
     await client.post(
@@ -248,7 +247,7 @@ async def test_update_workspace_member_role_duplicate_add(client: AsyncClient):
 async def test_remove_workspace_member(client: AsyncClient):
     """Owner can remove a member."""
     owner_token = await register_and_login(client, "rbac_rem_owner@example.com")
-    mem_token = await register_and_login(client, "rbac_rem_mem@example.com")
+    await register_and_login(client, "rbac_rem_mem@example.com")
 
     ws_id = await create_workspace(client, owner_token)
     add_resp = await client.post(
@@ -313,7 +312,7 @@ async def test_admin_can_add_members(client: AsyncClient):
     """A workspace admin can add new members."""
     owner_token = await register_and_login(client, "rbac_hierarch_owner@example.com")
     admin_token = await register_and_login(client, "rbac_hierarch_admin@example.com")
-    new_mem_token = await register_and_login(client, "rbac_hierarch_new@example.com")
+    await register_and_login(client, "rbac_hierarch_new@example.com")
 
     ws_id = await create_workspace(client, owner_token)
     # Owner grants admin role to admin_token user
@@ -340,7 +339,7 @@ async def test_admin_can_add_members(client: AsyncClient):
 async def test_set_model_access(client: AsyncClient):
     """Model owner can set access for another user."""
     owner_token = await register_and_login(client, "rbac_maccess_owner@example.com")
-    user_token = await register_and_login(client, "rbac_maccess_user@example.com")
+    await register_and_login(client, "rbac_maccess_user@example.com")
 
     ws_id = await create_workspace(client, owner_token)
     model_id = await create_model(client, owner_token, ws_id)
@@ -404,8 +403,8 @@ async def test_set_model_access_nonexistent_user(client: AsyncClient):
 async def test_list_model_access(client: AsyncClient):
     """Owner can list all model access rules."""
     owner_token = await register_and_login(client, "rbac_mlist_owner@example.com")
-    user1_token = await register_and_login(client, "rbac_mlist_u1@example.com")
-    user2_token = await register_and_login(client, "rbac_mlist_u2@example.com")
+    await register_and_login(client, "rbac_mlist_u1@example.com")
+    await register_and_login(client, "rbac_mlist_u2@example.com")
 
     ws_id = await create_workspace(client, owner_token)
     model_id = await create_model(client, owner_token, ws_id)
@@ -439,7 +438,7 @@ async def test_list_model_access(client: AsyncClient):
 async def test_remove_model_access(client: AsyncClient):
     """Owner can remove model access for a user."""
     owner_token = await register_and_login(client, "rbac_mrem_owner@example.com")
-    user_token = await register_and_login(client, "rbac_mrem_user@example.com")
+    await register_and_login(client, "rbac_mrem_user@example.com")
 
     ws_id = await create_workspace(client, owner_token)
     model_id = await create_model(client, owner_token, ws_id)
@@ -489,7 +488,7 @@ async def test_remove_model_access_not_found(client: AsyncClient):
 async def test_update_model_access_changes_permission(client: AsyncClient):
     """Setting access for the same user twice updates their permission."""
     owner_token = await register_and_login(client, "rbac_mperm_owner@example.com")
-    user_token = await register_and_login(client, "rbac_mperm_user@example.com")
+    await register_and_login(client, "rbac_mperm_user@example.com")
 
     ws_id = await create_workspace(client, owner_token)
     model_id = await create_model(client, owner_token, ws_id)

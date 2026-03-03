@@ -628,7 +628,7 @@ async def test_scim_deactivation_logged(client: AsyncClient):
         headers=auth_headers(jwt_token),
     )
     logs = resp.json()
-    operations = [l["operation"] for l in logs]
+    operations = [log_entry["operation"] for log_entry in logs]
     assert "deactivate_user" in operations
 
 
@@ -655,7 +655,7 @@ async def test_scim_group_operations_logged(client: AsyncClient):
         headers=auth_headers(jwt_token),
     )
     logs = resp.json()
-    operations = [l["operation"] for l in logs]
+    operations = [log_entry["operation"] for log_entry in logs]
     assert "create_group" in operations
     assert "delete_group" in operations
 

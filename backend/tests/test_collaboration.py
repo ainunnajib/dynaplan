@@ -9,7 +9,6 @@ Covers:
   - 404 for nonexistent models/sessions
 """
 import uuid
-from typing import Optional
 
 import pytest
 from httpx import AsyncClient
@@ -587,13 +586,12 @@ async def test_websocket_no_token_rejected(client: AsyncClient):
     model_id = await create_model(client, token, ws_id)
 
     with TestClient(app) as sync_client:
-        rejected = False
         try:
-            with sync_client.websocket_connect(f"/ws/models/{model_id}") as ws:
+            with sync_client.websocket_connect(f"/ws/models/{model_id}"):
                 # Connection may be accepted then immediately closed
                 pass
         except Exception:
-            rejected = True
+            pass
         # Either rejected at handshake or disconnected immediately — both valid
         assert True  # if we reach here without infinite hang, test passes
 
@@ -611,7 +609,7 @@ async def test_websocket_model_not_found(client: AsyncClient):
         try:
             with sync_client.websocket_connect(
                 f"/ws/models/{fake_model_id}?token={token}"
-            ) as ws:
+            ):
                 pass
         except Exception:
             pass  # Expected: connection was rejected

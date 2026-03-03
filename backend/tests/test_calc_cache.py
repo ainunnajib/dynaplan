@@ -6,7 +6,6 @@ Covers service-layer and REST API behaviour.
 
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
 import pytest
 from httpx import AsyncClient

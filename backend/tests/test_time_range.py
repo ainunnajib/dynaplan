@@ -689,7 +689,7 @@ async def test_unassign_module_not_found(client: AsyncClient):
 async def test_effective_returns_module_override(client: AsyncClient):
     token, model_id = await _setup(client, "eff_override@example.com")
     module = await create_module(client, token, model_id)
-    default_tr = await create_time_range(
+    await create_time_range(
         client, token, model_id, name="Default", is_model_default=True,
     )
     override_tr = await create_time_range(

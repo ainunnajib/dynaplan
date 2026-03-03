@@ -37,7 +37,12 @@ export default function CommentBadge({
   }, [modelId, targetType, targetId, apiBase, authToken]);
 
   useEffect(() => {
-    fetchCount();
+    const timeoutId = window.setTimeout(() => {
+      void fetchCount();
+    }, 0);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [fetchCount]);
 
   if (count === null) {
@@ -62,12 +67,12 @@ export default function CommentBadge({
         <div className="fixed inset-0 z-50 flex">
           {/* Backdrop */}
           <div
-            className="flex-1 bg-black/20"
-            onClick={() => {
-              setIsPanelOpen(false);
-              fetchCount();
-            }}
-          />
+              className="flex-1 bg-black/20"
+              onClick={() => {
+                setIsPanelOpen(false);
+                void fetchCount();
+              }}
+            />
           {/* Panel slides in from right */}
           <CommentPanel
             modelId={modelId}
@@ -77,7 +82,7 @@ export default function CommentBadge({
             authToken={authToken}
             onClose={() => {
               setIsPanelOpen(false);
-              fetchCount();
+              void fetchCount();
             }}
           />
         </div>

@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import enum
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from sqlalchemy import (
     DateTime,
@@ -19,6 +21,10 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
+
+if TYPE_CHECKING:
+    from app.models.dimension import Dimension
+    from app.models.saved_view import SavedView
 
 
 class LineItemFormat(str, enum.Enum):
