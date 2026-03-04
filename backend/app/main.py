@@ -59,19 +59,33 @@ from app.services.observability import api_metrics_collector
 
 logger = logging.getLogger(__name__)
 
+
+def _parse_allowed_origins(raw_origins: str) -> list[str]:
+    origins = [
+        origin.strip().rstrip("/")
+        for origin in raw_origins.split(",")
+        if origin.strip()
+    ]
+    if not origins:
+        return ["http://localhost:3000"]
+    return list(dict.fromkeys(origins))
+
+
 app = FastAPI(
     title="Dynaplan",
     description="Enterprise planning platform - open-source Anaplan alternative",
     version="0.1.0",
 )
 
+allowed_origins = _parse_allowed_origins(settings.frontend_url)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+logger.info("Configured CORS allow_origins=%s", allowed_origins)
 
 
 @app.middleware("http")

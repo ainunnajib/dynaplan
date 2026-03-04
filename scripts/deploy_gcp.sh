@@ -98,6 +98,50 @@ get_secret_latest_or_empty() {
     --project "${PROJECT_ID}" 2>/dev/null || true
 }
 
+get_cloud_run_urls_csv() {
+  local service="$1"
+  local urls_json=""
+  urls_json="$(
+    gcloud run services describe "${service}" \
+      --project "${PROJECT_ID}" \
+      --region "${REGION}" \
+      --format='value(metadata.annotations."run.googleapis.com/urls")' 2>/dev/null || true
+  )"
+
+  if [[ -n "${urls_json}" ]]; then
+    python3 - "${urls_json}" <<'PY'
+import json
+import sys
+
+raw = sys.argv[1].strip()
+if not raw:
+    print("")
+    raise SystemExit(0)
+
+try:
+    parsed = json.loads(raw)
+except json.JSONDecodeError:
+    parsed = raw
+
+if isinstance(parsed, list):
+    urls = [str(item).strip().rstrip("/") for item in parsed if str(item).strip()]
+elif isinstance(parsed, str) and parsed.strip():
+    urls = [parsed.strip().rstrip("/")]
+else:
+    urls = []
+
+unique_urls = list(dict.fromkeys(urls))
+print(",".join(unique_urls))
+PY
+    return
+  fi
+
+  gcloud run services describe "${service}" \
+    --project "${PROJECT_ID}" \
+    --region "${REGION}" \
+    --format='value(status.url)' 2>/dev/null || true
+}
+
 deploy_backend() {
   local cors_url="$1"
   if is_true "${USE_CLOUD_SQL}"; then
@@ -109,7 +153,7 @@ deploy_backend() {
       --service-account "${BACKEND_RUNTIME_SERVICE_ACCOUNT}" \
       --allow-unauthenticated \
       --add-cloudsql-instances "${INSTANCE_CONNECTION_NAME}" \
-      --set-env-vars "DYNAPLAN_REDIS_URL=${BACKEND_REDIS_URL},DYNAPLAN_FRONTEND_URL=${cors_url},DYNAPLAN_AUTO_CREATE_SCHEMA=${BACKEND_AUTO_CREATE_SCHEMA}" \
+      --set-env-vars "^@^DYNAPLAN_REDIS_URL=${BACKEND_REDIS_URL}@DYNAPLAN_FRONTEND_URL=${cors_url}@DYNAPLAN_AUTO_CREATE_SCHEMA=${BACKEND_AUTO_CREATE_SCHEMA}" \
       --set-secrets "DYNAPLAN_DATABASE_URL=${DB_URL_SECRET_NAME}:latest,DYNAPLAN_SECRET_KEY=${APP_SECRET_KEY_SECRET_NAME}:latest" \
       --quiet
   else
@@ -120,7 +164,7 @@ deploy_backend() {
       --image "${BACKEND_IMAGE}" \
       --service-account "${BACKEND_RUNTIME_SERVICE_ACCOUNT}" \
       --allow-unauthenticated \
-      --set-env-vars "DYNAPLAN_DATABASE_URL=${BACKEND_DB_URL},DYNAPLAN_REDIS_URL=${BACKEND_REDIS_URL},DYNAPLAN_SECRET_KEY=${BACKEND_SECRET_KEY},DYNAPLAN_FRONTEND_URL=${cors_url},DYNAPLAN_AUTO_CREATE_SCHEMA=${BACKEND_AUTO_CREATE_SCHEMA}" \
+      --set-env-vars "^@^DYNAPLAN_DATABASE_URL=${BACKEND_DB_URL}@DYNAPLAN_REDIS_URL=${BACKEND_REDIS_URL}@DYNAPLAN_SECRET_KEY=${BACKEND_SECRET_KEY}@DYNAPLAN_FRONTEND_URL=${cors_url}@DYNAPLAN_AUTO_CREATE_SCHEMA=${BACKEND_AUTO_CREATE_SCHEMA}" \
       --quiet
   fi
 }
@@ -264,7 +308,14 @@ gcloud builds submit . \
   --config cloudbuild.backend.yaml \
   --quiet
 
-BACKEND_FRONTEND_URL="${FRONTEND_URL:-http://localhost:3000}"
+if [[ -n "${FRONTEND_URL:-}" ]]; then
+  BACKEND_FRONTEND_URL="${FRONTEND_URL}"
+else
+  BACKEND_FRONTEND_URL="$(get_cloud_run_urls_csv "${FRONTEND_SERVICE}")"
+  if [[ -z "${BACKEND_FRONTEND_URL}" ]]; then
+    BACKEND_FRONTEND_URL="http://localhost:3000"
+  fi
+fi
 
 echo "Deploying backend service: ${BACKEND_SERVICE}"
 deploy_backend "${BACKEND_FRONTEND_URL}"
@@ -296,12 +347,16 @@ FRONTEND_URL_DEPLOYED="$(gcloud run services describe "${FRONTEND_SERVICE}" \
   --project "${PROJECT_ID}" \
   --region "${REGION}" \
   --format='value(status.url)')"
+FRONTEND_URLS_DEPLOYED="$(get_cloud_run_urls_csv "${FRONTEND_SERVICE}")"
+if [[ -z "${FRONTEND_URLS_DEPLOYED}" ]]; then
+  FRONTEND_URLS_DEPLOYED="${FRONTEND_URL_DEPLOYED}"
+fi
 
 echo "Frontend URL: ${FRONTEND_URL_DEPLOYED}"
 
 if [[ -z "${FRONTEND_URL:-}" ]]; then
-  echo "Updating backend CORS to deployed frontend URL."
-  deploy_backend "${FRONTEND_URL_DEPLOYED}"
+  echo "Updating backend CORS to deployed frontend URL(s): ${FRONTEND_URLS_DEPLOYED}"
+  deploy_backend "${FRONTEND_URLS_DEPLOYED}"
 fi
 
 echo "Deployment complete."
